@@ -1,0 +1,32 @@
+/* Shared colors for the homepage, documentation, and playground.
+   Change --lm-brand here; the supporting shades follow automatically.
+   Keep white button text readable when choosing a different brand color. */
+:root {
+  --lm-brand: #000ce8;
+  --lm-on-brand: #fff;
+  --lm-brand-hover: color-mix(in srgb, var(--lm-brand) 85%, black);
+  --lm-accent-light: var(--lm-brand);
+  --lm-accent-dark: color-mix(in srgb, var(--lm-brand) 40%, white);
+  --lm-accent-soft-light: color-mix(in srgb, var(--lm-brand) 7%, white);
+  --lm-accent-soft-dark: color-mix(in srgb, var(--lm-brand) 22%, #151820);
+  --lm-accent-strong-light: color-mix(in srgb, var(--lm-brand) 75%, black);
+  --lm-accent-strong-dark: color-mix(in srgb, var(--lm-brand) 20%, white);
+  --lm-accent: var(--lm-accent-light);
+  --lm-accent-soft: var(--lm-accent-soft-light);
+  --lm-accent-strong: var(--lm-accent-strong-light);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --lm-accent: var(--lm-accent-dark);
+    --lm-accent-soft: var(--lm-accent-soft-dark);
+    --lm-accent-strong: var(--lm-accent-strong-dark);
+  }
+}
+
+/* The docs' theme switch overrides the browser preference. */
+:root[data-theme='dark'] {
+  --lm-accent: var(--lm-accent-dark);
+  --lm-accent-soft: var(--lm-accent-soft-dark);
+  --lm-accent-strong: var(--lm-accent-strong-dark);
+}

@@ -1,0 +1,165 @@
+# Direct access to model APIs. One SDK across providers.
+
+LM15 connects directly to supported provider endpoints. Its adapters implement
+the provider protocols themselves—without wrapping the providers' SDKs or
+requiring a hosted LM15 gateway.
+
+Build with typed requests, responses, streaming, and tools. Keep control of your
+transport, agent loop, retry policy, and user interface, without maintaining a
+separate integration with each provider's SDK.
+
+Its language implementations target a shared contract, with fixtures for checking
+provider mappings and common behavior.
+
+**[Make your first request](docs/first-request.md)** ·
+[Check compatibility](compatibility/index.md)
+
+## Start with one request
+
+**Python · OpenAI · gpt-4.1-mini**
+
+Install the Python release candidate:
+
+```sh
+python -m pip install lm15==1.0.0rc1
+```
+
+Set `OPENAI_API_KEY` to your own API key, then run the example below.
+This makes a real request to OpenAI and may incur charges.
+
+**No API key handy?** You can also [try LM15 with test responses](docs/testing.md),
+without calling a provider.
+
+```python
+import os
+
+from lm15 import Message, OpenAILM, Request
+
+request = Request(
+    model="gpt-4.1-mini",
+    messages=(Message.user("Explain caching in one sentence."),),
+)
+
+with OpenAILM(api_key=os.environ["OPENAI_API_KEY"]) as lm:
+    response = lm.complete(request)
+    print(response.text)
+```
+
+You create a **Request**. A configured client translates it into the provider's
+API format. You receive a **Response**, with message content, a finish reason,
+and any usage information the provider reported.
+
+```text
+Your application → Provider's SDK → Provider API
+Your application → LM15           → Provider API
+```
+
+LM15 is an alternative client, not an extra SDK layered on top of the provider's
+client. You can inspect generated requests and supply your own transport. For
+options outside the common model, compatibility policies and extension fields
+keep provider-specific configuration accessible.
+
+Streaming uses the same request. Instead of a completed response, the client
+returns events your application can display or collect into a final result.
+
+To use another provider, configure its client and choose a model it serves.
+The request and response concepts stay the same.
+
+[Learn the core concepts](docs/core-concepts.md) ·
+[Stream a response](docs/streaming.md)
+
+## Evaluate one call before changing your architecture
+
+Start with one provider call. Adapt its result into your existing framework,
+then check the streaming, tools, and error behavior your application needs.
+You can assess the fit before deciding how much to integrate.
+
+Accept a configured LM15 client in your own API, or construct one inside your
+framework. Use the built-in transports or supply your own. No hosted LM15
+gateway is required.
+
+Your application still decides which model to call, whether to retry, and what
+a requested tool may do. LM15 removes provider-specific plumbing from that work;
+it does not require you to adopt a new agent loop or application framework.
+
+You can also use it directly, as in the example above.
+
+## Compare capabilities, not just a hello-world call
+
+A smaller SDK is only useful if it carries the features your application needs.
+Check the selected provider's coverage beyond basic text generation.
+
+| Capability | What it lets you do |
+|---|---|
+| **Streaming** | Consume typed text, tool-argument, reasoning, and completion events instead of parsing each provider's stream format. |
+| **Tools** | Declare application functions and provider-built-in tools while keeping control of your own tool execution. |
+| **Structured output** | Request response formats and schema constraints on supported endpoints. |
+| **Reasoning and continuation** | Carry provider-issued opaque state into later turns without discarding it or presenting hidden reasoning as visible text. |
+| **Prompt caching** | Set supported cache controls and inspect the cache usage the provider reports. |
+| **Media** | Build requests with typed images, documents, audio, and video where supported. |
+| **Errors and usage** | Make retry decisions using common error categories and available hints. Distinguish unreported usage from zero. |
+
+Separate APIs cover files, batches, media generation, video jobs, and realtime
+sessions. These surfaces remain provisional.
+
+A shared interface does not make every provider identical. Availability and
+behavior depend on the endpoint, model, and SDK. An official SDK may expose
+features or new endpoints that LM15 does not yet support; coverage should make
+those gaps visible alongside the supported features.
+
+[Compare feature coverage](compatibility/index.md) ·
+[Connect a local or custom server](docs/custom-servers.md)
+
+## Check the behavior before depending on it
+
+LM15 defines its common behavior in a language-neutral contract. Shared fixtures
+check request construction, response parsing, streaming, serialization, and
+errors across implementations.
+
+The contract has authority over the implementations—not the other way around.
+You can check an SDK against defined behavior instead of assuming that similar
+method names mean the same thing.
+
+Use test responses to exercise your own integration without spending provider
+credits. Run real provider calls when you need to verify the network path and
+the behavior of a particular model.
+
+Fixture checks, executable examples, and live provider captures answer different
+questions. Check the evidence for the SDK and feature you intend to use; a
+passing recorded case is not a promise about every model or future API change.
+
+[How support is verified](compatibility/verification.md) ·
+[Language and runtime support](compatibility/languages.md) ·
+[Read the contract](https://github.com/lm15-dev/lm15-contract)
+
+## Small enough to build on
+
+The Python core has **no required third-party dependencies**. WebSocket support
+is an optional extra.
+
+Evaluate LM15 alongside the official SDKs you would otherwise install: required
+dependencies, installed size, startup time, memory, and request/stream processing
+overhead.
+
+Benchmark reports identify the SDK version, runtime, workload, and environment.
+A lower startup cost does not mean the model generates tokens faster. Compare
+the costs that matter to your deployment, with the features you actually use.
+
+[See benchmarks and methodology](benchmarks.md)
+
+## Build the next layer
+
+- **Making your first integration?** Start with [one request](docs/first-request.md),
+  then add [streaming](docs/streaming.md) or [tools](docs/function-tools.md).
+- **Building a framework or agent runtime?** Explore the [API reference](reference/index.md)
+  and [test your integration](docs/testing.md) without calling a live provider.
+- **Connecting your own server?** Configure its [endpoint and compatibility policy](docs/custom-servers.md).
+- **Choosing an implementation?** Check [SDK availability and runtime support](compatibility/languages.md).
+
+---
+
+**Why 15?** A nod to [XKCD's “Standards”](https://xkcd.com/927/), by Randall Munroe:
+trying to unite fourteen competing standards creates a fifteenth. We know.
+
+[About LM15](about.md) · [Releases](releases.md) ·
+[Contributing](contributing.md) · [Report a bug](support.md) · [Security](security.md)

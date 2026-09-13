@@ -81,7 +81,7 @@ jobs:
           cargo build --locked --profile wasm --lib --no-default-features --features wasm --target wasm32-unknown-unknown
           mkdir -p ../lm15-ts/vendor/rust
           cp target/wasm32-unknown-unknown/wasm/lm15.wasm ../lm15-ts/vendor/rust/lm15.wasm
-          python ../lm15-ts/tools/rust_licenses.py . > ../lm15-ts/vendor/rust/THIRD_PARTY_LICENSES.txt
+          python ../../scripts/rust-licenses.py . > ../lm15-ts/vendor/rust/THIRD_PARTY_LICENSES.txt
       - name: Package pinned runtimes
         run: |
           node scripts/package-runtime.mjs

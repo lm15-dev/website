@@ -1,0 +1,8 @@
+[package]
+name = "lm15-website-examples"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+lm15 = { git = "https://github.com/lm15-dev/lm15-rs", rev = "62dcbff9afa2688f68fd2c22f7e7f93dcba14377" }
