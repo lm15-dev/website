@@ -1,0 +1,1 @@
+{"name":"bench-vercel","version":"0.0.0","private":true,"type":"module","dependencies":{"@ai-sdk/anthropic":"4.0.53","@ai-sdk/google":"4.0.69","@ai-sdk/openai":"4.0.66","ai":"7.0.99"}}

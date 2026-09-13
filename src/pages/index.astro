@@ -1,5 +1,7 @@
 ---
 import '../styles/home.css';
+import HomeExample from '../components/HomeExample.astro';
+import HomeBenchmarks from '../components/HomeBenchmarks.astro';
 ---
 <!doctype html>
 <html lang="en">
@@ -11,7 +13,7 @@ import '../styles/home.css';
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>LM15 — Direct access to model APIs</title>
   </head>
-  <body>
+  <body class="home">
     <a class="skip" href="#main">Skip to content</a>
     <header>
       <a class="brand" href="/" aria-label="LM15 home">lm15<span aria-hidden="true">.</span></a>
@@ -22,11 +24,11 @@ import '../styles/home.css';
       </nav>
     </header>
     <main id="main">
-      <section class="hero">
+      <HomeExample>
         <h1>All Providers<br>One API</h1>
-        <div class="actions"><a class="button" href="/docs/languages/">Start building →</a><a class="secondary" href="/playground/">Try the playground</a></div>
-        <p class="languages">Python · TypeScript · Rust · Go · R · Julia</p>
-      </section>
+        <div class="actions"><a class="button" href="/docs/" data-docs-link>Learn more →</a><a class="secondary" href="/playground/">Try the playground</a></div>
+      </HomeExample>
+      <HomeBenchmarks />
     </main>
     <footer><span>LM15 · One family of model API clients.</span><a href="/playground/about/">Privacy & licenses</a><a href="https://github.com/lm15-dev/lm15-contract">Shared contract ↗</a></footer>
   </body>

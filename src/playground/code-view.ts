@@ -14,14 +14,41 @@ export function tokens(source: string, language: string): Token[] {
   return out;
 }
 
+/** Value positions in our generated examples, not every literal or matching word.
+ * Imports, dictionary keys, transport headers and output formatting stay neutral.
+ */
+function controlledValue(prefix: string, token: Token): boolean {
+  if (token.kind === "number") {
+    return /\b(?:maxTokens|max_tokens|temperature)\s*[:=]\s*(?:Some\(\s*)?$/.test(prefix);
+  }
+  if (token.kind !== "string") return false;
+  const apiKey = /\b(?:apiKey|api_key)\s*[:=]\s*$|\.api_key\(\s*"[^"\\]*"\s*,\s*$/.test(prefix);
+  if (apiKey) return token.text !== '"unused"' && token.text !== "'unused'";
+  return /(?:\b(?:model|system|baseUrl|base_url|compat|effort)|"(?:model|system|text|base_url|effort)")\s*[:=]\s*(?:Some\(\s*)?$/.test(prefix)
+    || /\bMessage(?:\.|::)(?:user|assistant)\(\s*$/.test(prefix)
+    || /\badapterFor\(\s*$|\.(?:api_key|base_url)\(\s*$|\.base_url\(\s*"[^"\\]*"\s*,\s*$|\bReasoning::new\(\s*$/.test(prefix);
+}
+
 export function renderCode(element: HTMLElement, source: string, language: string): void {
   const fragment = document.createDocumentFragment();
+  let offset = 0;
   for (const token of tokens(source, language)) {
+    const highlighted = controlledValue(source.slice(Math.max(0, offset - 256), offset), token);
+    offset += token.text.length;
     if (!token.kind) fragment.append(document.createTextNode(token.text));
     else {
       const span = document.createElement("span");
       span.className = `token-${token.kind}`;
-      span.textContent = token.text;
+      if (highlighted && token.kind === "string") {
+        // Quotes are syntax, not input. Keep copying identical to the source.
+        const value = document.createElement("span");
+        value.className = "token-value";
+        value.textContent = token.text.slice(1, -1);
+        span.append(document.createTextNode(token.text[0]!), value, document.createTextNode(token.text.at(-1)!));
+      } else {
+        if (highlighted) span.classList.add("token-value");
+        span.textContent = token.text;
+      }
       fragment.append(span);
     }
   }

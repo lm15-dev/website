@@ -1,0 +1,66 @@
+---
+import { BENCHMARKS, barHeight, chartMaximum, formatValue, valueDescription } from '../data/benchmarks';
+import { REQUEST_FLOW } from '../data/request-flow';
+import { INITIAL, LANGUAGES } from './home-example/examples';
+import './home-benchmarks/benchmarks.css';
+const suite = BENCHMARKS[INITIAL.language];
+const language = LANGUAGES.find(item => item.id === INITIAL.language)!;
+---
+<section class="home-benchmarks" aria-labelledby="benchmarks-title" data-benchmarks>
+  <div class="benchmark-heading">
+    <h2 id="benchmarks-title">Less overhead.</h2>
+    <p><span class="benchmark-language" data-benchmark-language>{language.label}</span><span aria-hidden="true"> / </span>Lower is better <span class="benchmark-disclosure" data-benchmark-disclosure>{suite.status === 'illustrative' ? '· Demo data' : `· ${suite.measuredAt}`}</span></p>
+  </div>
+  <div class="benchmark-grid" data-benchmark-grid>
+    {suite.metrics.map(metric => {
+      const maximum = chartMaximum(metric);
+      return (
+        <figure class="benchmark-chart" aria-label={`${metric.label}. ${metric.description}`}>
+          <div class="benchmark-bars" role="list" aria-label={metric.label}>
+            {metric.values.map(item => (
+              <div class:list={['benchmark-column', { 'is-lm15': item.id === 'lm15' }]} role="listitem" aria-label={valueDescription(item, metric.unit)} title={valueDescription(item, metric.unit)}>
+                <div class="benchmark-track" aria-hidden="true">
+                  <div class="benchmark-bar" style={`--bar-height:${barHeight(item.value, maximum)}%`} data-zero={item.value === 0} data-missing={item.value === null}></div>
+                  <span class="benchmark-value" style={`bottom:${barHeight(item.value, maximum)}%`}>{formatValue(item.value, '')}</span>
+                </div>
+                <span class="benchmark-client" aria-hidden="true">{item.label}</span>
+              </div>
+            ))}
+          </div>
+          <figcaption>{metric.label}{metric.unit && <> <span class="benchmark-unit">({metric.unit})</span></>}</figcaption>
+        </figure>
+      );
+    })}
+  </div>
+  <a class="benchmark-source" data-benchmark-source href={suite.status === 'measured' ? suite.sourceUrl : undefined} hidden={suite.status !== 'measured'}>Method & results ↗</a>
+  <span class="benchmark-sr-only" role="status" aria-live="polite" data-benchmark-status></span>
+</section>
+<section class="home-request-flow" aria-labelledby="request-flow-title">
+  <div class="flow-heading">
+    <h2 id="request-flow-title">One interface, direct connections</h2>
+  </div>
+  {REQUEST_FLOW.map(group => (
+    <section class="flow-group" aria-label={group.label} data-flow-reveal>
+      {group.id !== 'core' && <h3>{group.label}</h3>}
+      <div class="flow-grid">
+        <div class="flow-terminal flow-input"><span>{group.input}</span></div>
+        <div class="flow-routes">
+          {group.rows.map(row => (
+            <div class="flow-route">
+              <span class="flow-adapter">{row.label}</span>
+              <span class="flow-arrow" aria-hidden="true">→</span>
+              <span class="flow-transport">{row.transport}</span>
+              <span class="flow-arrow" aria-hidden="true">→</span>
+              <span class="flow-target">{row.target}</span>
+            </div>
+          ))}
+        </div>
+        <div class="flow-terminal flow-output"><span>{group.output}</span></div>
+      </div>
+    </section>
+  ))}
+</section>
+<script>
+  import { setupBenchmarks } from './home-benchmarks/client';
+  setupBenchmarks();
+</script>

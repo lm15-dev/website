@@ -1,0 +1,75 @@
+---
+import SiteTitle from '@astrojs/starlight/components/SiteTitle.astro';
+import Search from '@astrojs/starlight/components/Search.astro';
+import SocialIcons from '@astrojs/starlight/components/SocialIcons.astro';
+import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
+import '../components/home-example/example.css';
+---
+<div class="docs-header">
+  <div class="docs-brand"><SiteTitle /></div>
+  <div class="docs-choices" data-doc-controls aria-label="Documentation choices">
+    <button type="button" class="example-choice" data-doc-language role="combobox" aria-label="Language" aria-haspopup="listbox" aria-expanded="false" aria-controls="docs-header-picker">Python</button>
+    <button type="button" class="example-choice" data-doc-provider role="combobox" aria-label="Providers" aria-haspopup="listbox" aria-expanded="false" aria-controls="docs-header-picker">Providers</button>
+    <button type="button" class="example-choice" data-doc-model role="combobox" aria-label="Models" aria-haspopup="listbox" aria-expanded="false" aria-controls="docs-header-picker" title="Choose a provider first." disabled>Models</button>
+    <div class="example-picker docs-picker" id="docs-header-picker" data-doc-picker popover="auto" role="listbox" aria-label="Documentation choices"></div>
+    <dialog class="docs-model-dialog" data-doc-model-dialog aria-labelledby="docs-model-title">
+      <form data-doc-model-form>
+        <h2 id="docs-model-title">Enter a model ID</h2>
+        <input data-doc-custom-model aria-label="Model ID" placeholder="Model ID" maxlength="256" required spellcheck="false" autocomplete="off" />
+        <div class="docs-dialog-actions">
+          <button type="button" data-doc-model-cancel>Cancel</button>
+          <button type="submit">Use model</button>
+        </div>
+      </form>
+    </dialog>
+    <span class="sr-only" data-doc-control-status role="status" aria-live="polite"></span>
+  </div>
+  <div class="docs-extras"><SocialIcons /><ThemeSelect /></div>
+  <div class="docs-search">
+    <a class="docs-playground" href="/playground/">Playground</a>
+    <Search />
+  </div>
+</div>
+<script>
+  import { setupDocsExamples } from './docs-examples-client';
+  setupDocsExamples();
+  document.addEventListener('astro:page-load', setupDocsExamples);
+</script>
+<style>
+  .docs-header { display: flex; align-items: center; gap: 1.4rem; height: 100%; }
+  .docs-brand { flex-shrink: 0; }
+  .docs-choices { display: flex; align-items: center; gap: 1.2rem; min-width: 0; }
+  .docs-choices > button { font: 650 .9rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; min-height: 44px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22rem; }
+  .docs-choices > button:disabled { cursor: default; }
+  .docs-choices > button:focus-visible { outline: none; text-decoration: underline; text-underline-offset: 4px; }
+  .docs-picker { --line: var(--sl-color-gray-5); --muted: var(--sl-color-gray-2); --example-surface: var(--sl-color-bg); color: var(--sl-color-text); }
+  .docs-extras { display: flex; align-items: center; gap: 1rem; margin-left: auto; flex-shrink: 0; }
+  .docs-search { display: flex; align-items: center; gap: .75rem; margin-left: auto; flex-shrink: 0; }
+  .docs-playground { display: inline-flex; align-items: center; min-height: 44px; color: var(--lm-accent); font-size: .9rem; font-weight: 600; text-decoration: none; }
+  .docs-playground:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .docs-playground:focus-visible { outline: 2px solid var(--lm-accent); outline-offset: 3px; }
+  .docs-extras + .docs-search { margin-left: 0; }
+  .docs-search :global(button[data-open-modal]) { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--sl-color-text); font-size: 1.25rem; }
+  .docs-search :global(button[data-open-modal] > :is(span, kbd)) { display: none !important; }
+  .docs-search :global(button[data-open-modal]:hover) { color: var(--lm-accent); }
+  .docs-model-dialog { width: min(24rem, calc(100vw - 2rem)); padding: 1.4rem; border: 1px solid var(--sl-color-gray-5); border-radius: .7rem; background: var(--sl-color-bg); color: var(--sl-color-text); }
+  .docs-model-dialog::backdrop { background: #0005; }
+  .docs-model-dialog h2 { margin: 0 0 1rem; font-size: 1rem; }
+  .docs-model-dialog input { width: 100%; padding: .6rem; font: inherit; border: 1px solid var(--sl-color-gray-4); border-radius: .3rem; background: transparent; color: inherit; }
+  .docs-dialog-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1rem; }
+  .docs-dialog-actions button { padding: .4rem 0; border: 0; background: transparent; color: var(--lm-accent); font: inherit; cursor: pointer; }
+  @media (max-width: 70rem) {
+    .docs-extras { display: none; }
+    .docs-extras + .docs-search { margin-left: auto; }
+    .docs-choices > button { max-width: 16rem; }
+  }
+  @media (max-width: 49.99rem) {
+    :global(:root) { --sl-nav-height: 7rem; }
+    .docs-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .3rem; padding-right: 2.5rem; }
+    .docs-search { grid-column: 2; grid-row: 1; }
+    .docs-choices { grid-column: 1 / -1; grid-row: 2; gap: 1rem; }
+    .docs-choices > button { font-size: .8rem; }
+    .docs-choices > button:not([data-doc-model]) { flex-shrink: 0; }
+  }
+  @media print { .docs-choices, .docs-search, .docs-extras { display: none; } }
+</style>

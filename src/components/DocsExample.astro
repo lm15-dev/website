@@ -1,0 +1,31 @@
+---
+import { DEFAULT_SELECTION, RECIPES, SETUP, type Recipe } from '../data/docs-examples';
+interface Props { recipe?: Recipe }
+const { recipe = 'first-request' } = Astro.props;
+const selection = DEFAULT_SELECTION;
+---
+<section class="docs-example" data-docs-example data-recipe={recipe} aria-label="Configurable example">
+
+  <p><a data-doc-setup href={SETUP[selection.language].href}>{SETUP[selection.language].text}</a></p>
+  <p data-doc-auth>Choose a provider and model at the top of the page to fill in this example.</p>
+  <div class="docs-source">
+    <button type="button" data-doc-copy aria-label="Copy example code">Copy</button>
+    <pre tabindex="0" aria-label="Example source code"><code data-doc-source>{RECIPES[recipe](selection)}</code></pre>
+  </div>
+  <p class="docs-example-hint" data-doc-status role="status" aria-live="polite"></p>
+  <noscript>Enable JavaScript to change these choices. The Python example is shown above.</noscript>
+</section>
+<script>
+  import { setupDocsExamples } from './docs-examples-client';
+  setupDocsExamples();
+  document.addEventListener('astro:page-load', setupDocsExamples);
+</script>
+<style>
+  .docs-example { margin-block: 1.5rem; }
+  button:focus-visible { outline: 2px solid var(--sl-color-accent); outline-offset: 2px; }
+  .docs-source { position: relative; }
+  .docs-source pre { padding: 2.7rem 1rem 1rem; }
+  .docs-source button { position: absolute; right: .6rem; top: .5rem; padding: .15rem .5rem; font: inherit; font-size: .8rem; color: var(--sl-color-text); background: var(--sl-color-bg); border: 1px solid var(--sl-color-gray-4); border-radius: .25rem; cursor: pointer; }
+  .docs-example-hint { font-size: .85rem; color: var(--sl-color-gray-2); }
+  [data-doc-status]:empty { display: none; }
+</style>

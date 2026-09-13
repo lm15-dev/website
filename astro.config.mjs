@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { readFileSync } from 'node:fs';
+import { sidebar } from './navigation.mjs';
 
 // Development-only refresh for the standalone playground. None of these routes is published.
 const playgroundDev = {
@@ -35,14 +36,11 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'LM15',
+      components: { Header: './src/components/DocsHeader.astro' },
       disable404Route: true, // src/pages/404.astro owns the shared not-found page.
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/lm15-dev' }],
       editLink: { baseUrl: 'https://github.com/lm15-dev/website/edit/main/' },
-      sidebar: [
-        { label: 'Start here', items: [{ label: 'Overview', slug: 'docs' }, { label: 'Choose your language', slug: 'docs/languages' }] },
-        { label: 'Playground', link: '/playground/' },
-        { label: 'Shared contract', link: 'https://github.com/lm15-dev/lm15-contract' },
-      ],
+      sidebar,
       customCss: ['./src/styles/docs.css'],
     }),
     playgroundDev,

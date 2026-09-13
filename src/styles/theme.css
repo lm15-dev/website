@@ -14,6 +14,19 @@
   --lm-accent: var(--lm-accent-light);
   --lm-accent-soft: var(--lm-accent-soft-light);
   --lm-accent-strong: var(--lm-accent-strong-light);
+
+  /* Cool blue/teal code colors, with warm amber separating numeric values.
+     Keep the same token meanings in both code panels; brightness changes by mode. */
+  --lm-code-string-light: #006b70;
+  --lm-code-string-dark: #86d9d0;
+  --lm-code-number-light: #9c4f16;
+  --lm-code-number-dark: #e8b581;
+  --lm-code-comment-light: #5f6f86;
+  --lm-code-comment-dark: #a0afc3;
+  --lm-code-keyword: var(--lm-accent);
+  --lm-code-string: var(--lm-code-string-light);
+  --lm-code-number: var(--lm-code-number-light);
+  --lm-code-comment: var(--lm-code-comment-light);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +34,9 @@
     --lm-accent: var(--lm-accent-dark);
     --lm-accent-soft: var(--lm-accent-soft-dark);
     --lm-accent-strong: var(--lm-accent-strong-dark);
+    --lm-code-string: var(--lm-code-string-dark);
+    --lm-code-number: var(--lm-code-number-dark);
+    --lm-code-comment: var(--lm-code-comment-dark);
   }
 }
 
@@ -29,4 +45,7 @@
   --lm-accent: var(--lm-accent-dark);
   --lm-accent-soft: var(--lm-accent-soft-dark);
   --lm-accent-strong: var(--lm-accent-strong-dark);
+  --lm-code-string: var(--lm-code-string-dark);
+  --lm-code-number: var(--lm-code-number-dark);
+  --lm-code-comment: var(--lm-code-comment-dark);
 }
