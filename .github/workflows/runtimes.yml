@@ -83,11 +83,13 @@ jobs:
           cp target/wasm32-unknown-unknown/wasm/lm15.wasm ../lm15-ts/vendor/rust/lm15.wasm
           python ../lm15-ts/tools/rust_licenses.py . > ../lm15-ts/vendor/rust/THIRD_PARTY_LICENSES.txt
       - name: Package pinned runtimes
-        run: node scripts/package-runtime.mjs
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        run: |
+          node scripts/package-runtime.mjs
+          cp .build/*.tgz runtime-package.tgz
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: runtime-package
-          path: .build/*.tgz
+          path: runtime-package.tgz
           if-no-files-found: error
   release:
     needs: build
@@ -95,7 +97,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: runtime-package
           path: package
