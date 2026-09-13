@@ -10,3 +10,6 @@ dist/
 .env.*
 !.env.example
 examples/rust/target/
+benchmarks/native/inputs/
+benchmarks/native/target/
+benchmarks/native/__pycache__/

@@ -1,9 +1,9 @@
 # Homepage visual data
 
 Python uses measured data in `python-benchmarks.ts`; TypeScript uses Node.js
-measurements in `node-benchmarks.ts`. Both come from server runs linked by their
-reports. Other languages still use **invented design fixtures** in
-`benchmarks.ts`, labeled as demo data until they are measured.
+measurements in `node-benchmarks.ts`; Rust and Go use `native-benchmarks.ts`.
+All come from server runs linked by their reports. R and Julia still use
+**invented design fixtures**, labeled as demo data.
 
 Run `scripts/benchmark-python.py` on **192.168.2.24**, not the laptop. Its default
 20 workers use distinct physical cores, with each benchmark process restricted
@@ -24,6 +24,12 @@ installs and imports `ai` plus `@ai-sdk/openai`, `@ai-sdk/anthropic`, and
 `@ai-sdk/google`; adapter versions are listed in the report. The website's larger,
 combined runtime package must not be used for npm SDK footprint comparisons.
 
+For Rust and Go, follow `benchmarks/native/README.md`. Those runs use 5 clean
+single-core builds and 40 runtime processes per SDK. A private loopback server
+checks equivalent requests and recorded replies. The native charts show program
+size, clean build time, local request time, and client memory—not import costs.
+The LM15 Go result uses an explicitly recorded, unreleased source snapshot.
+
 Replace each `BENCHMARKS[language]` independently. A measured suite requires:
 
 - `status: 'measured'`
@@ -43,8 +49,9 @@ The current four metrics assume that lower is better.
 
 The language tabs update these charts automatically. Provider/model selections
 do not change them: these are local SDK costs, not model response speeds.
-Python's comparisons include LiteLLM. Rust, R, and Julia have generic comparison
-labels until their actual comparison packages are chosen.
+Python's comparisons include LiteLLM; Node includes Vercel with three provider
+adapters. Rust compares async-openai, genai, and Rig; Go compares the official
+OpenAI, Anthropic, and Google clients. Only R and Julia retain generic labels.
 
 `request-flow.ts` contains the separate conceptual diagram. Keep its input and
 output types honest: generation, realtime, and job APIs are separate from the

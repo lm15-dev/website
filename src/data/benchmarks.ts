@@ -1,6 +1,7 @@
 import type { Language } from '../components/home-example/examples';
 import { PYTHON_BENCHMARKS } from './python-benchmarks';
 import { NODE_BENCHMARKS } from './node-benchmarks';
+import { RUST_BENCHMARKS, GO_BENCHMARKS } from './native-benchmarks';
 
 export interface BenchmarkValue {
   id: string;
@@ -21,7 +22,7 @@ export type BenchmarkSuite = { metrics: BenchmarkMetric[] } & (
 );
 
 // The fixtures below are invented for layout, not performance claims.
-// Python and TypeScript/Node use measured data. Replace other suites as reports become available.
+// Python, TypeScript/Node, Rust, and Go use measured data. R and Julia remain illustrative.
 // Clients and workloads must be chosen independently for each language; do not compare
 // bars between languages or infer provider latency from local SDK measurements.
 const metrics = [
@@ -43,17 +44,8 @@ function illustrative(clients: Fixture[], note = 'Illustrative numbers — not m
 export const BENCHMARKS: Record<Language, BenchmarkSuite> = {
   python: PYTHON_BENCHMARKS,
   typescript: NODE_BENCHMARKS,
-  go: illustrative([
-    ['openai', 'OpenAI', [18, 6, 35, 22]],
-    ['anthropic', 'Anthropic', [15, 5, 28, 18]],
-    ['google', 'Google GenAI', [25, 14, 42, 30]],
-    ['lm15', 'LM15', [7, 0, 12, 9]],
-  ]),
-  rust: illustrative([
-    ['client-a', 'Client A', [22, 45, 18, 14]],
-    ['client-b', 'Client B', [16, 30, 12, 10]],
-    ['lm15', 'LM15', [8, 20, 7, 6]],
-  ], 'Illustrative numbers and comparison clients — not measured.'),
+  go: GO_BENCHMARKS,
+  rust: RUST_BENCHMARKS,
   r: illustrative([
     ['client-a', 'Client A', [65, 24, 1500, 95]],
     ['client-b', 'Client B', [40, 16, 900, 70]],

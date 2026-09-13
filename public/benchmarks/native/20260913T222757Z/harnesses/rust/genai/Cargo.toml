@@ -1,0 +1,15 @@
+[package]
+name = "bench-genai"
+version = "0.0.0"
+edition = "2021"
+publish = false
+[workspace]
+[dependencies]
+tokio = { version = "1", features = ["rt", "macros", "time", "net"] }
+genai = "=0.6.5"
+[profile.release]
+opt-level = 3
+lto = false
+codegen-units = 1
+debug = 0
+strip = "symbols"
