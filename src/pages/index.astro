@@ -2,13 +2,17 @@
 import '../styles/home.css';
 import HomeExample from '../components/HomeExample.astro';
 import HomeBenchmarks from '../components/HomeBenchmarks.astro';
+import { socialHead } from '../../social-card.mjs';
+const title = 'LM15 — All Providers. One API.';
+const description = 'Direct access to model APIs. LM15 SDKs share one request and response model across providers and languages.';
 ---
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Direct access to model APIs. LM15 SDKs share one request and response model across providers and languages." />
+    <meta name="description" content={description} />
+    {socialHead(title, description, 'https://lm15.dev/').map(({ attrs }) => <meta {...attrs} />)}
     <link rel="canonical" href="https://lm15.dev/" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>LM15 — Direct access to model APIs</title>

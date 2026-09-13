@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { socialHead } from '../social-card.mjs';
 
 export const root = resolve(import.meta.dirname, '..');
 export const siteDir = join(root, 'dist');
@@ -65,11 +66,14 @@ export function buildPlayground() {
   const hash = text => `'sha256-${createHash('sha256').update(text).digest('base64')}'`;
   if (!html.includes(hash(oldMap))) throw new Error('Import map is not covered by the page CSP');
   const newMap = JSON.stringify({ imports: { 'lm15/browser': `${prefix}/dist/browser.js` } });
+  const escapeAttribute = value => String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  const shareTags = socialHead('LM15 Playground', 'Try LM15 in JavaScript, Python and Rust, directly in your browser.', 'https://lm15.dev/playground/')
+    .map(({ attrs }) => `<meta ${Object.entries(attrs).map(([key, value]) => `${key}="${escapeAttribute(value)}"`).join(' ')}>`).join('\n');
   html = html.replace(oldMap, newMap).replace(hash(oldMap), hash(newMap))
     .replace('href="./app.css"', `href="${prefix}/playground/app.css"`)
     .replace('src="./build/main.js"', `src="${prefix}/playground/main.js"`)
     .replace("connect-src 'self' https: http://localhost:* http://127.0.0.1:*", "connect-src 'self' https:")
-    .replace('</head>', '<meta name="description" content="Try LM15 in JavaScript, Python and Rust, directly in your browser.">\n<link rel="canonical" href="https://lm15.dev/playground/">\n</head>');
+    .replace('</head>', '<meta name="description" content="Try LM15 in JavaScript, Python and Rust, directly in your browser.">\n<link rel="canonical" href="https://lm15.dev/playground/">\n' + shareTags + '\n</head>');
   mkdirSync(join(generatedDir, 'playground/about'), { recursive: true });
   writeFileSync(join(generatedDir, 'playground/index.html'), html);
   writeFileSync(join(generatedDir, 'playground/about/index.html'), readFileSync(join(root, 'src/playground/about.html'), 'utf8').replaceAll('__ASSETS__', prefix));

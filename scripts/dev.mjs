@@ -8,8 +8,8 @@ let timer;
 let restartTimer;
 let restartRequested = false;
 let stopping = false;
-const watcher = watch(['src/playground', 'src/styles/theme.css', 'public', 'sources.json'], { ignoreInitial: true });
-const navigationWatcher = watch(['navigation.mjs', 'src/content/docs'], { ignoreInitial: true });
+const watcher = watch(['src/playground', 'src/styles/theme.css', 'public', 'sources.json', 'social-card.mjs'], { ignoreInitial: true });
+const navigationWatcher = watch(['navigation.mjs', 'social-card.mjs', 'src/content/docs'], { ignoreInitial: true });
 
 function startAstro() {
   child = spawn(process.execPath, ['node_modules/astro/bin/astro.mjs', 'dev', '--host', '127.0.0.1', ...process.argv.slice(2)], { stdio: 'inherit' });
@@ -39,7 +39,7 @@ watcher.on('all', () => {
 // Imported menu configuration and added/deleted pages need a fresh Astro
 // process. Ordinary content edits still use Astro's instant page refresh.
 navigationWatcher.on('all', (event, path) => {
-  if (path !== 'navigation.mjs' && !['add', 'unlink', 'addDir', 'unlinkDir'].includes(event)) return;
+  if (!['navigation.mjs', 'social-card.mjs'].includes(path) && !['add', 'unlink', 'addDir', 'unlinkDir'].includes(event)) return;
   clearTimeout(restartTimer);
   restartTimer = setTimeout(() => {
     if (stopping) return;

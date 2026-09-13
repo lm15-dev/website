@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { readFileSync } from 'node:fs';
 import { sidebar } from './navigation.mjs';
+import { socialImageHead } from './social-card.mjs';
 
 // Development-only refresh for the standalone playground. None of these routes is published.
 const playgroundDev = {
@@ -36,6 +37,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'LM15',
+      head: socialImageHead,
       components: { Header: './src/components/DocsHeader.astro' },
       disable404Route: true, // src/pages/404.astro owns the shared not-found page.
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/lm15-dev' }],
