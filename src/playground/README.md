@@ -9,8 +9,8 @@ npm ci
 npm run dev
 ```
 
-Open `/playground/` in the local preview. The public site has not yet moved to
-this folder's deployment setup.
+Open `/playground/` in the local preview. Push to `main` to publish changes to
+https://lm15.dev/playground/ after the build and link checks pass.
 
 ## Files
 

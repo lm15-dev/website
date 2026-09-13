@@ -64,7 +64,7 @@ public builds never load credentials. See `src/playground/README.md`.
 
 ## Publishing
 
-Push to `main` to publish. The **Publish website** GitHub workflow installs the
+Push to `main` to publish to **https://lm15.dev/**. The **Publish website** GitHub workflow installs the
 locked dependencies, checks types, builds the site, and checks local links.
 Only the finished `dist/` folder is uploaded. Proposed changes are checked but
 not published. Full test suites are not part of automatic publishing at the
@@ -87,12 +87,12 @@ no analytics or third-party scripts are added.
 
 - Homepage, documentation hub, playground source, tests, and packaging now live here.
 - Runtime-package builds and releases are connected to GitHub.
-- Website deployment and the domain handover are **not finished**.
-- The existing public `lm15.dev` deployment remains unchanged.
+- Automatic publishing and the `lm15.dev` domain handover are complete.
+- The public site is served from this repository, with HTTPS enforced.
 - Full documentation migration and shared example selectors are still pending.
 
 The former website folders and publishing workflow have been removed from the
-local TypeScript SDK checkout. Its OpenRouter OAuth example remains there
+TypeScript SDK repository. Its OpenRouter OAuth example remains there
 because it demonstrates SDK behavior rather than hosting the website.
 
 Older deployment instructions in `planning/previous-hosting.md` describe the
