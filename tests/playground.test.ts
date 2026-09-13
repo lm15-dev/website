@@ -9,6 +9,7 @@ import { chromium } from "playwright-core";
 import { CONNECTIONS } from "../src/playground/connections.ts";
 import { startDemo } from "../scripts/serve-playground.ts";
 import { findBrowsers } from "./support/browser.ts";
+import { disableDiscovery, focusSettings, openMore, waitRuntimeReady } from "./support/playground.ts";
 
 const choices = CONNECTIONS.filter((c) => c.env);
 const key = (id: string) => `dummy-${id}-key`;
@@ -95,8 +96,7 @@ test("discovery failures and stale provider replies cannot block manual model se
       assert.match(await page.locator("#picker-status").textContent() ?? "", /Model discovery failed/);
       assert.equal(await page.locator("#picker-results").getByText("stale-openai-model", { exact: true }).count(), 0);
       await page.getByRole("combobox", { name: "Search choices" }).press("Escape");
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
-      await page.getByLabel("Automatically discover model IDs").uncheck();
+      await disableDiscovery(page);
       await page.getByLabel("Message", { exact: true }).fill("/provider groq");
       await page.getByLabel("Message", { exact: true }).press("Enter");
       await page.getByRole("button", { name: "Choose model", exact: true }).click();
@@ -223,14 +223,14 @@ test("nine local keys load privately; each provider receives only its key; manua
       await page.getByRole("combobox", { name: "Search choices" }).fill("my-custom-model-id");
       await page.getByRole("combobox", { name: "Search choices" }).press("Enter");
       assert.equal(await page.locator("#model-name").textContent(), "my-custom-model-id");
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openMore(page);
       await page.getByRole("button", { name: "Forget all keys" }).click();
       await page.waitForFunction(() => document.getElementById("loaded")?.textContent === "None");
       selected = "openai"; expectedKey = "manual-dummy-key";
       await page.getByLabel("Message", { exact: true }).fill("/provider opnai");
       await page.getByLabel("Message", { exact: true }).press("Enter");
       assert.equal(await page.locator("#provider-name").textContent(), "OpenAI");
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await focusSettings(page);
       await page.getByLabel("API key", { exact: true }).fill(expectedKey);
       await page.getByRole("button", { name: "Use key for this provider" }).click();
       await page.waitForFunction(() => (document.getElementById("key") as HTMLInputElement).value === "" && document.getElementById("key-state")?.textContent === "Key ready (this tab)");
@@ -240,7 +240,7 @@ test("nine local keys load privately; each provider receives only its key; manua
       await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
       assert.equal(sent, 10);
       await page.reload();
-      await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Add key in Settings");
+      await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
       assert.equal(await page.locator("#loaded").textContent(), "None");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await close(demo.server); }
@@ -278,13 +278,12 @@ test("the playground: settings reach the code and the wire; a remembered key sur
   });
   try {
     await page.goto(demo.url);
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
     assert.equal(await page.locator("#get-key").getAttribute("href"), "https://platform.openai.com/api-keys", "the key page comes from the registry");
-    await page.getByLabel("Automatically discover model IDs").uncheck();
+    await disableDiscovery(page);
     await page.getByLabel("API key", { exact: true }).fill("dummy-openai-key");
     await page.getByLabel("Remember on this device").check();
     await page.getByRole("button", { name: "Use key for this provider" }).click();
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await focusSettings(page);
     await page.getByLabel("System prompt").fill("Answer briefly.");
     await page.getByLabel("Max tokens").fill("64");
     await page.getByLabel("Reasoning effort").selectOption("low");
@@ -313,11 +312,10 @@ test("the playground: settings reach the code and the wire; a remembered key sur
     assert.ok(!stored[0]!.text.includes("dummy-openai-key"), "the stored record is ciphertext");
     await page.reload();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (remembered on this device)");
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Forget this key" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Add key in Settings");
+    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
     await page.reload();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Add key in Settings");
+    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await close(demo.server); }
 });
@@ -340,11 +338,11 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
   });
   try {
     await page.goto(demo.url);
-    await page.getByLabel("Automatically discover model IDs").uncheck();
+    await disableDiscovery(page);
     await page.getByLabel("API key", { exact: true }).fill("dummy-settings-key");
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await focusSettings(page);
     for (const tab of ["JavaScript", "Python", "Rust", "JSON", "curl"]) {
       await page.getByRole("button", { name: tab, exact: true }).click();
       const text = `Changed in ${tab}`;
@@ -360,16 +358,17 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
     await page.getByRole("button", { name: "JSON", exact: true }).click();
     await page.getByLabel("Max tokens").fill("72");
     await page.getByLabel("Reasoning effort").selectOption("low");
-    const slider = page.getByLabel("Temperature", { exact: false });
-    await slider.focus();
-    await slider.press("Home"); // zero is an explicit value, not the unset/default state
+    const temperature = page.getByLabel("Temperature", { exact: true });
+    await temperature.fill("0"); // zero is an explicit value, not the unset/default state
     await page.waitForFunction(() => {
       try {
         const body = JSON.parse(document.getElementById("code")!.textContent!);
         return body.temperature === 0 && body.max_output_tokens === 72 && body.reasoning.effort === "low";
       } catch { return false; }
     });
-    await page.getByRole("button", { name: "Use provider default" }).click();
+    await temperature.fill("2");
+    await page.waitForFunction(() => JSON.parse(document.getElementById("code")!.textContent!).temperature === 2);
+    await temperature.fill("");
     await page.getByLabel("Reasoning effort").selectOption("");
     await page.waitForFunction(() => {
       try {
@@ -378,6 +377,13 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
       } catch { return false; }
     });
     await page.getByLabel("Message", { exact: true }).fill("hello");
+    for (const invalid of ["-0.1", "2.1", "0.75"]) {
+      await temperature.fill(invalid);
+      assert.match(await page.locator("#settings-error").textContent() ?? "", /Temperature must be/);
+      await page.getByRole("button", { name: "Send", exact: true }).click();
+      assert.equal(bodies.length, 0, "Invalid temperatures cannot be sent");
+    }
+    await temperature.fill("");
     for (const invalid of ["", "0", "1.5", "100001"]) {
       await page.getByLabel("Max tokens").fill(invalid);
       assert.match(await page.locator("#code").textContent() ?? "", /Max tokens must be a whole number/);
@@ -395,7 +401,7 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
     assert.equal("reasoning" in body, false);
     for (const width of [1024, 390]) {
       await page.setViewportSize({ width, height: 844 });
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await focusSettings(page);
       assert.ok(await page.evaluate(() => document.activeElement?.id === "system"));
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "No horizontal overflow");
       await page.getByLabel("System prompt").fill(`Width ${width}`);
@@ -405,7 +411,7 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
   } finally { await browser.close(); await close(demo.server); }
 });
 
-test("workspace design: guided setup, safe code coloring, copying, reset and small-screen navigation", { timeout: 90_000 }, async () => {
+test("minimal workspace: inline key errors, secondary menu, exact code copying and small-screen navigation", { timeout: 90_000 }, async () => {
   const installed = findBrowsers().find((b) => b.name === "chromium");
   assert.ok(installed);
   const demo = await startDemo();
@@ -423,19 +429,41 @@ test("workspace design: guided setup, safe code coloring, copying, reset and sma
   try {
     await page.goto(demo.url);
     assert.equal(await page.locator("#send").isDisabled(), true);
-    await page.getByRole("button", { name: /Explain something/ }).click();
-    const draft = await page.locator("#prompt").inputValue();
-    assert.match(draft, /sky is blue/);
-    assert.equal(externalRequests, 0, "Starting prompts do not send or load a provider");
+    for (const selector of ["#empty", "[data-starter]", "#reset-settings", "#temperature-reset", "#wrap-code", "#jump-request", "#code-file", "#code-note", "#turn-count", ".brand-mark", ".status-dot", ".composer-hint", ".picker-help", ".site-footer", "#settings-button", "#connection-button", "[data-line]"]) {
+      assert.equal(await page.locator(selector).count(), 0, `${selector} is removed, not just hidden`);
+    }
+    assert.equal(await page.getByRole("link", { name: "LM15 home" }).getAttribute("href"), "/");
+    assert.equal(await page.getByRole("link", { name: "Documentation", exact: true }).isVisible(), false);
+    assert.equal(await page.getByLabel("Automatically discover model IDs").isVisible(), false);
+    await page.locator("#more-toggle").focus();
+    await page.locator("#more-toggle").press("Enter");
+    assert.equal(await page.getByRole("link", { name: "Documentation", exact: true }).getAttribute("href"), "/docs/");
+    assert.equal(await page.getByRole("button", { name: "Forget all keys" }).isVisible(), true);
+    await page.locator("#more-toggle").press("Escape");
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "more-toggle");
+    assert.equal(await page.locator("#more-menu").evaluate(e => (e as HTMLDetailsElement).open), false);
+    await openMore(page);
+    await page.getByLabel("System prompt").click();
+    assert.equal(await page.locator("#more-menu").evaluate(e => (e as HTMLDetailsElement).open), false);
+    assert.equal(await page.getByText("Calls may cost money.", { exact: true }).isVisible(), true);
+    assert.equal(await page.locator("#key-storage-note").isVisible(), true);
+    const draft = "Keep my draft while I connect";
+    await page.getByLabel("Message", { exact: true }).fill(draft);
+    assert.equal(externalRequests, 0);
     await page.locator("#send").click();
     assert.equal(await page.evaluate(() => document.activeElement?.id), "key");
     assert.equal(await page.locator("#prompt").inputValue(), draft);
     assert.equal(await page.locator("#transcript article").count(), 0, "Missing-key setup preserves the draft without creating a failed turn");
-    await page.getByLabel("Automatically discover model IDs").uncheck();
+    assert.equal(await page.locator("#key-error").isVisible(), true);
+    assert.equal(await page.locator("#key-error").evaluate(e => Boolean(e.closest("#settings"))), true);
+    assert.equal(await page.locator("#key").getAttribute("aria-invalid"), "true");
+    assert.equal(await page.locator("#alert").isVisible(), false, "Key errors do not occupy the conversation");
+    await disableDiscovery(page);
     await page.getByLabel("API key", { exact: true }).fill("dummy-design-key");
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
-    assert.equal(await page.locator("#start-setup").isVisible(), false);
+    assert.equal(await page.locator("#key-error").isVisible(), false);
+    assert.equal(await page.locator("#key").getAttribute("aria-invalid"), "false");
     await page.getByLabel("System prompt").fill('<script>window.hacked=true</script> <img src=x onerror=alert(1)> dummy-design-key');
     assert.equal(await page.locator("#code script, #code img").count(), 0);
     assert.ok(await page.locator("#code .token-string").count() > 0);
@@ -446,16 +474,9 @@ test("workspace design: guided setup, safe code coloring, copying, reset and sma
     assert.match(await page.locator("#copy-code").textContent() ?? "", /Copied/);
     await page.getByLabel("Max tokens").fill("64");
     await page.getByLabel("Reasoning effort").selectOption("low");
-    await page.getByRole("button", { name: "Reset", exact: true }).click();
-    assert.equal(await page.getByLabel("System prompt").inputValue(), "");
-    assert.equal(await page.getByLabel("Max tokens").inputValue(), "400");
-    assert.equal(await page.getByLabel("Reasoning effort").inputValue(), "");
-    assert.equal(await page.locator("#prompt").inputValue(), draft, "Reset settings does not erase the draft or key");
+    assert.equal(await page.locator("#prompt").inputValue(), draft, "Editing settings does not erase the draft or key");
     assert.match(await page.locator("#key-state").textContent() ?? "", /Key ready/);
-    await page.getByRole("button", { name: "Wrap lines", exact: true }).click();
-    assert.equal(await page.locator("#wrap-code").getAttribute("aria-pressed"), "true");
-    assert.equal(await page.locator("#code-scroll").evaluate((e) => getComputedStyle(e).whiteSpace), "pre-wrap");
-    await page.getByRole("button", { name: "Jump to request", exact: false }).click();
+    assert.equal(await page.locator("#code-scroll").evaluate((e) => getComputedStyle(e).whiteSpace), "pre-wrap", "Long code lines wrap without another control");
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
       const contrast = await page.evaluate(() => {
@@ -472,7 +493,7 @@ test("workspace design: guided setup, safe code coloring, copying, reset and sma
     }
     for (const width of [1024, 700, 390, 320]) {
       await page.setViewportSize({ width, height: 844 });
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await focusSettings(page);
       await page.getByLabel("System prompt").fill(`Screen ${width}`);
       await page.locator('[data-view-target="code"]').click();
       assert.equal(await page.locator("#code-panel").isVisible(), true);
@@ -483,6 +504,14 @@ test("workspace design: guided setup, safe code coloring, copying, reset and sma
       assert.equal(await page.locator("#prompt").inputValue(), draft);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `No page overflow at ${width}px`);
     }
+    await openMore(page);
+    await page.getByRole("button", { name: "Forget all keys" }).click();
+    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
+    await page.getByLabel("Message", { exact: true }).press("Enter");
+    assert.equal(await page.locator("#settings").isVisible(), true, "Missing-key errors open the phone's settings view");
+    assert.equal(await page.locator("#key-error").isVisible(), true);
+    assert.equal(await page.locator("#prompt").inputValue(), draft);
+    assert.equal(await page.locator("#alert").isVisible(), false);
     assert.equal(externalRequests, 0);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await close(demo.server); }
@@ -516,7 +545,7 @@ test("runtime loading can be retried, never silently switches language, and does
   });
   try {
     await page.goto(demo.url);
-    await page.getByLabel("Automatically discover model IDs").uncheck();
+    await disableDiscovery(page);
     await page.getByLabel("API key", { exact: true }).fill("dummy-loading-key");
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
@@ -534,7 +563,8 @@ test("runtime loading can be retried, never silently switches language, and does
     assert.equal(await page.locator("#send").isDisabled(), false);
     release();
     await page.getByLabel("Rust", { exact: true }).check();
-    await page.waitForFunction(() => document.getElementById("runtime-status")?.textContent?.startsWith("Rust ready"));
+    await waitRuntimeReady(page, "Rust");
+    assert.equal(await page.locator("#runtime-status").textContent(), "", "Successful loading does not leave technical status text");
     assert.equal(attempts, 2, "Retry actually refetches, rather than reusing a rejected promise");
     await page.getByRole("button", { name: "Send", exact: true }).click();
     for (const name of ["JavaScript", "Python", "Rust"]) assert.equal(await page.getByLabel(name, { exact: true }).isDisabled(), true, "The executing language cannot change mid-turn");
@@ -564,9 +594,10 @@ test("Python can retry a failed module download without reloading the page", { t
     await page.getByRole("button", { name: "Retry loading" }).waitFor({ state: "visible" });
     assert.equal(await page.getByLabel("Python", { exact: true }).isChecked(), true);
     await page.getByRole("button", { name: "Retry loading" }).click();
-    await page.waitForFunction(() => document.getElementById("runtime-status")?.textContent?.startsWith("Python ready"), undefined, { timeout: 90_000 });
+    await waitRuntimeReady(page, "Python");
     assert.equal(attempts, 2);
-    assert.equal(await page.locator("#code-file").textContent(), "playground.py");
+    assert.equal(await page.locator('[data-language="python"]').getAttribute("aria-pressed"), "true");
+    assert.equal(await page.locator("#runtime-status").textContent(), "");
     assert.equal(await page.locator("#retry-runtime").isVisible(), false);
   } finally { await browser.close(); await close(demo.server); }
 });
@@ -588,13 +619,12 @@ test("the playground runs the same turn through Python (Pyodide) and Rust (wasm)
   });
   try {
     await page.goto(demo.url);
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
-    await page.getByLabel("Automatically discover model IDs").uncheck();
+    await disableDiscovery(page);
     await page.getByLabel("API key", { exact: true }).fill("dummy-openai-key");
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     for (const runtime of ["Rust", "Python", "JavaScript"] as const) {
       await page.getByLabel(runtime, { exact: true }).check();
-      if (runtime !== "JavaScript") await page.waitForFunction((r) => document.getElementById("runtime-status")?.textContent?.startsWith(`${r} ready`), runtime, { timeout: 120_000 });
+      await waitRuntimeReady(page, runtime);
       await page.getByLabel("Message", { exact: true }).fill(`hello from ${runtime}`);
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await page.waitForFunction((r) => document.getElementById("usage")?.textContent?.endsWith(r), runtime, { timeout: 60_000 });

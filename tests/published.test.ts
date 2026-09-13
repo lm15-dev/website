@@ -7,6 +7,7 @@ import { extname, resolve, sep } from "node:path";
 import { test } from "node:test";
 import { chromium } from "playwright-core";
 import { findBrowsers } from "./support/browser.ts";
+import { disableDiscovery, openMore, waitRuntimeReady } from "./support/playground.ts";
 const siteDir = resolve(import.meta.dirname, '../dist');
 
 const MIME: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json", ".wasm": "application/wasm", ".whl": "application/zip", ".zip": "application/zip", ".txt": "text/plain" };
@@ -56,10 +57,10 @@ test("the published static files boot, keep keys private, and run all three SDKs
     const response = await page.goto(url);
     assert.equal(response?.status(), 200);
     if (process.env["SITE_URL"]) assert.equal(new URL(page.url()).protocol, "https:", "Live verification must use real HTTPS, not ignore certificate errors");
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Add key in Settings");
+    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
     assert.equal(await page.locator("#settings").isVisible(), true);
     assert.equal(assetRequests.some((path) => /\.wasm$|\.whl$/.test(path)), false, "No wasm download until a runtime is selected");
-    await page.getByLabel("Automatically discover model IDs").uncheck();
+    await disableDiscovery(page);
     await page.getByLabel("API key", { exact: true }).fill("dummy-static-site-key");
     await page.getByLabel("Remember on this device").check();
     await page.getByRole("button", { name: "Use key for this provider" }).click();
@@ -68,7 +69,7 @@ test("the published static files boot, keep keys private, and run all three SDKs
     await page.getByLabel("Max tokens").fill("48");
     for (const runtime of ["JavaScript", "Python", "Rust"]) {
       await page.getByLabel(runtime, { exact: true }).check();
-      if (runtime !== "JavaScript") await page.waitForFunction((name) => document.getElementById("runtime-status")?.textContent?.startsWith(`${name} ready`), runtime, { timeout: 120_000 });
+      await waitRuntimeReady(page, runtime);
       await page.getByLabel("Message", { exact: true }).fill(`Hello from ${runtime}`);
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await page.waitForFunction((name) => document.getElementById("usage")?.textContent?.endsWith(name), runtime, { timeout: 30_000 });
@@ -102,13 +103,14 @@ test("the published static files boot, keep keys private, and run all three SDKs
     await page.reload();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent?.includes("remembered"));
     // Reload restores the key; immediately disable discovery again before further tests.
-    await page.getByLabel("Automatically discover model IDs").uncheck();
+    await disableDiscovery(page);
     await page.getByRole("button", { name: "Forget this key" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Add key in Settings");
+    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
     await page.reload();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Add key in Settings");
+    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await openMore(page);
     await page.getByRole("link", { name: "Privacy, licenses & hosting" }).click();
     assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), "Privacy and hosting");
     for (const href of await page.locator('a[href^="/assets/"]').evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href))) {

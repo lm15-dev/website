@@ -69,8 +69,7 @@ export function buildPlayground() {
     .replace('href="./app.css"', `href="${prefix}/playground/app.css"`)
     .replace('src="./build/main.js"', `src="${prefix}/playground/main.js"`)
     .replace("connect-src 'self' https: http://localhost:* http://127.0.0.1:*", "connect-src 'self' https:")
-    .replace('</head>', '<meta name="description" content="Try LM15 in JavaScript, Python and Rust, directly in your browser.">\n<link rel="canonical" href="https://lm15.dev/playground/">\n</head>')
-    .replace('</body>', '<footer class="site-footer"><a href="https://github.com/lm15-dev/website">Source code</a> · <a href="/playground/about/">Privacy, licenses &amp; hosting</a></footer>\n</body>');
+    .replace('</head>', '<meta name="description" content="Try LM15 in JavaScript, Python and Rust, directly in your browser.">\n<link rel="canonical" href="https://lm15.dev/playground/">\n</head>');
   mkdirSync(join(generatedDir, 'playground/about'), { recursive: true });
   writeFileSync(join(generatedDir, 'playground/index.html'), html);
   writeFileSync(join(generatedDir, 'playground/about/index.html'), readFileSync(join(root, 'src/playground/about.html'), 'utf8').replaceAll('__ASSETS__', prefix));

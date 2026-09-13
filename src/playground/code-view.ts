@@ -16,24 +16,14 @@ export function tokens(source: string, language: string): Token[] {
 
 export function renderCode(element: HTMLElement, source: string, language: string): void {
   const fragment = document.createDocumentFragment();
-  const lines = source.split("\n");
-  let marked = false;
-  for (const [index, text] of lines.entries()) {
-    const line = document.createElement("span");
-    line.className = "code-line";
-    line.dataset.line = String(index + 1);
-    if (!marked && (/\b(?:const |let )?request\s*=|^\{$|^curl /.test(text))) { line.dataset.request = "true"; marked = true; }
-    for (const token of tokens(text, language)) {
-      if (!token.kind) line.append(document.createTextNode(token.text));
-      else {
-        const span = document.createElement("span");
-        span.className = `token-${token.kind}`;
-        span.textContent = token.text;
-        line.append(span);
-      }
+  for (const token of tokens(source, language)) {
+    if (!token.kind) fragment.append(document.createTextNode(token.text));
+    else {
+      const span = document.createElement("span");
+      span.className = `token-${token.kind}`;
+      span.textContent = token.text;
+      fragment.append(span);
     }
-    if (index < lines.length - 1) line.append(document.createTextNode("\n"));
-    fragment.append(line);
   }
   element.replaceChildren(fragment);
 }
