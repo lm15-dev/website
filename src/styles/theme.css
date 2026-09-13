@@ -2,7 +2,7 @@
    Change --lm-brand here; the supporting shades follow automatically.
    Keep white button text readable when choosing a different brand color. */
 :root {
-  --lm-brand: #000ce8;
+  --lm-brand: #0051ff;
   --lm-on-brand: #fff;
   --lm-brand-hover: color-mix(in srgb, var(--lm-brand) 85%, black);
   --lm-accent-light: var(--lm-brand);
