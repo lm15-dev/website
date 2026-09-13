@@ -70,7 +70,7 @@ export const sidebar = [
     { label: 'How we verify support', slug: 'compatibility/verification' },
   ] },
   { label: 'Project', items: [
-    { label: 'About LM15', link: '/about.html/' },
+    { label: 'About LM15', slug: 'about' },
     { label: 'Benchmarks', slug: 'benchmarks' },
     { label: 'Releases', slug: 'releases' },
     { label: 'Shared contract', link: 'https://github.com/lm15-dev/lm15-contract' },

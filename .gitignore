@@ -5,6 +5,7 @@ dist/
 .build/
 .runtime-build/
 *.tgz
+!public/benchmarks/**/lm15.tgz
 .env
 .env.*
 !.env.example
