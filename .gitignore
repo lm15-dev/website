@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.astro/
+.cache/
+.build/
+.runtime-build/
+*.tgz
+.env
+.env.*
+!.env.example
+examples/rust/target/

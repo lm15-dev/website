@@ -1,0 +1,110 @@
+name: Build SDK runtime package
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'New immutable release name (for example runtimes-2026-09-13-1)'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: runtime-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read source pins
+        id: pins
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const pins = JSON.parse(readFileSync('sources.json', 'utf8'));
+          for (const key of ['typescript', 'python', 'rust', 'contract']) {
+            if (!/^[a-f0-9]{40}$/.test(pins[key])) throw new Error(`Invalid ${key} pin`);
+          }
+          if (!/^\d+\.\d+\.\d+$/.test(pins.rustToolchain)) throw new Error('Invalid toolchain');
+          for (const [key, value] of Object.entries(pins)) appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
+          JS
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: lm15-dev/lm15-ts
+          ref: ${{ steps.pins.outputs.typescript }}
+          path: .runtime-build/lm15-ts
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: lm15-dev/lm15-python
+          ref: ${{ steps.pins.outputs.python }}
+          path: .runtime-build/lm15-python
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: lm15-dev/lm15-rs
+          ref: ${{ steps.pins.outputs.rust }}
+          path: .runtime-build/lm15-rs
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: lm15-dev/lm15-contract
+          ref: ${{ steps.pins.outputs.contract }}
+          path: .runtime-build/lm15-contract
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.1'
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13.2'
+      - name: Build TypeScript and Python
+        run: |
+          cd .runtime-build/lm15-ts
+          npm ci
+          npm run build:typescript
+          python -m pip install build==1.3.0 setuptools==80.9.0 wheel==0.45.1
+          python -m build --no-isolation --wheel --outdir vendor/python ../lm15-python
+      - name: Build Rust and collect licenses
+        env:
+          TOOLCHAIN: ${{ steps.pins.outputs.rustToolchain }}
+        run: |
+          rustup toolchain install "$TOOLCHAIN" --profile minimal --target wasm32-unknown-unknown
+          rustup default "$TOOLCHAIN"
+          mkdir -p "$RUNNER_TEMP/lm15-bin"
+          ln -s "$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld" "$RUNNER_TEMP/lm15-bin/wasm-ld"
+          export PATH="$RUNNER_TEMP/lm15-bin:$PATH"
+          cd .runtime-build/lm15-rs
+          cargo build --locked --profile wasm --lib --no-default-features --features wasm --target wasm32-unknown-unknown
+          mkdir -p ../lm15-ts/vendor/rust
+          cp target/wasm32-unknown-unknown/wasm/lm15.wasm ../lm15-ts/vendor/rust/lm15.wasm
+          python ../lm15-ts/tools/rust_licenses.py . > ../lm15-ts/vendor/rust/THIRD_PARTY_LICENSES.txt
+      - name: Package pinned runtimes
+        run: node scripts/package-runtime.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: runtime-package
+          path: .build/*.tgz
+          if-no-files-found: error
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: runtime-package
+          path: package
+      - name: Publish a new version (never replace an existing release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          REVISION: ${{ github.sha }}
+        run: |
+          [[ "$TAG" =~ ^runtimes-[a-zA-Z0-9.-]+$ ]] || exit 1
+          gh release create "$TAG" package/*.tgz --target "$REVISION" --title "$TAG" --notes 'Pinned SDK builds for the website. Installing this package does not publish the website; website checks must pass before deployment.'
