@@ -17,7 +17,7 @@ export async function focusSettings(page: Page): Promise<void> {
 
 export async function waitRuntimeReady(page: Page, language: string): Promise<void> {
   await page.waitForFunction(name => {
-    const selected = document.querySelector<HTMLInputElement>('input[name="runtime"]:checked');
-    return selected?.value === name.toLowerCase() && document.getElementById('runtime-controls')?.dataset.state === 'ready';
+    const selected = document.querySelector<HTMLButtonElement>('[data-language][aria-pressed="true"]');
+    return selected?.dataset.language === name.toLowerCase() && document.getElementById('code-tabs')?.dataset.state === 'ready';
   }, language, { timeout: 120_000 });
 }

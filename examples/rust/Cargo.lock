@@ -747,7 +747,9 @@ dependencies = [
 name = "lm15-website-examples"
 version = "0.0.0"
 dependencies = [
+ "futures-util",
  "lm15",
+ "serde_json",
 ]
 
 [[package]]

@@ -46,12 +46,14 @@ h2 { font-size: 13px; font-weight: 500; }
 .workspace-toolbar { display: flex; align-items: center; gap: 20px; min-height: 64px; padding: 10px 24px; }
 .brand { font-size: 19px; font-weight: 700; letter-spacing: -.7px; color: var(--ink); }
 .brand:hover { text-decoration: none; }
-.connection, .toolbar-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.connection, .toolbar-actions { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .toolbar-actions { margin-left: auto; }
-.chip { display: inline-flex; align-items: center; justify-content: space-between; gap: 14px; }
+.connection { flex: 1; }
+.chip { display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; padding: 5px 8px; font-size: 12px; }
 .chip > span:last-child { color: var(--muted); }
-.model-chip { max-width: min(40vw, 380px); }
-#model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.provider-chip { max-width: 42%; }
+.model-chip { flex: 1; }
+#provider-name, #model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .more-menu { position: relative; }
 .more-menu > summary { list-style: none; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); min-height: 32px; }
 .more-menu > summary::-webkit-details-marker { display: none; }
@@ -89,18 +91,8 @@ summary:hover { border-color: var(--strong-line); }
 .field-error { margin-top: 8px; color: var(--danger); font-size: 12px; }
 [aria-invalid="true"] { border-color: var(--danger); }
 #loaded { overflow-wrap: anywhere; }
-.runtime-bar { padding: 12px 20px; }
-.runtime { display: flex; align-items: center; padding: 0; margin: 0; border: 0; min-width: 0; }
-.runtime legend { float: left; padding: 6px 0; margin-right: 12px; font-size: 12px; color: var(--muted); }
-.runtime-options { display: flex; gap: 2px; background: var(--soft); border: 1px solid var(--line); border-radius: 7px; padding: 3px; }
-.runtime label { position: relative; cursor: pointer; font-size: 12px; }
-.runtime input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.runtime label span { display: block; border-radius: 4px; padding: 4px 11px; color: var(--muted); border: 1px solid transparent; }
-.runtime input:checked + span { color: var(--ink); background: var(--surface); border-color: var(--line); }
-.runtime input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
-.runtime input:disabled + span { opacity: .45; cursor: default; }
 .note { font-size: 12px; color: var(--muted); }
-.runtime-feedback { padding: 0 20px 8px; }
+.runtime-feedback { padding: 12px 16px 0; }
 .runtime-feedback:has(#runtime-status:empty):has(#retry-runtime[hidden]) { display: none; }
 .chat-scroll { flex: 1; min-height: 0; overflow: auto; padding: 18px 24px; scrollbar-width: thin; scrollbar-color: var(--strong-line) transparent; }
 article { margin-bottom: 28px; }
@@ -115,7 +107,9 @@ article.streaming p:empty::after { content: "Waiting for the provider…"; color
 .composer { position: relative; border: 1px solid var(--strong-line); border-radius: 8px; background: var(--surface); }
 .composer:focus-within { border-color: var(--accent); }
 #prompt { padding: 14px 14px 4px; border: 0; background: transparent; resize: vertical; min-height: 70px; max-height: 220px; font-size: 14px; outline: none; }
-.composer-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 10px 10px; }
+.composer-actions { display: flex; align-items: center; gap: 6px; padding: 8px 10px 10px; }
+.composer-actions > button { flex-shrink: 0; }
+.composer-actions:has(.stop-button:not(:disabled)) #send { display: none; }
 .stop-button:disabled { display: none; }
 .fine-print { font-size: 12px; color: var(--muted); text-align: center; margin-top: 9px; }
 #alert { white-space: pre-wrap; max-height: 110px; overflow: auto; padding: 10px 12px; margin-bottom: 12px; border-radius: 6px; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); font-size: 12px; }
@@ -129,7 +123,6 @@ article.streaming p:empty::after { content: "Waiting for the provider…"; color
 .code-tabs button { min-height: 48px; padding: 8px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: 12px; }
 .code-tabs button:hover:not(:disabled) { background: transparent; }
 .code-tabs button[aria-pressed="true"] { color: var(--accent); border-bottom-color: var(--accent); }
-#preview-state { padding: 8px 16px 0; }
 .code-panel pre { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 16px; font: 16px/1.8 ui-monospace, "SFMono-Regular", Consolas, monospace; tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; scrollbar-color: var(--strong-line) transparent; }
 .token-keyword { color: var(--syntax-keyword); }
 .token-string { color: var(--syntax-string); }
@@ -164,13 +157,9 @@ dialog::backdrop { background: #10241c55; }
   .code-panel { border-left: 0; }
 }
 @media (max-width: 700px) {
-  .workspace-toolbar { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; min-height: 96px; padding: 8px 12px; }
-  .brand { grid-row: 1; }
-  .toolbar-actions { grid-row: 1; grid-column: 2; justify-self: end; }
-  .connection { grid-row: 2; grid-column: 1 / -1; }
-  .chip { min-width: 0; font-size: 13px; }
-  .model-chip { max-width: none; flex: 1; }
-  .split { display: flex; margin: 0 10px 10px; height: calc(100dvh - 146px); min-height: 380px; }
+  .workspace-toolbar { min-height: 52px; padding: 8px 12px; }
+  .chip { padding: 5px 6px; }
+  .split { display: flex; margin: 0 10px 10px; height: calc(100dvh - 102px); min-height: 380px; }
   .view-switch { margin: 0 12px; }
   .view-switch [data-view-target="settings"] { display: block; }
   .view-switch button { flex: 1; }
@@ -181,9 +170,6 @@ dialog::backdrop { background: #10241c55; }
   .settings-panel { border-right: 0; }
   .settings-scroll { padding: 20px; }
   input:not([type="checkbox"]), textarea, select, #system, #prompt { font-size: 16px; }
-  .runtime-bar { padding: 12px 14px; }
-  .runtime label span { padding: 4px 8px; }
-  .runtime legend { margin-right: 8px; }
   .chat-scroll { padding: 12px 20px; }
   .composer-area { padding: 10px 12px; }
   .code-toolbar { gap: 6px; padding: 0 10px; flex-wrap: wrap; }

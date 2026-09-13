@@ -10,7 +10,7 @@
  */
 
 import { Message, Response, type Request } from "lm15/browser";
-import { examplePython, keyless, type Connection, type Wire } from "../experience.ts";
+import { EXAMPLE_API_KEY, examplePython, keyless, type Connection, type Wire } from "../experience.ts";
 import type { Runtime } from "./index.ts";
 
 interface Pyodide {
@@ -46,10 +46,12 @@ async function boot(report: (status: string) => void): Promise<Pyodide> {
 }
 
 /** The displayed source with the key in place of the placeholder: what actually executes. */
-function withKey(source: string, key: string | undefined, connection: Connection): string {
-  const value = keyless(connection.provider) ? "unused" : key;
-  if (!value) throw new Error("Add this provider's API key in Settings first.");
-  return source.replace('"YOUR_API_KEY"', JSON.stringify(value));
+export function withKey(source: string, key: string | undefined, connection: Connection): string {
+  if (keyless(connection.provider)) return source;
+  if (!key) throw new Error("Add this provider's API key in Settings first.");
+  const slot = `\n    api_key=${JSON.stringify(EXAMPLE_API_KEY)},`;
+  if (!source.includes(slot)) throw new Error("The Python example is missing its API key field.");
+  return source.replace(slot, `\n    api_key=${JSON.stringify(key)},`);
 }
 
 /** The transcript and prompt the request carries, as the generator expects them. */
@@ -116,7 +118,7 @@ function settingsOf(request: Request) {
   return {
     system: typeof request.system === "string" ? request.system : "",
     temperature: config.temperature ?? null,
-    maxTokens: config.maxTokens ?? 400,
+    maxTokens: config.maxTokens ?? null,
     reasoning: config.reasoning?.effort ?? ("" as const),
   };
 }

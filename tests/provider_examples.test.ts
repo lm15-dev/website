@@ -9,12 +9,12 @@
  * - the Python text runs under Pyodide (Node-hosted), through
  *   lm15-python's FetchTransport, and builds the same bytes as JavaScript;
  * - the Rust runtime (lm15-rs compiled to wasm) builds the same bytes;
- * - the Rust text is what `lm15-rs/examples/playground.rs` holds, so
- *   `cargo check --examples` there proves it compiles (`npm run
- *   rust:snippets` regenerates the file; this test refuses drift).
+ * - the Rust text is what `examples/rust/src/main.rs` holds; check that
+ *   project with `rcargo check --locked` (`npm run rust:snippets`
+ *   regenerates the file; this test refuses drift).
  *
- * Pyodide and the wasm codec are skipped, saying why, when they cannot be
- * built here; the JavaScript and drift checks always run.
+ * The SDKs come from the pinned runtime package. Website tests use those
+ * artifacts without rebuilding the language ports.
  */
 
 import assert from "node:assert/strict";
@@ -25,8 +25,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 import { Message, Request as RequestNs, UnsupportedFeatureError, continuationState, thinking, utf8Decode } from "lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
-import { DEFAULT_SETTINGS, buildRequest, createClient, exampleJavascript, examplePython, exampleRust, fuzzyScore, keyless, slashCommand, type Connection, type Settings } from "../src/playground/experience.ts";
+import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, keyless, slashCommand, type Connection, type Settings } from "../src/playground/experience.ts";
 import { RustCodec } from "../src/playground/runtimes/rust.ts";
+import { withKey } from "../src/playground/runtimes/python.ts";
 import "lm15/node";
 import { ensureWheel, ensureRustWasm } from "./support/runtimes.ts";
 import { renderRustExamples, rustExamplesPath } from "../scripts/rust-snippets.ts";
@@ -39,17 +40,32 @@ const history = [
 ];
 const FULL: Settings = { system: "Answer briefly.", temperature: 0.2, maxTokens: 64, reasoning: "low" };
 const cases = CONNECTIONS.flatMap((choice) =>
-  ([[], history] as Message[][]).flatMap((messages) =>
+  ([[], history, exampleConversation()] as Message[][]).flatMap((messages) =>
     [DEFAULT_SETTINGS, FULL].map((settings) => ({
       messages,
       settings,
       connection: { provider: choice.id, model: choice.model || "custom-model", endpoint: "http://localhost:1234/v1" } satisfies Connection,
-      key: keyless(choice.id) ? "unused" : "YOUR_API_KEY",
+      key: keyless(choice.id) ? "unused" : EXAMPLE_API_KEY,
     })),
   ),
 );
 const wheel = ensureWheel();
 const wasm = ensureRustWasm();
+
+test("Python key injection changes only the credential field, never example text", () => {
+  for (const provider of ["openai", "custom"]) {
+    const connection: Connection = { provider, model: "test", endpoint: "http://localhost:1234/v1" };
+    const source = examplePython(connection, DEFAULT_SETTINGS, exampleConversation(), EXAMPLE_API_KEY);
+    const program = withKey(source, "real-test-key", connection);
+    assert.ok(program.includes(`Message.user(${JSON.stringify(EXAMPLE_API_KEY)})`));
+    if (provider === "custom") assert.equal(program, source);
+    else {
+      assert.ok(program.includes('api_key="real-test-key"'));
+      assert.throws(() => withKey(source, undefined, connection), /API key/);
+      assert.throws(() => withKey("unexpected source", "real-test-key", connection), /missing its API key field/);
+    }
+  }
+});
 
 test("fuzzy selection ranks exact names first and rejects unordered matches; slash commands stay distinct", () => {
   assert.ok(fuzzyScore("openai", "openai") > fuzzyScore("openai", "openai-chat"));
@@ -74,8 +90,8 @@ async function expected(c: (typeof cases)[number]) {
 }
 
 test(`JavaScript: all ${cases.length} variants type-check, execute, and build the page's request`, { timeout: 120_000 }, async (t) => {
-  assert.equal(cases.length, 44);
-  const sources = cases.map((c) => exampleJavascript(c.connection, c.settings, c.messages, prompt).replace("process.stdout.write(text)", "void text"));
+  assert.equal(cases.length, 66);
+  const sources = cases.map((c) => exampleJavascript(c.connection, c.settings, c.messages, prompt).replace("console.log(text)", "void text"));
   const files = new Map(sources.map((source, i) => [resolve(root, `src/playground/__example_${i}.ts`), source]));
   const options: ts.CompilerOptions = { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, strict: true, noEmit: true, skipLibCheck: true, types: [], lib: ["lib.es2023.d.ts", "lib.dom.d.ts"] };
   const host = ts.createCompilerHost(options);
@@ -106,7 +122,7 @@ test(`JavaScript: all ${cases.length} variants type-check, execute, and build th
     assert.equal(calls[0]!.url, want.url);
     assert.equal(calls[0]!.body, want.body, `${c.connection.provider}: the JavaScript text and the page build the same bytes`);
     assert.equal(module.response.finishReason, "stop");
-    if (c.messages.length) assert.match(sources[i]!, /"continuation": \[/, "the transcript is replayed with its continuation state");
+    if (c.messages === history) assert.match(sources[i]!, /"continuation": \[/, "the transcript is replayed with its continuation state");
   }
 });
 
@@ -122,7 +138,7 @@ test(`Python under Pyodide: all ${cases.length} variants execute and build the s
   for (const c of cases) {
     calls = [];
     const want = await expected(c);
-    const source = examplePython(c.connection, c.settings, c.messages, prompt).replace('"YOUR_API_KEY"', JSON.stringify(c.key));
+    const source = examplePython(c.connection, c.settings, c.messages, prompt).replace(JSON.stringify(EXAMPLE_API_KEY), JSON.stringify(c.key));
     let out: string;
     try {
       out = String(await py.runPythonAsync(`${source}\nimport json\nfrom lm15.serde import response_to_dict\njson.dumps(response_to_dict(response))`));
@@ -161,10 +177,10 @@ test(`Rust under wasm: all ${cases.length} variants build the same bytes as Java
   }
 });
 
-test("Rust: lm15-rs/examples/playground.rs is the generator's output (cargo check --examples compiles it there)", () => {
+test("Rust: standalone examples match the generator and the pinned SDK imports", () => {
   const rendered = renderRustExamples();
   assert.ok(existsSync(rustExamplesPath), `${rustExamplesPath} is missing; run npm run rust:snippets`);
-  assert.equal(readFileSync(rustExamplesPath, "utf-8"), rendered, "the Rust snippets drifted; run npm run rust:snippets and cargo check --examples in lm15-rs");
+  assert.equal(readFileSync(rustExamplesPath, "utf-8"), rendered, "the Rust snippets drifted; run npm run rust:snippets and rcargo check --locked in examples/rust");
   for (const c of cases.filter((x) => (x.settings === FULL) === x.messages.length > 0)) {
     assert.ok(rendered.includes(exampleRust(c.connection, c.settings, c.messages, prompt).split("\n")[1]!), c.connection.provider);
   }

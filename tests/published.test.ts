@@ -8,6 +8,7 @@ import { test } from "node:test";
 import { chromium } from "playwright-core";
 import { findBrowsers } from "./support/browser.ts";
 import { disableDiscovery, openMore, waitRuntimeReady } from "./support/playground.ts";
+import { EXAMPLE_ANSWER, EXAMPLE_QUESTION } from "../src/playground/experience.ts";
 const siteDir = resolve(import.meta.dirname, '../dist');
 
 const MIME: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json", ".wasm": "application/wasm", ".whl": "application/zip", ".zip": "application/zip", ".txt": "text/plain" };
@@ -66,9 +67,9 @@ test("the published static files boot, keep keys private, and run all three SDKs
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent?.includes("remembered"));
     await page.getByLabel("System prompt").fill("Answer briefly.");
-    await page.getByLabel("Max tokens").fill("48");
+    assert.equal(await page.getByLabel("Max tokens").inputValue(), "");
     for (const runtime of ["JavaScript", "Python", "Rust"]) {
-      await page.getByLabel(runtime, { exact: true }).check();
+      await page.getByRole("button", { name: runtime, exact: true }).click();
       await waitRuntimeReady(page, runtime);
       await page.getByLabel("Message", { exact: true }).fill(`Hello from ${runtime}`);
       await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -81,11 +82,14 @@ test("the published static files boot, keep keys private, and run all three SDKs
       assert.equal(call.auth, "Bearer dummy-static-site-key");
       const body = JSON.parse(call.body);
       assert.equal(body.instructions, "Answer briefly.");
-      assert.equal(body.max_output_tokens, 48);
+      assert.equal("max_output_tokens" in body, false, "No selected runtime restores a hidden token limit");
+      assert.ok(call.body.includes(EXAMPLE_QUESTION));
+      assert.ok(call.body.includes(EXAMPLE_ANSWER));
     }
-    assert.deepEqual(JSON.parse(calls[2]!.body).input.map((message: { role: string }) => message.role), ["user", "assistant", "user", "assistant", "user"]);
-    for (const tab of ["JavaScript", "Python", "Rust", "JSON", "curl"]) {
+    assert.deepEqual(JSON.parse(calls[2]!.body).input.map((message: { role: string }) => message.role), ["user", "assistant", "user", "assistant", "user", "assistant", "user"]);
+    for (const tab of ["JavaScript", "Python", "Rust"]) {
       await page.getByRole("button", { name: tab, exact: true }).click();
+      await waitRuntimeReady(page, tab);
       await page.waitForFunction(() => (document.getElementById("code")?.textContent?.length ?? 0) > 30);
       assert.ok(!(await page.locator("#code").textContent())?.includes("dummy-static-site-key"));
     }

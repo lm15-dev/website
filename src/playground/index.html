@@ -14,12 +14,7 @@
 <h1 class="sr-only">Playground</h1>
 <header class="workspace-toolbar">
   <a class="brand" href="/" aria-label="LM15 home">lm15</a>
-  <div class="connection">
-    <button id="provider-button" class="chip" aria-label="Choose provider" aria-haspopup="dialog"><span id="provider-name">OpenAI</span><span aria-hidden="true">⌄</span></button>
-    <button id="model-button" class="chip model-chip" aria-label="Choose model" aria-haspopup="dialog"><span id="model-name">gpt-4.1-mini</span><span aria-hidden="true">⌄</span></button>
-  </div>
   <div class="toolbar-actions">
-    <button id="clear" class="quiet" aria-label="New conversation">New chat</button>
     <details id="more-menu" class="more-menu">
       <summary id="more-toggle">More</summary>
       <div class="more-content" role="group" aria-label="Additional options">
@@ -65,20 +60,13 @@
       <div class="setting-section"><label for="system">System prompt</label><textarea id="system" rows="5"></textarea></div>
       <div class="setting-section">
         <div class="control-row"><label for="temperature">Temperature</label><input id="temperature" type="number" min="0" max="2" step="0.1" placeholder="Default" aria-describedby="settings-error" title="Leave empty to use the provider default"></div>
-        <div class="control-row"><label for="max-tokens">Max tokens</label><input id="max-tokens" type="number" min="1" max="100000" value="400" required aria-describedby="settings-error"></div>
+        <div class="control-row"><label for="max-tokens">Max tokens</label><input id="max-tokens" type="number" min="1" max="100000" placeholder="Default" aria-describedby="settings-error" title="Leave empty to use the provider default"></div>
         <label for="reasoning">Reasoning effort</label><select id="reasoning"><option value="">Model decides</option><option value="off">Off</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Maximum</option></select>
         <p id="settings-error" class="field-error" role="status" hidden></p>
       </div>
     </div>
   </aside>
   <section id="chat-panel" class="chat-panel" aria-label="Chat">
-    <div class="runtime-bar">
-      <fieldset id="runtime-controls" class="runtime" data-state="ready" aria-busy="false">
-        <legend>Run in</legend>
-        <div class="runtime-options"><label><input type="radio" name="runtime" value="javascript" checked><span>JavaScript</span></label><label><input type="radio" name="runtime" value="python"><span>Python</span></label><label><input type="radio" name="runtime" value="rust"><span>Rust</span></label></div>
-      </fieldset>
-    </div>
-    <div class="runtime-feedback"><p id="runtime-status" class="note" role="status"></p><button id="retry-runtime" class="text-button" type="button" hidden>Retry loading</button></div>
     <div id="chat-scroll" class="chat-scroll"><div id="transcript" aria-label="Conversation" aria-live="off"></div></div>
     <div class="composer-area">
       <p id="alert" role="alert" hidden></p>
@@ -88,14 +76,20 @@
         <div id="slash-picker" class="slash-picker" hidden><p id="slash-status" class="picker-status" role="status"></p><ul id="slash-results" role="listbox" aria-label="Command suggestions"></ul></div>
         <label class="sr-only" for="prompt">Message</label>
         <textarea id="prompt" rows="3" placeholder="Message" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="slash-results"></textarea>
-        <div class="composer-actions"><button id="stop" type="button" class="stop-button" disabled>Stop</button><button id="send" type="submit" class="primary">Send</button></div>
+        <div class="composer-actions">
+          <div class="connection">
+            <button id="provider-button" type="button" class="chip provider-chip" aria-label="Choose provider" aria-haspopup="dialog"><span id="provider-name">OpenAI</span><span aria-hidden="true">⌄</span></button>
+            <button id="model-button" type="button" class="chip model-chip" aria-label="Choose model" aria-haspopup="dialog"><span id="model-name">gpt-4.1-mini</span><span aria-hidden="true">⌄</span></button>
+          </div>
+          <button id="stop" type="button" class="stop-button" disabled>Stop</button><button id="send" type="submit" class="primary">Send</button>
+        </div>
       </form>
       <p class="fine-print">Calls may cost money.</p>
     </div>
   </section>
   <aside id="code-panel" class="code-panel" aria-label="Code">
-    <header class="code-toolbar"><div id="code-tabs" class="code-tabs" role="group" aria-label="Code language"></div><button id="copy-code" class="quiet" type="button">Copy code</button></header>
-    <p id="preview-state" class="note" role="status" hidden></p>
+    <header class="code-toolbar"><div id="code-tabs" class="code-tabs" role="group" aria-label="Run language" data-state="ready" aria-busy="false"></div><button id="copy-code" class="quiet" type="button">Copy code</button></header>
+    <div class="runtime-feedback"><p id="runtime-status" class="note" role="status"></p><button id="retry-runtime" class="text-button" type="button" hidden>Retry loading</button></div>
     <pre id="code-scroll" tabindex="0" aria-label="Example code"><code id="code"></code></pre>
     <span id="copy-status" class="sr-only" role="status"></span>
   </aside>

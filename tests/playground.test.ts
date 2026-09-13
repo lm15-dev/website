@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { CONNECTIONS } from "../src/playground/connections.ts";
+import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_ANSWER, EXAMPLE_DRAFT, EXAMPLE_QUESTION } from "../src/playground/experience.ts";
 import { startDemo } from "../scripts/serve-playground.ts";
 import { findBrowsers } from "./support/browser.ts";
 import { disableDiscovery, focusSettings, openMore, waitRuntimeReady } from "./support/playground.ts";
@@ -180,7 +181,7 @@ test("nine local keys load privately; each provider receives only its key; manua
       await page.waitForFunction(() => document.getElementById("model-status")?.textContent?.includes("model IDs listed"));
       assert.equal(modelLists, 1, "Only the selected connection is discovered");
       assert.equal(await page.locator("#settings").isVisible(), true);
-      assert.match(await page.locator("#code").textContent() ?? "", /YOUR_API_KEY/);
+      assert.ok((await page.locator("#code").textContent() ?? "").includes(EXAMPLE_API_KEY));
       await page.emulateMedia({ colorScheme: "light" });
       const readability = await page.evaluate(() => {
         const luminance = (color: string) => {
@@ -287,8 +288,9 @@ test("the playground: settings reach the code and the wire; a remembered key sur
     await page.getByLabel("System prompt").fill("Answer briefly.");
     await page.getByLabel("Max tokens").fill("64");
     await page.getByLabel("Reasoning effort").selectOption("low");
-    for (const [tab, expected] of [["JavaScript", /system: "Answer briefly\."[\s\S]*maxTokens: 64[\s\S]*reasoning: \{ effort: "low" \}/], ["Python", /system="Answer briefly\."[\s\S]*Config\(max_tokens=64, reasoning=Reasoning\(effort="low"\)\)/], ["Rust", /system: Some\("Answer briefly\."\.into\(\)\)[\s\S]*Reasoning::new\("low"\.parse\(\)\?\)/], ["JSON", /"instructions": "Answer briefly\."[\s\S]*"max_output_tokens": 64[\s\S]*"reasoning": \{\s*"effort": "low"/], ["curl", /curl -X POST 'https:\/\/api\.openai\.com\/v1\/responses'[\s\S]*Bearer YOUR_API_KEY/]] as const) {
+    for (const [tab, expected] of [["JavaScript", /system: "Answer briefly\."[\s\S]*maxTokens: 64[\s\S]*reasoning: \{ effort: "low" \}/], ["Python", /system="Answer briefly\."[\s\S]*Config\(max_tokens=64, reasoning=Reasoning\(effort="low"\)\)/], ["Rust", /system: Some\("Answer briefly\."\.into\(\)\)[\s\S]*Reasoning::new\("low"\.parse\(\)\?\)/]] as const) {
       await page.getByRole("button", { name: tab, exact: true }).click();
+      await waitRuntimeReady(page, tab);
       await page.waitForFunction((pattern) => new RegExp(pattern, "s").test(document.getElementById("code")?.textContent ?? ""), expected.source);
       assert.ok(!(await page.locator("#code").textContent())!.includes("dummy-openai-key"), `${tab}: the key never appears in the code panel`);
     }
@@ -343,8 +345,9 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
     await focusSettings(page);
-    for (const tab of ["JavaScript", "Python", "Rust", "JSON", "curl"]) {
+    for (const tab of ["JavaScript", "Python", "Rust"]) {
       await page.getByRole("button", { name: tab, exact: true }).click();
+      await waitRuntimeReady(page, tab);
       const text = `Changed in ${tab}`;
       await page.getByLabel("System prompt").fill(text);
       await page.waitForFunction((text) => document.getElementById("code")?.textContent?.includes(text), text);
@@ -355,27 +358,19 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
         return setting.top >= 0 && setting.bottom < innerHeight && code.top >= 0 && code.top < innerHeight && setting.right < code.left;
       }), "Setting and changed code are visible together");
     }
-    await page.getByRole("button", { name: "JSON", exact: true }).click();
     await page.getByLabel("Max tokens").fill("72");
     await page.getByLabel("Reasoning effort").selectOption("low");
     const temperature = page.getByLabel("Temperature", { exact: true });
     await temperature.fill("0"); // zero is an explicit value, not the unset/default state
-    await page.waitForFunction(() => {
-      try {
-        const body = JSON.parse(document.getElementById("code")!.textContent!);
-        return body.temperature === 0 && body.max_output_tokens === 72 && body.reasoning.effort === "low";
-      } catch { return false; }
-    });
+    const rustCode = await page.locator("#code").textContent() ?? "";
+    assert.match(rustCode, /max_tokens: Some\(72\)/);
+    assert.match(rustCode, /temperature: Some\(0\.0\)/);
+    assert.match(rustCode, /Reasoning::new\("low"/);
     await temperature.fill("2");
-    await page.waitForFunction(() => JSON.parse(document.getElementById("code")!.textContent!).temperature === 2);
+    assert.match(await page.locator("#code").textContent() ?? "", /temperature: Some\(2\.0\)/);
     await temperature.fill("");
     await page.getByLabel("Reasoning effort").selectOption("");
-    await page.waitForFunction(() => {
-      try {
-        const body = JSON.parse(document.getElementById("code")!.textContent!);
-        return !("temperature" in body) && !("reasoning" in body);
-      } catch { return false; }
-    });
+    assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /temperature:|Reasoning::new/);
     await page.getByLabel("Message", { exact: true }).fill("hello");
     for (const invalid of ["-0.1", "2.1", "0.75"]) {
       await temperature.fill(invalid);
@@ -384,19 +379,21 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
       assert.equal(bodies.length, 0, "Invalid temperatures cannot be sent");
     }
     await temperature.fill("");
-    for (const invalid of ["", "0", "1.5", "100001"]) {
+    for (const invalid of ["0", "1.5", "100001"]) {
       await page.getByLabel("Max tokens").fill(invalid);
       assert.match(await page.locator("#code").textContent() ?? "", /Max tokens must be a whole number/);
       await page.getByRole("button", { name: "Send", exact: true }).click();
       assert.equal(bodies.length, 0, "Never replace an invalid setting with an invisible default");
     }
-    await page.getByLabel("Max tokens").fill("72");
+    await page.getByLabel("Max tokens").fill("");
+    assert.equal(await page.locator("#settings-error").isVisible(), false);
+    assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /max_tokens:/);
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
     assert.equal(bodies.length, 1);
     const body = JSON.parse(bodies[0]!);
-    assert.equal(body.max_output_tokens, 72);
-    assert.equal(body.instructions, "Changed in curl");
+    assert.equal("max_output_tokens" in body, false, "Empty means omitted, not zero or a hidden 400-token default");
+    assert.equal(body.instructions, "Changed in Rust");
     assert.equal("temperature" in body, false);
     assert.equal("reasoning" in body, false);
     for (const width of [1024, 390]) {
@@ -428,8 +425,18 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
   });
   try {
     await page.goto(demo.url);
-    assert.equal(await page.locator("#send").isDisabled(), true);
-    for (const selector of ["#empty", "[data-starter]", "#reset-settings", "#temperature-reset", "#wrap-code", "#jump-request", "#code-file", "#code-note", "#turn-count", ".brand-mark", ".status-dot", ".composer-hint", ".picker-help", ".site-footer", "#settings-button", "#connection-button", "[data-line]"]) {
+    assert.equal(await page.locator("#send").isDisabled(), false, "The example follow-up is prefilled, but Send still requires a real key");
+    assert.equal(await page.locator("#prompt").inputValue(), EXAMPLE_DRAFT);
+    assert.equal(await page.getByLabel("System prompt").inputValue(), DEFAULT_SETTINGS.system);
+    assert.equal(await page.getByLabel("Max tokens").inputValue(), "");
+    assert.equal(await page.getByLabel("API key", { exact: true }).getAttribute("placeholder"), EXAMPLE_API_KEY);
+    assert.equal(await page.getByLabel("API key", { exact: true }).inputValue(), "", "The joke key is not a credential");
+    assert.deepEqual(await page.locator("#transcript article p").allTextContents(), [EXAMPLE_QUESTION, EXAMPLE_ANSWER]);
+    assert.equal(await page.locator('#transcript article[data-example="true"]').count(), 2);
+    assert.deepEqual(await page.locator("[data-language]").allTextContents(), ["JavaScript", "Python", "Rust"]);
+    assert.equal(await page.locator('#composer .composer-actions #provider-button').count(), 1);
+    assert.equal(await page.locator('#composer .composer-actions #model-button').count(), 1);
+    for (const selector of ["#empty", "[data-starter]", "#reset-settings", "#temperature-reset", "#wrap-code", "#jump-request", "#code-file", "#code-note", "#turn-count", ".brand-mark", ".status-dot", ".composer-hint", ".picker-help", ".site-footer", "#settings-button", "#connection-button", "[data-line]", "#clear", "#runtime-controls", 'input[name="runtime"]', '[data-language="json"]', '[data-language="curl"]', "#preview-state"]) {
       assert.equal(await page.locator(selector).count(), 0, `${selector} is removed, not just hidden`);
     }
     assert.equal(await page.getByRole("link", { name: "LM15 home" }).getAttribute("href"), "/");
@@ -453,12 +460,17 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
     await page.locator("#send").click();
     assert.equal(await page.evaluate(() => document.activeElement?.id), "key");
     assert.equal(await page.locator("#prompt").inputValue(), draft);
-    assert.equal(await page.locator("#transcript article").count(), 0, "Missing-key setup preserves the draft without creating a failed turn");
+    assert.equal(await page.locator("#transcript article").count(), 2, "Missing-key setup preserves the example without creating a failed turn");
     assert.equal(await page.locator("#key-error").isVisible(), true);
     assert.equal(await page.locator("#key-error").evaluate(e => Boolean(e.closest("#settings"))), true);
     assert.equal(await page.locator("#key").getAttribute("aria-invalid"), "true");
     assert.equal(await page.locator("#alert").isVisible(), false, "Key errors do not occupy the conversation");
     await disableDiscovery(page);
+    await page.getByLabel("API key", { exact: true }).fill(EXAMPLE_API_KEY);
+    await page.getByRole("button", { name: "Use key for this provider" }).click();
+    assert.match(await page.locator("#key-error").textContent() ?? "", /example key/);
+    assert.equal(await page.locator("#loaded").textContent(), "None");
+    assert.equal(externalRequests, 0, "The example key must not trigger discovery or inference");
     await page.getByLabel("API key", { exact: true }).fill("dummy-design-key");
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
@@ -550,28 +562,28 @@ test("runtime loading can be retried, never silently switches language, and does
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
     await page.getByLabel("Message", { exact: true }).fill("Keep this draft");
-    await page.getByLabel("Rust", { exact: true }).check();
+    await page.getByRole("button", { name: "Rust", exact: true }).click();
     await page.getByRole("button", { name: "Retry loading" }).waitFor({ state: "visible" });
-    assert.equal(await page.getByLabel("Rust", { exact: true }).isChecked(), true);
+    assert.equal(await page.getByRole("button", { name: "Rust", exact: true }).getAttribute("aria-pressed"), "true");
     assert.equal(await page.locator('[data-language="rust"]').getAttribute("aria-pressed"), "true");
     assert.equal(await page.locator("#send").isDisabled(), true);
     await page.getByRole("button", { name: "Retry loading" }).click();
     await page.getByLabel("Message", { exact: true }).press("Enter");
     assert.equal(posts, 0, "Keyboard sending is blocked too while the runtime loads");
     assert.equal(await page.locator("#prompt").inputValue(), "Keep this draft");
-    await page.getByLabel("JavaScript", { exact: true }).check();
+    await page.getByRole("button", { name: "JavaScript", exact: true }).click();
     assert.equal(await page.locator("#send").isDisabled(), false);
     release();
-    await page.getByLabel("Rust", { exact: true }).check();
+    await page.getByRole("button", { name: "Rust", exact: true }).click();
     await waitRuntimeReady(page, "Rust");
     assert.equal(await page.locator("#runtime-status").textContent(), "", "Successful loading does not leave technical status text");
     assert.equal(attempts, 2, "Retry actually refetches, rather than reusing a rejected promise");
     await page.getByRole("button", { name: "Send", exact: true }).click();
-    for (const name of ["JavaScript", "Python", "Rust"]) assert.equal(await page.getByLabel(name, { exact: true }).isDisabled(), true, "The executing language cannot change mid-turn");
+    for (const name of ["JavaScript", "Python", "Rust"]) assert.equal(await page.getByRole("button", { name, exact: true }).isDisabled(), true, "The executing language cannot change mid-turn");
     releaseReply();
     await page.waitForFunction(() => document.getElementById("usage")?.textContent?.endsWith("Rust"));
     assert.equal(posts, 1);
-    assert.equal(await page.getByLabel("JavaScript", { exact: true }).isDisabled(), false);
+    assert.equal(await page.getByRole("button", { name: "JavaScript", exact: true }).isDisabled(), false);
   } finally { release(); releaseReply(); await browser.close(); await close(demo.server); }
 });
 
@@ -590,9 +602,9 @@ test("Python can retry a failed module download without reloading the page", { t
   });
   try {
     await page.goto(demo.url);
-    await page.getByLabel("Python", { exact: true }).check();
+    await page.getByRole("button", { name: "Python", exact: true }).click();
     await page.getByRole("button", { name: "Retry loading" }).waitFor({ state: "visible" });
-    assert.equal(await page.getByLabel("Python", { exact: true }).isChecked(), true);
+    assert.equal(await page.getByRole("button", { name: "Python", exact: true }).getAttribute("aria-pressed"), "true");
     await page.getByRole("button", { name: "Retry loading" }).click();
     await waitRuntimeReady(page, "Python");
     assert.equal(attempts, 2);
@@ -623,7 +635,7 @@ test("the playground runs the same turn through Python (Pyodide) and Rust (wasm)
     await page.getByLabel("API key", { exact: true }).fill("dummy-openai-key");
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     for (const runtime of ["Rust", "Python", "JavaScript"] as const) {
-      await page.getByLabel(runtime, { exact: true }).check();
+      await page.getByRole("button", { name: runtime, exact: true }).click();
       await waitRuntimeReady(page, runtime);
       await page.getByLabel("Message", { exact: true }).fill(`hello from ${runtime}`);
       await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -639,8 +651,9 @@ test("the playground runs the same turn through Python (Pyodide) and Rust (wasm)
     }
     // The third turn carries the first two replies, whichever runtime produced them: one transcript, three SDKs.
     const third = JSON.parse(sent[2]!.body) as { input: Array<{ role: string }> };
-    assert.deepEqual(third.input.map((m) => m.role), ["user", "assistant", "user", "assistant", "user"]);
-    assert.match((await page.locator("#code").textContent()) ?? "", /Message\.fromJSON/);
+    assert.deepEqual(third.input.map((m) => m.role), ["user", "assistant", "user", "assistant", "user", "assistant", "user"]);
+    assert.ok((await page.locator("#code").textContent())?.includes(EXAMPLE_QUESTION));
+    assert.match((await page.locator("#code").textContent()) ?? "", /hello from Rust/);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await close(demo.server); }
 });

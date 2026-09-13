@@ -3,7 +3,7 @@ import { Message, type Request } from "lm15/browser";
 import { CONNECTIONS } from "./connections.ts";
 import { Credentials } from "./credentials.ts";
 import { renderCode } from "./code-view.ts";
-import { DEFAULT_SETTINGS, LANGUAGES, buildRequest, createClient, exampleCurl, exampleJavascript, exampleJson, examplePython, exampleRust, fuzzyScore, keyPage, keyless, slashCommand, type Connection, type Language, type PickerKind, type Settings, type Wire } from "./experience.ts";
+import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, keyPage, keyless, slashCommand, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
 import { Picker, type PickOption, type PickResult } from "./picker.ts";
 import { javascriptRuntime } from "./runtimes/javascript.ts";
 import type { Runtime, RuntimeId } from "./runtimes/index.ts";
@@ -35,8 +35,6 @@ let messages: Message[] = [];
 let generation = 0;
 let active: AbortController | undefined;
 let runtime: RuntimeId = "javascript";
-let language: Language = "javascript";
-let lastPrompt = "Hello!";
 let runtimeVersion = 0;
 let loadingRuntime = false;
 let copyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -66,9 +64,9 @@ function setView(view: string): void {
 function updateControls(): void {
   send.disabled = Boolean(active) || loadingRuntime || !RUNTIMES[runtime].loaded() || !prompt.value.trim();
   stop.disabled = !active;
-  $("runtime-controls").dataset.state = loadingRuntime ? "loading" : RUNTIMES[runtime].loaded() ? "ready" : "error";
-  $("runtime-controls").setAttribute("aria-busy", String(loadingRuntime));
-  for (const input of document.querySelectorAll<HTMLInputElement>('input[name="runtime"]')) input.disabled = Boolean(active);
+  $("code-tabs").dataset.state = loadingRuntime ? "loading" : RUNTIMES[runtime].loaded() ? "ready" : "error";
+  $("code-tabs").setAttribute("aria-busy", String(loadingRuntime));
+  for (const tab of document.querySelectorAll<HTMLButtonElement>("[data-language]")) tab.disabled = Boolean(active);
 }
 function openConnection(): void {
   if (matchMedia("(max-width: 700px)").matches) setView("settings");
@@ -88,40 +86,32 @@ function currentChoice() { return CONNECTIONS.find((choice) => choice.id === con
 function cacheKey(): string { return `${connection.provider}:${connection.endpoint}:${keyRevision.get(connection.provider) ?? 0}`; }
 function draft(): string {
   const text = prompt.value.trim();
-  return text && !slashCommand(text) ? text : messages.length ? "Your next message" : lastPrompt;
+  return text && !slashCommand(text) ? text : messages.length > 2 ? "Your next message" : EXAMPLE_DRAFT;
 }
 
 let codeVersion = 0;
 async function updateCode(): Promise<void> {
   const version = ++codeVersion;
-  for (const tab of document.querySelectorAll<HTMLButtonElement>("[data-language]")) tab.setAttribute("aria-pressed", String(tab.dataset.language === language));
+  for (const tab of document.querySelectorAll<HTMLButtonElement>("[data-language]")) tab.setAttribute("aria-pressed", String(tab.dataset.language === runtime));
   const text = redact(draft());
   let code = "";
   const invalidMax = !maxTokensInput.validity.valid;
   const invalidTemperature = !temperatureInput.validity.valid;
   maxTokensInput.setAttribute("aria-invalid", String(invalidMax));
   temperatureInput.setAttribute("aria-invalid", String(invalidTemperature));
-  const error = invalidTemperature ? "Temperature must be 0 to 2 in steps of 0.1, or empty for the provider default." : invalidMax ? "Max tokens must be a whole number from 1 to 100000." : "";
+  const error = invalidTemperature ? "Temperature must be 0 to 2 in steps of 0.1, or empty for the provider default." : invalidMax ? "Max tokens must be a whole number from 1 to 100000, or empty for the provider default." : "";
   $("settings-error").hidden = !error;
   $("settings-error").textContent = error;
   try {
     if (error) throw new Error(error);
-    if (language === "javascript") code = exampleJavascript(connection, settings, messages, text);
-    else if (language === "python") code = examplePython(connection, settings, messages, text);
-    else if (language === "rust") code = exampleRust(connection, settings, messages, text);
-    else {
-      const wire = await javascriptRuntime.wire(connection, credentials.get(connection.provider) ?? "YOUR_API_KEY", buildRequest(connection, settings, messages, text));
-      if (version !== codeVersion) return;
-      const safe: Wire = { ...wire, headers: wire.headers.map(([k, v]) => [k, /authorization|api-key/i.test(k) ? v.replace(/\S+$/, "YOUR_API_KEY") : v]) };
-      code = language === "json" ? exampleJson(safe) : exampleCurl(safe);
-    }
+    if (runtime === "javascript") code = exampleJavascript(connection, settings, messages, text);
+    else if (runtime === "python") code = examplePython(connection, settings, messages, text);
+    else code = exampleRust(connection, settings, messages, text);
   } catch (error) {
     code = `// ${redact(error instanceof Error ? error.message : String(error))}`;
   }
   if (version !== codeVersion) return;
-  renderCode($("code"), redact(code), language);
-  $("preview-state").hidden = language === runtime;
-  $("preview-state").textContent = language === runtime ? "" : `Send uses ${RUNTIMES[runtime].label}.`;
+  renderCode($("code"), redact(code), runtime);
   $("copy-status").textContent = "";
   $("copy-code").textContent = "Copy code";
 }
@@ -129,7 +119,10 @@ async function updateCode(): Promise<void> {
 function refreshStatus(): void {
   $("provider-name").textContent = currentChoice().label;
   $("model-name").textContent = connection.model || "Choose model";
-  const hasKey = credentials.get(connection.provider) !== undefined;
+  $("provider-button").title = currentChoice().label; $("model-button").title = connection.model;
+  const hasKey = Boolean(credentials.get(connection.provider) && credentials.get(connection.provider) !== EXAMPLE_API_KEY);
+  keyInput.placeholder = hasKey ? "Replace key" : EXAMPLE_API_KEY;
+  keyInput.title = hasKey ? "The saved key is not shown here." : "Example key only. Paste your own provider key.";
   $("forget-key").hidden = !hasKey;
   $("key-state").textContent = hasKey ? (credentials.remembered(connection.provider) ? "Key ready (remembered on this device)" : "Key ready (this tab)") : keyless(connection.provider) ? "Local connection" : "";
   const page = keyPage(connection.provider);
@@ -143,19 +136,19 @@ function refreshStatus(): void {
   const catalogue = catalogues.get(cacheKey());
   $("model-status").textContent = catalogue?.status ?? (automatic.checked ? "Model IDs load when this connection is ready." : "Automatic model discovery is off.");
   $("model-status").title = catalogue?.error ?? "";
-  for (const input of document.querySelectorAll<HTMLInputElement>('input[name="runtime"]')) {
-    input.checked = input.value === runtime;
-    const loaded = RUNTIMES[input.value as RuntimeId].loaded();
-    input.parentElement!.dataset.loaded = String(loaded);
-  }
   updateControls();
   void updateCode();
   picker.update();
 }
 
 function reset(): void {
-  generation++; active?.abort(); active = undefined; messages = [];
+  generation++; active?.abort(); active = undefined; messages = exampleConversation();
   $("transcript").replaceChildren(); $("usage").textContent = ""; $("fidelity").textContent = "";
+  for (const message of messages) {
+    const role = message.role === "user" ? "user" : "assistant";
+    const text = message.parts.map((part) => part.type === "text" ? part.text : "").join("");
+    turn(`Example ${role}`, text, role).parentElement!.dataset.example = "true";
+  }
   updateControls();
 }
 
@@ -169,7 +162,7 @@ function credentialsChanged(): void {
 function selectProvider(id: string): void {
   const choice = CONNECTIONS.find((candidate) => candidate.id === id);
   if (!choice) return;
-  if (id !== connection.provider) { connection.provider = id; connection.model = choice.model; keyInput.value = ""; reset(); notify(); notifyKey(); lastPrompt = "Hello!"; }
+  if (id !== connection.provider) { connection.provider = id; connection.model = choice.model; keyInput.value = ""; reset(); notify(); notifyKey(); }
   refreshStatus();
   if (automatic.checked) void discover();
 }
@@ -185,7 +178,7 @@ async function discover(force = false): Promise<void> {
   const existing = catalogues.get(cache);
   if (existing?.loading || (existing && !force)) return;
   const key = credentials.get(selected.provider);
-  if (!key && !keyless(selected.provider)) { refreshStatus(); return; }
+  if ((!key || key === EXAMPLE_API_KEY) && !keyless(selected.provider)) { refreshStatus(); return; }
   const catalogue: Catalogue = { ids: [], status: "Loading model IDs…", loading: true };
   catalogues.set(cache, catalogue); refreshStatus();
   try {
@@ -238,7 +231,7 @@ function options(kind: PickerKind, query: string): PickResult {
 async function selectRuntime(id: RuntimeId): Promise<void> {
   if (active) return;
   const version = ++runtimeVersion;
-  runtime = id; language = id;
+  runtime = id;
   const chosen = RUNTIMES[id];
   loadingRuntime = !chosen.loaded();
   $("runtime-status").textContent = "";
@@ -282,13 +275,13 @@ function tryJson(text: string): unknown { try { return JSON.parse(text); } catch
 
 // ─── Chat ─────────────────────────────────────────────────────────────
 
-function turn(who: string, text: string): HTMLElement {
+function turn(who: string, text: string, role: "user" | "assistant" = who === "You" ? "user" : "assistant"): HTMLElement {
   const article = document.createElement("article");
-  article.dataset.role = who === "You" ? "user" : "assistant";
+  article.dataset.role = role;
   const heading = document.createElement("div"); heading.className = "message-heading";
   const label = document.createElement("b"); label.textContent = who;
   const body = document.createElement("p"); body.textContent = text;
-  const copy = document.createElement("button"); copy.type = "button"; copy.className = "quiet message-copy"; copy.textContent = "Copy"; copy.setAttribute("aria-label", `Copy ${who === "You" ? "your message" : "reply"}`);
+  const copy = document.createElement("button"); copy.type = "button"; copy.className = "quiet message-copy"; copy.textContent = "Copy"; copy.setAttribute("aria-label", `Copy ${role === "user" ? "your message" : "reply"}`);
   copy.addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(body.textContent ?? ""); copy.textContent = "Copied"; }
     catch { copy.textContent = "Select text to copy"; }
@@ -299,14 +292,13 @@ function turn(who: string, text: string): HTMLElement {
 
 async function sendTurn(text: string): Promise<void> {
   if (active || loadingRuntime || !RUNTIMES[runtime].loaded()) return;
-  if (!credentials.get(connection.provider) && !keyless(connection.provider)) { notifyKey(`Add your ${currentChoice().label} API key to send a message.`); openConnection(); return; }
+  if ((!credentials.get(connection.provider) || credentials.get(connection.provider) === EXAMPLE_API_KEY) && !keyless(connection.provider)) { notifyKey(`Add your ${currentChoice().label} API key to send a message.`); openConnection(); return; }
   if (!temperatureInput.reportValidity()) { openSettings(); temperatureInput.focus(); return; }
   if (!maxTokensInput.reportValidity()) { openSettings(); maxTokensInput.focus(); return; }
   if (!connection.model.trim()) { notify("Choose a model first."); return; }
   const version = generation;
   const controller = new AbortController();
   active = controller; updateControls(); notify();
-  lastPrompt = text;
   const request = buildRequest(connection, settings, messages, text);
   const chosen = RUNTIMES[runtime];
   const body = (turn("You", text), turn(`${currentChoice().label} · ${chosen.label}`, ""));
@@ -353,7 +345,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-ta
 $("credentials").addEventListener("submit", (event) => {
   event.preventDefault();
   const key = keyInput.value.trim();
-  if (!key) { notifyKey("Enter an API key first."); keyInput.focus(); return; }
+  if (!key || key === EXAMPLE_API_KEY) { notifyKey(key === EXAMPLE_API_KEY ? "That is an example key. Paste your own provider key." : "Enter an API key first."); keyInput.focus(); return; }
   const provider = connection.provider;
   const button = $("credentials").querySelector<HTMLButtonElement>('button[type="submit"]')!;
   button.disabled = true; button.textContent = "Saving…";
@@ -380,11 +372,8 @@ temperatureInput.addEventListener("input", () => {
   if (temperatureInput.validity.valid) settings.temperature = temperatureInput.value === "" ? null : temperatureInput.valueAsNumber;
   void updateCode();
 });
-maxTokensInput.addEventListener("input", () => { if (maxTokensInput.validity.valid) settings.maxTokens = maxTokensInput.valueAsNumber; void updateCode(); });
+maxTokensInput.addEventListener("input", () => { if (maxTokensInput.validity.valid) settings.maxTokens = maxTokensInput.value === "" ? null : maxTokensInput.valueAsNumber; void updateCode(); });
 reasoningInput.addEventListener("change", () => { settings.reasoning = reasoningInput.value as Settings["reasoning"]; void updateCode(); });
-for (const input of document.querySelectorAll<HTMLInputElement>('input[name="runtime"]')) input.addEventListener("change", () => void selectRuntime(input.value as RuntimeId));
-for (const tab of document.querySelectorAll<HTMLButtonElement>("[data-language]")) tab.addEventListener("click", () => { language = tab.dataset.language as Language; void updateCode(); });
-$("clear").addEventListener("click", () => { reset(); notify(); refreshStatus(); if (matchMedia("(max-width: 1100px)").matches) setView("chat"); prompt.focus(); });
 $("copy-code").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText($("code").textContent ?? ""); $("copy-status").textContent = "Copied"; $("copy-code").textContent = "Copied";
@@ -408,9 +397,13 @@ stop.addEventListener("click", () => active?.abort());
 
 for (const { id, label } of LANGUAGES) {
   const tab = document.createElement("button"); tab.type = "button"; tab.dataset.language = id; tab.textContent = label; tab.setAttribute("aria-pressed", "false");
-  tab.addEventListener("click", () => { language = id; void updateCode(); });
+  tab.addEventListener("click", () => void selectRuntime(id));
   $("code-tabs").append(tab);
 }
+systemInput.value = DEFAULT_SETTINGS.system;
+maxTokensInput.value = "";
+prompt.value = EXAMPLE_DRAFT;
+reset();
 $("remember-note").hidden = Credentials.available();
 void credentials.load().then(() => { refreshStatus(); if (automatic.checked) void discover(); });
 refreshStatus();
