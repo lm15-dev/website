@@ -1,0 +1,95 @@
+---
+import { Code } from '@astrojs/starlight/components';
+import { lookup } from 'lm15';
+import { LANGUAGES, PROVIDERS, SETUP } from '../data/docs-examples';
+
+interface Props { step: 'install' | 'auth' }
+const { step } = Astro.props;
+---
+
+{step === 'install' ? (
+  <div data-doc-install>
+    <div data-doc-install-language="python">
+      <p>You’ll need Python 3.10 or newer. Run this in your terminal:</p>
+      <Code code="python3 -m pip install --pre lm15" lang="bash" />
+      <p>The Python core has no required third-party dependencies: it uses Python’s
+        standard library. The <code>--pre</code> flag includes prereleases, so you
+        get the API used in this guide rather than the older stable release.</p>
+      <details>
+        <summary>Using Windows, or keeping this project separate?</summary>
+        <p>On Windows, use <code>py</code> instead of <code>python3</code>.</p>
+        <p>A virtual environment keeps this project’s packages separate from your
+          other Python work. Create one before installing LM15:</p>
+        <Code code="python3 -m venv .venv" lang="bash" />
+        <p>Activate it on macOS or Linux:</p>
+        <Code code="source .venv/bin/activate" lang="bash" />
+        <p>Or in Windows PowerShell:</p>
+        <Code code=".venv\\Scripts\\Activate.ps1" lang="powershell" />
+        <p>Then install inside it:</p>
+        <Code code="python -m pip install --pre lm15" lang="bash" />
+      </details>
+    </div>
+    {LANGUAGES.filter(language => language.id !== 'python').map(language => (
+      <div data-doc-install-language={language.id} hidden>
+        <p><a href={SETUP[language.id].href}>{SETUP[language.id].text}</a></p>
+      </div>
+    ))}
+  </div>
+) : (
+  <div data-doc-key-setup>
+    <p>You only need a key from <strong>one provider</strong>. Choose your provider
+      at the top left of the page, then open its key page below. You may need to
+      create an account and add credit.</p>
+    <ul>
+      {PROVIDERS.map(provider => (
+        <li data-doc-key-provider={provider.id}>
+          <a href={lookup(provider.id)?.consoleUrl}>{provider.label} API keys</a>
+          {' — '}<code>{provider.env}</code>
+        </li>
+      ))}
+    </ul>
+    <p>On macOS or Linux, run the command below in the terminal where you’ll run
+      your code. Replace <code>your-api-key</code> with your own key.</p>
+    <p data-doc-key-prompt>Choose a provider above to fill in the variable name below.</p>
+    <pre><code data-doc-key-posix>export YOUR_PROVIDER_API_KEY="your-api-key"</code></pre>
+    <details>
+      <summary>First time setting an environment variable?</summary>
+      <p>An environment variable is a named value your terminal passes to the
+        programs it starts. LM15’s router reads the key from that value, so you
+        don’t need to put it in your code.</p>
+      <p>The command above works in Bash and Zsh, the usual shells on macOS and
+        Linux. In Windows PowerShell, use:</p>
+      <pre><code data-doc-key-powershell>$env:YOUR_PROVIDER_API_KEY = "your-api-key"</code></pre>
+      <p>In Windows Command Prompt, use:</p>
+      <pre><code data-doc-key-cmd>set YOUR_PROVIDER_API_KEY=your-api-key</code></pre>
+      <p>These commands apply to the current terminal. Run your example from that
+        same terminal; set the key again when you open a new one. An already-open
+        notebook or editor won’t automatically pick it up.</p>
+      <p>Keep the key private. Don’t include it in shared code, screenshots, or
+        version control, and don’t print it to check whether setup worked.</p>
+    </details>
+    <p data-doc-key-cost>Running the example sends a real request to your chosen
+      provider and may cost money. Choose a model your account can access.</p>
+    <div data-doc-python-auth>
+      <p>Using local Ollama instead? The Python router accepts
+        <code>ollama:your-model</code> without an API key. Ollama must be running
+        with that model installed; edit the model name in your copied code.</p>
+      <p>For explicit keys, rotating credentials, or local Claude and Codex logins,
+        see <a href="https://lm15-dev.github.io/lm15-python/authentication/">Python authentication</a>.</p>
+      <details data-doc-key-error hidden>
+        <summary>Forgot to set the key?</summary>
+        <p>Python reports which provider needs a key and which variable to set.
+          For your selected provider, the message begins:</p>
+        <pre><code data-doc-key-error-source></code></pre>
+        <p>Set the named variable, then run your code again from the same terminal.</p>
+      </details>
+    </div>
+  </div>
+)}
+
+<style>
+  [hidden] { display: none !important; }
+  details { margin-block: 1rem; }
+  summary { cursor: pointer; font-weight: 600; }
+  pre { overflow-x: auto; }
+</style>

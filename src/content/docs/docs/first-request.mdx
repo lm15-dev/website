@@ -4,9 +4,24 @@ description: Make a model call with your chosen language and provider, then unde
 ---
 
 import DocsExample from '../../../components/DocsExample.astro';
+import DocsSetup from '../../../components/DocsSetup.astro';
 
-The setup instructions below match your selected language and provider. Your
-choices are also included in the page address, so you can share the same example.
+Choose your language, provider, and model at the top left of the page. We’ll
+install LM15, set one API key, and make a call. Your choices are included in the
+page address, so you can share the same example.
+
+## Install
+
+<DocsSetup step="install" />
+
+## Set an API key
+
+<DocsSetup step="auth" />
+
+## One call
+
+The router connects to the provider named in your request and reads its API key
+from the environment variable you just set. Run this example to get an answer:
 
 <DocsExample recipe="first-request" />
 

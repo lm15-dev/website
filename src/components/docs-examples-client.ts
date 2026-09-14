@@ -1,4 +1,4 @@
-import { DEFAULT_SELECTION, LANGUAGES, PROVIDERS, RECIPES, SETUP, readSelection, refreshModels, validModel, type DocSelection, type Recipe } from '../data/docs-examples';
+import { DEFAULT_SELECTION, LANGUAGES, PROVIDERS, RECIPES, readSelection, refreshModels, validModel, type DocSelection, type Recipe } from '../data/docs-examples';
 
 import { setupPickers } from './home-example/picker';
 
@@ -25,18 +25,26 @@ function render(): void {
     model.title = provider ? (selection.model || 'Released in the last 12 months, newest first. Source: models.dev.') : 'Choose a provider first.';
     controls.querySelector('[data-doc-control-status]')!.textContent = '';
   }
-  for (const root of document.querySelectorAll<HTMLElement>('[data-docs-example]')) {
-    const setup = root.querySelector<HTMLAnchorElement>('[data-doc-setup]')!;
-    setup.href = SETUP[selection.language].href;
-    setup.textContent = SETUP[selection.language].text;
-    const auth = root.querySelector('[data-doc-auth]')!;
-    if (provider) {
-      const key = document.createElement('code');
-      key.textContent = provider.env;
-      auth.replaceChildren('Set ', key, ` to your own API key before running this example. Running it sends a real request to ${provider.label} and may cost money.`);
-    } else {
-      auth.textContent = 'Choose a provider and model at the top of the page to fill in this example.';
+  for (const panel of document.querySelectorAll<HTMLElement>('[data-doc-install-language]')) {
+    panel.hidden = panel.dataset['docInstallLanguage'] !== selection.language;
+  }
+  for (const root of document.querySelectorAll<HTMLElement>('[data-doc-key-setup]')) {
+    for (const entry of root.querySelectorAll<HTMLElement>('[data-doc-key-provider]')) {
+      entry.hidden = !!provider && entry.dataset['docKeyProvider'] !== provider.id;
     }
+    const env = provider?.env ?? 'YOUR_PROVIDER_API_KEY';
+    root.querySelector<HTMLElement>('[data-doc-key-prompt]')!.hidden = !!provider;
+    root.querySelector('[data-doc-key-posix]')!.textContent = `export ${env}="your-api-key"`;
+    root.querySelector('[data-doc-key-powershell]')!.textContent = `$env:${env} = "your-api-key"`;
+    root.querySelector('[data-doc-key-cmd]')!.textContent = `set ${env}=your-api-key`;
+    root.querySelector('[data-doc-key-cost]')!.textContent =
+      `Running the example sends a real request to ${provider?.label ?? 'your chosen provider'} and may cost money. Choose a model your account can access.`;
+    root.querySelector<HTMLElement>('[data-doc-python-auth]')!.hidden = selection.language !== 'python';
+    root.querySelector<HTMLElement>('[data-doc-key-error]')!.hidden = !provider;
+    root.querySelector('[data-doc-key-error-source]')!.textContent = provider
+      ? `MissingCredentialError: no API key found for provider '${provider.id}'.\nSet ${env} in the environment, or pass\nRouterConfig(api_keys={'${provider.id}': "..."}).` : '';
+  }
+  for (const root of document.querySelectorAll<HTMLElement>('[data-docs-example]')) {
     root.querySelector('[data-doc-source]')!.textContent = RECIPES[root.dataset['recipe'] as Recipe](selection);
     root.querySelector('[data-doc-status]')!.textContent = '';
   }

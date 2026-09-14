@@ -1,13 +1,11 @@
 ---
-import { DEFAULT_SELECTION, RECIPES, SETUP, type Recipe } from '../data/docs-examples';
+import { DEFAULT_SELECTION, RECIPES, type Recipe } from '../data/docs-examples';
 interface Props { recipe?: Recipe }
 const { recipe = 'first-request' } = Astro.props;
 const selection = DEFAULT_SELECTION;
 ---
 <section class="docs-example" data-docs-example data-recipe={recipe} aria-label="Configurable example">
 
-  <p><a data-doc-setup href={SETUP[selection.language].href}>{SETUP[selection.language].text}</a></p>
-  <p data-doc-auth>Choose a provider and model at the top of the page to fill in this example.</p>
   <div class="docs-source">
     <button type="button" data-doc-copy aria-label="Copy example code">Copy</button>
     <pre tabindex="0" aria-label="Example source code"><code data-doc-source>{RECIPES[recipe](selection)}</code></pre>
