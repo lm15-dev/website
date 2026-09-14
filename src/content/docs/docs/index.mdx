@@ -1,11 +1,27 @@
 ---
-title: Direct access to model APIs. One SDK across providers.
-description: Build with typed requests, responses, streaming, and tools across model providers and programming languages.
+title: LM15 overview
+description: Make your first model call, learn how LM15 works, and build on the same ideas across languages and providers.
 ---
 
-import DocsExample from '../../../components/DocsExample.astro';
+In this guide, you’ll learn to make your first model call with LM15. We’ll explain
+what each step does and why LM15 works the way it does, so you can build on it.
 
-<a href="https://xkcd.com/927/">
+Choose your **language, provider, and model** at the top left of the page. Changing
+languages changes the code examples, not the explanation: LM15 uses the same
+ideas across languages and providers. Your chosen provider and model appear in
+the examples, ready to copy. Choose the provider your API key belongs to and a
+model you can access.
+
+This guide is for learning at your own pace. If you’d rather take another path:
+
+- **Explore in your browser.** The [playground](/playground/) helps you get an API
+  key, try a model, and copy the code to run on your computer.
+- **Build with a coding agent.** Give it our [LM15 skill](/skill.md) or
+  [`llms.txt`](/llms.txt).
+
+## The LM15 contract
+
+<a href="https://xkcd.com/927/" style="display: block; margin-top: 2.5rem;">
   <img src="https://imgs.xkcd.com/comics/standards.png" alt="XKCD’s ‘Standards’: an attempt to unite fourteen competing standards creates a fifteenth." style="display: block; margin-inline: auto; max-width: 100%; height: auto;" />
 </a>
 
@@ -15,79 +31,127 @@ import DocsExample from '../../../components/DocsExample.astro';
   <a href="https://creativecommons.org/licenses/by-nc/2.5/">CC BY-NC 2.5</a>
 </p>
 
-LM15 connects directly to supported provider endpoints. Its adapters implement
-the provider protocols themselves—without wrapping the providers' SDKs or
-requiring a hosted LM15 gateway.
+LM15 is first and foremost a **contract**: a shared format for requests and
+responses, with precise rules for what each field means. It also defines how
+responses arrive piece by piece when streaming. Each language implementation
+follows this contract, using the conventions of its language.
 
-Build with typed requests, responses, streaming, and tools. Keep control of your
-transport, agent loop, retry policy, and user interface, without maintaining a
-separate integration with each provider's SDK.
+An **adapter** translates an LM15 request into the format a provider accepts,
+then translates the answer back into an LM15 response. Your application works
+with the contract; the adapter handles the provider’s details. Learn that one
+contract, and you can use it across languages and providers without learning a
+new request and response format each time. Providers still differ in what they
+can do—the shared format does not erase those differences.
 
-Its language implementations target a shared contract, with fixtures for checking
-provider mappings and common behavior.
+That common meeting point is useful on both sides. Application and framework
+builders can use it without knowing every provider’s API. Someone connecting a
+new model service can implement it without knowing every application that will
+call it.
 
-**[Make your first request](#start-with-one-request)** ·
-[Check compatibility](#compare-capabilities-not-just-a-hello-world-call)
+LM15 began with direct calls to provider APIs, but the contract does not require
+a remote service. A custom adapter could connect to a model running inside your
+program through PyTorch or vLLM. It could even connect to a coding agent that
+runs its own tools and completes several steps before returning an answer.
+These would be custom integrations, not connections LM15 currently supplies.
 
-## Start with one request
+The responsibility is the same: read the LM15 request, carry out what it asks,
+and return an answer that follows the response rules. If the system cannot
+honor part of the request, report that rather than silently ignore it. Applications
+can then use the connection through the same contract.
 
-Choose a language, provider, and model at the top of the page. The setup
-instructions and code change together. Your choices are included in the page
-address so you can share the same example.
-
-<DocsExample recipe="first-request" />
-
-You create a **Request**. A configured client translates it into the provider's
-API format. You receive a **Response**, with message content, a finish reason,
-and any usage information the provider reported.
+In a nutshell, a request describes what you want; a response records what came back:
 
 ```text
-Your application → Provider's SDK → Provider API
-Your application → LM15           → Provider API
+Request
+  model · messages · system instructions · tools · settings
+    ↓
+Adapter ↔ model or service
+    ↓
+Response
+  message · finish reason · usage
 ```
 
-LM15 is an alternative client, not an extra SDK layered on top of the provider's
-client. You can inspect generated requests and supply your own transport. For
-options outside the common model, compatibility policies and extension fields
-keep provider-specific configuration accessible.
+System instructions, tools, and settings are optional. With streaming, the same
+request produces the answer piece by piece, followed by a final event carrying
+the finish reason and any reported usage.
 
-Streaming uses the same request. Instead of a completed response, the client
-returns events your application can display or collect into a final result.
+Each part of the request has its own smaller contract:
 
-To use another provider, configure its connection and choose a model it serves.
-The request and response concepts stay the same. The router in this example
-selects the connection from the `provider:model` name.
+### Model: which model to call
 
-## Evaluate one call before changing your architecture
+`model` is a required, non-empty string naming the model you want. When using
+the router, `provider:model` also names the provider to contact. The router
+removes that prefix before passing the model name to the adapter.
 
-Start with one provider call. Adapt its result into your existing framework,
-then check the streaming, tools, and error behavior your application needs.
-You can assess the fit before deciding how much to integrate.
+A model name belongs to a particular service. Changing providers may require
+changing the model name too.
 
-Accept a configured LM15 client in your own API, or construct one inside your
-framework. Use the built-in transports or supply your own. No hosted LM15
-gateway is required.
+### Messages: what the model receives
 
-Your application still decides which model to call, whether to retry, and what
-a requested tool may do. LM15 removes provider-specific plumbing from that work;
-it does not require you to adopt a new agent loop or application framework.
+`messages` is an ordered list with at least one message. Each message contains:
 
-You can also use it directly, as in the example above.
+- **A role:** `user`, `assistant`, `tool`, or `developer`—who the message is from.
+- **Parts:** one or more pieces of content, each with its own type and fields.
+  A text part holds text; an image part identifies an image; a tool-call part
+  holds the call’s ID, function name, and input.
 
-## Compare capabilities, not just a hello-world call
+The role determines which parts belong in a message. For example, tool results
+belong in tool messages, not user messages. To continue a conversation, include
+previous messages and the new turn. Keep the full assistant message: it may
+carry provider data needed for the next call, beyond the visible text.
 
-A smaller SDK is only useful if it carries the features your application needs.
-Check the selected provider's coverage beyond basic text generation.
+The optional `system` field is separate from this list. It holds instructions
+that apply to the request as a whole.
 
-| Capability | What it lets you do |
-|---|---|
-| **Streaming** | Consume typed text, tool-argument, reasoning, and completion events instead of parsing each provider's stream format. |
-| **Tools** | Declare application functions and provider-built-in tools while keeping control of your own tool execution. |
-| **Structured output** | Request response formats and schema constraints on supported endpoints. |
-| **Reasoning and continuation** | Carry provider-issued opaque state into later turns without discarding it or presenting hidden reasoning as visible text. |
-| **Prompt caching** | Set supported cache controls and inspect the cache usage the provider reports. |
-| **Media** | Build requests with typed images, documents, audio, and video where supported. |
-| **Errors and usage** | Make retry decisions using common error categories and available hints. Distinguish unreported usage from zero. |
+### Tools: what the model can use
+
+`tools` lists the tools offered for this request. Each has a unique name and is
+one of two kinds:
+
+- **Function tool:** a name, an optional description, and a schema describing
+  its inputs—their names, types, and which are required. The model can request
+  a call; your application decides whether and how to execute it, then returns
+  a result with the matching call ID.
+- **Built-in tool:** a name and optional configuration for a tool the provider
+  runs, such as web search. LM15 does not ask your application to run it again.
+
+Declaring a tool makes it available; it does not require the model to use it.
+Tool-choice settings control that separately.
+
+### Settings: how to generate the answer
+
+`config` holds optional settings such as the output-token limit, temperature,
+response format, reasoning effort, caching, and tool choice. Each setting has
+its own allowed values and rules. For example, a token limit must be positive;
+a tool-choice restriction can only name tools offered in the request.
+
+Leaving a setting out is different from setting it to zero or switching it off.
+It means you have not requested a value. A valid setting still needs support
+from the chosen provider and model; provider-specific options go in
+`config.extensions`.
+
+## Capabilities
+
+What can we express through this contract? LM15 is not limited to the features
+that every provider has in common. Features shared by multiple providers have
+common fields; provider-specific options belong in **extensions**, where you
+can use the provider’s own names and values. On the response side,
+**provider_data** preserves the provider’s original answer alongside the shared
+response fields.
+
+That separation is useful: it makes clear where your code relies on a
+provider-specific option rather than a shared feature. Shared does not mean
+universal, though—you still need a model and provider that support what you ask.
+
+The shared capabilities include:
+
+- **Streaming**
+- **Tools**
+- **Structured output**
+- **Reasoning and continuation**
+- **Prompt caching**
+- **Media**
+- **Errors and usage**
 
 Separate APIs cover files, batches, media generation, video jobs, and realtime
 sessions. These surfaces remain provisional.
@@ -96,8 +160,6 @@ A shared interface does not make every provider identical. Availability and
 behavior depend on the endpoint, model, and SDK. An official SDK may expose
 features or new endpoints that LM15 does not yet support. Selecting a combination
 above is not a guarantee that every feature works with it.
-
-[Find your selected SDK's setup guide](#start-with-one-request)
 
 ## Check the behavior before depending on it
 
@@ -117,9 +179,6 @@ Fixture checks, executable examples, and live provider captures answer different
 questions. Check the evidence for the SDK and feature you intend to use; a
 passing recorded case is not a promise about every model or future API change.
 
-[Language and runtime support](/compatibility/languages/) ·
-[Read the contract](https://github.com/lm15-dev/lm15-contract)
-
 ## Small enough to build on
 
 The Python core has **no required third-party dependencies**. WebSocket support
@@ -132,17 +191,3 @@ overhead.
 Benchmark reports identify the SDK version, runtime, workload, and environment.
 A lower startup cost does not mean the model generates tokens faster. Compare
 the costs that matter to your deployment, with the features you actually use.
-
-## Build the next layer
-
-- **Making your first integration?** Start with [one request](#start-with-one-request), then follow [your selected SDK's setup guide](#start-with-one-request).
-- **Building a framework or agent runtime?** Explore the [shared contract](https://github.com/lm15-dev/lm15-contract) and test your integration without calling a live provider.
-- **Connecting your own server?** See [local and custom servers](/docs/custom-servers/) for the planned guide to endpoint and compatibility settings.
-- **Want to try it in your browser?** Open the [playground](/playground/).
-
----
-
-**Why 15?** A nod to [XKCD's “Standards”](https://xkcd.com/927/), by Randall Munroe:
-trying to unite fourteen competing standards creates a fifteenth. We know.
-
-[About LM15](/about/) · [Source and contributions](https://github.com/lm15-dev)

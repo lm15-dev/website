@@ -1,0 +1,32 @@
+---
+title: Make your first request
+description: Make a model call with your chosen language and provider, then understand the request and response.
+---
+
+import DocsExample from '../../../components/DocsExample.astro';
+
+The setup instructions below match your selected language and provider. Your
+choices are also included in the page address, so you can share the same example.
+
+<DocsExample recipe="first-request" />
+
+You create a **Request**. A configured client translates it into the provider's
+API format. You receive a **Response**, with message content, a finish reason,
+and any usage information the provider reported.
+
+```text
+Your application → Provider's SDK → Provider API
+Your application → LM15           → Provider API
+```
+
+LM15 is an alternative client, not an extra SDK layered on top of the provider's
+client. You can inspect generated requests and supply your own transport. For
+options outside the common model, compatibility policies and extension fields
+keep provider-specific configuration accessible.
+
+Streaming uses the same request. Instead of a completed response, the client
+returns events your application can display or collect into a final result.
+
+To use another provider, configure its connection and choose a model it serves.
+The request and response concepts stay the same. The router in this example
+selects the connection from the `provider:model` name.

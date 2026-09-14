@@ -1,0 +1,29 @@
+# LM15
+
+> LM15 is a family of model API clients built around a shared request, response, and streaming contract. Applications keep control of tool execution, retries, and conversation history.
+
+The contract defines shared behavior; the SDKs implement it using each language’s conventions. Support depends on the SDK version, provider endpoint, and model. A shared field does not guarantee universal support.
+
+## Getting started
+
+- [Overview](https://lm15.dev/docs/): The contract, request fields, and capabilities.
+- [First request](https://lm15.dev/docs/first-request/): Setup links and a selectable code example.
+- [LM15 skill](https://lm15.dev/skill.md): Instructions for coding agents using LM15.
+- [Playground](https://lm15.dev/playground/): Try provider calls in the browser and copy code. Calls require credentials and may cost money.
+
+## Authoritative sources
+
+- [Contract](https://github.com/lm15-dev/lm15-contract): Types, field rules, provider mappings, and shared test cases.
+- [Source precedence](https://github.com/lm15-dev/lm15-contract/blob/main/AUTHORITY.md): Which source wins when documentation, tests, and implementations disagree.
+- [Scope and stability](https://github.com/lm15-dev/lm15-contract/blob/main/spec/SCOPE.md): Frozen and provisional features.
+- [API conventions](https://github.com/lm15-dev/lm15-contract/blob/main/playbooks/api-family.md): Shared names and language-specific usage.
+
+## Implementations
+
+- [Python](https://github.com/lm15-dev/lm15-python): Reference implementation, not the authority over the contract.
+- [TypeScript](https://github.com/lm15-dev/lm15-ts)
+- [Rust](https://github.com/lm15-dev/lm15-rs)
+- [Go](https://github.com/lm15-dev/lm15-go)
+- [Julia](https://github.com/lm15-dev/lm15-jl)
+
+Check each repository for installation, release status, and supported features. Some website guides are still under construction; use the contract and the selected SDK’s source for details.
