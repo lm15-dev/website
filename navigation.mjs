@@ -18,6 +18,7 @@ export const sidebar = [
     { label: 'Control generation', slug: 'docs/generation' },
     { label: 'Work with reasoning models', slug: 'docs/reasoning' },
     { label: 'Get structured output', slug: 'docs/structured-output' },
+    { label: 'Ask for judgments with probabilities', slug: 'docs/judgments' },
     { label: 'Send images and documents', slug: 'docs/media-inputs' },
     { label: 'Cache prompts', slug: 'docs/prompt-caching' },
   ] },
