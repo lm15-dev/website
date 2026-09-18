@@ -25,6 +25,12 @@
           <h2>Providers with a loaded key</h2><p id="loaded" class="setting-help">None</p>
           <button id="forget" class="text-button danger" type="button">Forget all keys</button>
         </section>
+        <section class="more-section" aria-label="Relay">
+          <h2>Relayed providers</h2>
+          <p id="relayed" class="setting-help">None. Every request goes from this page straight to its provider.</p>
+          <p class="setting-help">A provider whose API refuses browser calls can be routed through the lm15 relay after you allow it. <a href="/playground/about/#relay">What the relay is</a>.</p>
+          <button id="forget-relays" class="text-button danger" type="button" hidden>Stop relaying</button>
+        </section>
         <nav class="more-section more-links" aria-label="Resources">
           <a href="/docs/">Documentation</a>
           <a href="https://github.com/lm15-dev/website" target="_blank" rel="noopener noreferrer">Source code</a>
@@ -61,8 +67,15 @@
       <div class="setting-section">
         <div class="control-row"><label for="temperature">Temperature</label><input id="temperature" type="number" min="0" max="2" step="0.1" placeholder="Default" aria-describedby="settings-error" title="Leave empty to use the provider default"></div>
         <div class="control-row"><label for="max-tokens">Max tokens</label><input id="max-tokens" type="number" min="1" max="100000" placeholder="Default" aria-describedby="settings-error" title="Leave empty to use the provider default"></div>
-        <label for="reasoning">Reasoning effort</label><select id="reasoning"><option value="">Model decides</option><option value="off">Off</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Maximum</option></select>
+        <label for="reasoning">Reasoning effort</label><select id="reasoning" aria-describedby="reasoning-note"><option value="">Model decides</option><option value="off">Off</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Maximum</option></select>
         <p id="settings-error" class="field-error" role="status" hidden></p>
+      </div>
+      <div class="setting-section" id="judgments-section">
+        <label class="checkbox"><input id="judgments-on" type="checkbox"> Ask for judgments</label>
+        <p id="judgments-note" class="setting-help">Declared keys in, a distribution out (MAP-14). Your message is the text being judged. TypeSafe answers judgments only and measures the probabilities; other providers answer the pick.</p>
+        <label for="schema">Judgments (JSON Schema properties)</label>
+        <textarea id="schema" rows="12" spellcheck="false" aria-describedby="schema-error"></textarea>
+        <p id="schema-error" class="field-error" role="status" hidden></p>
       </div>
     </div>
   </aside>
@@ -94,6 +107,16 @@
     <span id="copy-status" class="sr-only" role="status"></span>
   </aside>
 </main>
+<dialog id="relay-dialog" aria-labelledby="relay-title" aria-describedby="relay-text">
+  <div class="dialog-heading"><h2 id="relay-title">This provider blocks browsers</h2><button id="relay-close" class="quiet" aria-label="Close">✕</button></div>
+  <div id="relay-text" class="dialog-text">
+    <p><b id="relay-provider">The provider</b> answered this page's request the way an API does when it refuses browser origins: the browser was not allowed to read the reply. Nothing was sent through lm15.</p>
+    <p>lm15 runs a small relay for this case. If you allow it for this provider, your API key and your messages will pass through that relay on their way to the provider — a server we control, which keeps no log. Every other provider is still called directly from this page.</p>
+    <p id="relay-unavailable" class="field-error" hidden>The relay is not deployed yet; copy the code and run it outside a browser instead.</p>
+    <label class="checkbox"><input id="relay-remember" type="checkbox"> Remember this choice on this device</label>
+  </div>
+  <div class="dialog-actions"><button id="relay-cancel" class="text-button" type="button">Not now</button><button id="relay-allow" class="primary" type="button">Allow the relay and resend</button></div>
+</dialog>
 <dialog id="picker" aria-labelledby="picker-title">
   <div class="dialog-heading"><h2 id="picker-title">Choose a provider</h2><button id="picker-close" class="quiet" aria-label="Close picker">✕</button></div>
   <label class="sr-only" for="picker-search">Search choices</label><input id="picker-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search…" role="combobox" aria-expanded="true" aria-controls="picker-results" aria-autocomplete="list">

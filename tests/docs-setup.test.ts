@@ -34,7 +34,7 @@ test('first-request setup follows the selected provider and language', { timeout
     page.on('pageerror', error => errors.push(error.message));
     // No provider requests or live catalog dependency in documentation tests.
     await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
-    for (const provider of CONNECTIONS.filter(item => item.env)) {
+    for (const provider of CONNECTIONS.filter(item => item.env && !('judgmentsOnly' in item))) {
       await page.goto(`${origin}/docs/first-request/?language=python&provider=${provider.id}&model=test-model`);
       await page.locator('[data-doc-controls][data-ready]').waitFor();
       assert.match(await page.locator('[data-doc-install]').innerText(), /python3 -m pip install --pre lm15/);

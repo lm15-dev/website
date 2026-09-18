@@ -9,6 +9,8 @@ export const CONNECTIONS = [
   { id: "zai", label: "Z.AI", env: "ZAI_API_KEY", model: "glm-4.5" },
   { id: "meta", label: "Meta", env: "META_API_KEY", model: "muse-spark-1.3" },
   { id: "moonshotai", label: "Moonshot / Kimi", env: "MOONSHOTAI_API_KEY", model: "kimi-k2.5" },
+  // Judgments only (MAP-14): no chat, no stream. The playground turns judgments on for it; the docs' first chat request leaves it out.
+  { id: "typesafe", label: "TypeSafe (Jev)", env: "TYPESAFE_API_KEY", model: "jev-latest", judgmentsOnly: true },
   { id: "ollama", label: "Ollama (local)", env: "", model: "qwen3.5:0.8b" },
   { id: "custom", label: "Custom Chat Completions server", env: "", model: "" },
 ] as const;

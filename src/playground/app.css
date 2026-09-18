@@ -130,6 +130,10 @@ article.streaming p:empty::after { content: "Waiting for the provider…"; color
 dialog { width: min(94vw, 500px); max-height: 80dvh; padding: 20px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; }
 dialog::backdrop { background: #10241c55; }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+.dialog-text p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+#schema { width: 100%; font: 13px/1.5 ui-monospace, "SFMono-Regular", Consolas, monospace; tab-size: 2; }
+#judgments-section[data-locked="true"] #judgments-on { pointer-events: none; }
 #picker-search { width: 100%; padding: 12px; }
 .picker-status { color: var(--muted); font-size: 12px; margin: 12px 0; }
 [role="listbox"] { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow: auto; }

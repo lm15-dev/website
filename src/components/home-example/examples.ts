@@ -21,7 +21,7 @@ const additionalModels: Record<string, string[]> = {
   zai: ['glm-4.5-air'],
   moonshotai: ['kimi-k2-thinking'],
 };
-export const PROVIDERS = CONNECTIONS.filter(choice => choice.env).map(choice => ({
+export const PROVIDERS = CONNECTIONS.filter(choice => choice.env && !('judgmentsOnly' in choice)).map(choice => ({
   id: choice.id as string,
   label: choice.label as string,
   env: choice.env as string,

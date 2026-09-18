@@ -9,8 +9,8 @@
  * lm15 wheel 0.5 MB; both are served by this site, no CDN.
  */
 
-import { Message, Response, type Request } from "lm15/browser";
-import { EXAMPLE_API_KEY, examplePython, keyless, type Connection, type Wire } from "../experience.ts";
+import { Message, Response, stringifyJson, type JsonObject, type Request } from "lm15/browser";
+import { EXAMPLE_API_KEY, examplePython, keyless, streams, type Connection, type Settings, type Wire } from "../experience.ts";
 import type { Runtime } from "./index.ts";
 
 interface Pyodide {
@@ -75,13 +75,13 @@ export const pythonRuntime: Runtime = {
     const source = examplePython(connection, settingsOf(request), messages, prompt);
     // The same construction with the sync class (no transport needed) and its
     // build_request: the bytes, no network. Public API only.
-    const head = source.split("\nresult = AsyncResponseStream")[0]!
-      .replace(/\bAsync(OpenAILM|OpenAIChatLM|AnthropicLM|GeminiLM)\b/g, "$1")
+    const head = source.split(/\n(?:result = AsyncResponseStream|response = await lm\.complete)/)[0]!
+      .replace(/\bAsync(OpenAILM|OpenAIChatLM|AnthropicLM|GeminiLM|TypeSafeLM)\b/g, "$1")
       .replace(/^from lm15\.transports import FetchTransport.*\n/m, "")
       .replace(/^    transport=FetchTransport\(\),\n/m, "");
     const program = `${withKey(head, key, connection)}
 import json
-_built = lm.build_request(request, stream=True)
+_built = lm.build_request(request, stream=${streams(connection) ? "True" : "False"})
 json.dumps({"method": _built.method, "url": _built.url, "headers": list(_built.headers), "body": _built.body.decode("utf-8")})
 `;
     return JSON.parse(String(await py.runPythonAsync(program))) as Wire;
@@ -113,13 +113,17 @@ json.dumps(response_to_dict(response))
 };
 
 /** The settings a Request carries, read back for the generator (the page passes the same object it built the request from). */
-function settingsOf(request: Request) {
+function settingsOf(request: Request): Settings {
   const config = request.config ?? {};
+  const format = config.responseFormat;
+  const judged = format?.type === "json_schema";
   return {
     system: typeof request.system === "string" ? request.system : "",
     temperature: config.temperature ?? null,
     maxTokens: config.maxTokens ?? null,
     reasoning: config.reasoning?.effort ?? ("" as const),
+    judgments: judged,
+    schema: judged ? stringifyJson((format.schema["properties"] ?? {}) as JsonObject, { indent: 2 }) : "",
   };
 }
 

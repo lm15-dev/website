@@ -15,7 +15,7 @@
 <p>This is an open-source playground for LM15, not a service that runs models for you. Bring your own provider account and API key. Sending messages may cost money on that account.</p>
 <h2>Where your information goes</h2>
 <ul>
-<li>Your browser sends messages and the selected provider's key directly to that provider. There is no LM15 proxy. That provider's privacy rules apply to those requests.</li>
+<li>Your browser sends messages and the selected provider's key directly to that provider. That provider's privacy rules apply to those requests. The one exception is the <a href="#relay">relay</a>, which is off until you allow it for a provider.</li>
 <li>GitHub Pages hosts the public files and handles normal hosting traffic, including your IP address. The app does not send your keys or messages to GitHub, and includes no analytics, advertising, or third-party scripts.</li>
 <li>The conversation stays in the page's memory and is lost on refresh. It is sent again to your provider with each turn so the conversation can continue.</li>
 <li>Keys also stay in memory unless you choose <strong>Remember on this device</strong>. Remembered keys are encrypted in this site's browser storage. <strong>Forget</strong> deletes them. Keys stored on localhost or a different website do not carry over here.</li>
@@ -23,7 +23,15 @@
 </ul>
 <h2>What this hosting setup can and cannot do</h2>
 <p>GoDaddy manages the address. GitHub Pages serves the files and provides HTTPS, the encrypted browser connection. JavaScript, Python via Pyodide, and the Rust WebAssembly codec run in your browser. Python and Rust load only when selected; Python downloads about 13 MB the first time.</p>
-<p>Browser access is controlled by the model provider. A provider that blocks browser requests will not work here. There is no silent proxy or fallback. For local HTTP model servers, use the <a href="https://github.com/lm15-dev/website#local-provider-keys">local playground</a>; the public HTTPS site allows only HTTPS requests.</p>
+<p>Browser access is controlled by the model provider. A provider that blocks browser requests fails here first, and the page then offers the relay below; nothing is routed anywhere without that choice. For local HTTP model servers, use the <a href="https://github.com/lm15-dev/website#local-provider-keys">local playground</a>; the public HTTPS site allows only HTTPS requests.</p>
+<h2 id="relay">The relay</h2>
+<p>Some provider APIs refuse requests from web pages altogether (TypeSafe's does, checked 2026-09-18). For those, lm15 runs a small relay: a <a href="https://github.com/lm15-dev/website/tree/main/relay">Cloudflare Worker, about ninety lines</a>, that forwards the request to the provider and adds the permission headers the provider left out.</p>
+<ul>
+<li>It is used only after you allow it for a provider, and only for that provider. <strong>More → Relayed providers</strong> shows what is relayed and turns it off.</li>
+<li>While relayed, your API key and your messages pass through that server on their way to the provider. Its code writes no log, and Cloudflare's request logs are disabled for it; Cloudflare still carries the traffic, as any host would. Prefer a limited-budget key.</li>
+<li>It forwards only to the providers it lists and only for this site's pages; it is not an open proxy.</li>
+<li>The code panel shows the relay address as the SDK's <code>baseUrl</code>. Outside a browser, drop that line: the SDKs call the provider directly.</li>
+</ul>
 <p>GitHub Pages does not let us set custom HTTP security headers. The page uses a restrictive Content Security Policy to limit scripts and connections, but that is not equivalent to a server-controlled policy. Do not embed this playground in another site.</p>
 <p>Releases use versioned asset addresses so a cached script cannot silently mix with a different release's libraries. A new release may require downloading the runtimes again. Reload an old tab if a runtime can no longer be loaded after an update.</p>
 <h2>Source and licenses</h2>

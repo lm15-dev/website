@@ -1,0 +1,21 @@
+# The lm15 playground relay (relay/worker.js). Deploy: `npx wrangler deploy`
+# from this folder after `npx wrangler login` — one Cloudflare account, free
+# tier (100,000 requests/day). The Worker gets a `*.workers.dev` address;
+# put it in `src/playground/relay.ts` (RELAY_URL). A custom name such as
+# `relay.lm15.dev` needs the lm15.dev DNS zone on Cloudflare (it is at
+# GoDaddy today), so the workers.dev address is used as is.
+name = "lm15-relay"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+# No request logs: the relay carries users' provider keys and prompts.
+[observability]
+enabled = false
+[observability.logs]
+enabled = false
+
+[vars]
+# Comma-separated. Every other upstream and origin is refused by name.
+ALLOWED_UPSTREAMS = "api.typesafe.ai"
+ALLOWED_ORIGINS = "https://lm15.dev,https://www.lm15.dev"

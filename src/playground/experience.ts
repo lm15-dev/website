@@ -11,10 +11,20 @@
  * placeholders in the text.
  */
 
-import { Message, OpenAIChatLM, RawNumber, Request as RequestNs, adapterFor, access, lookup, stringifyJson, type Config, type ProviderLM, type ReasoningEffort, type Request } from "lm15/browser";
+import { Message, OpenAIChatLM, RawNumber, Request as RequestNs, adapterFor, access, isJsonObject, judgments, judgmentsInSchema, lookup, parseJson, stringifyJson, type Config, type JsonObject, type ProviderLM, type ReasoningEffort, type Request, type Response } from "lm15/browser";
+import { relayBaseUrl, relayed } from "./relay.ts";
 
 export interface Connection { provider: string; model: string; endpoint: string }
-export interface Settings { system: string; temperature: number | null; maxTokens: number | null; reasoning: ReasoningEffort | "" }
+export interface Settings {
+  system: string;
+  temperature: number | null;
+  maxTokens: number | null;
+  reasoning: ReasoningEffort | "";
+  /** MAP-14: ask for judgments (declared keys in, a distribution out). Always on for TypeSafe, which answers nothing else. */
+  judgments: boolean;
+  /** The judgment properties, as JSON Schema `properties` text (what `judgments({...})` takes). */
+  schema: string;
+}
 export type Language = "javascript" | "python" | "rust";
 export const LANGUAGES: ReadonlyArray<{ id: Language; label: string }> = [
   { id: "javascript", label: "JavaScript" },
@@ -25,7 +35,32 @@ export const EXAMPLE_API_KEY = "sk-just-kidding";
 export const EXAMPLE_QUESTION = "What is LM15?";
 export const EXAMPLE_ANSWER = "LM15 lets you use different model providers through one consistent interface.";
 export const EXAMPLE_DRAFT = "Can you show me a tiny example?";
-export const DEFAULT_SETTINGS: Settings = { system: "You are an LM15 teacher. Explain things simply and keep answers short.", temperature: null, maxTokens: null, reasoning: "" };
+/** Three judgments over a wine note — the contract's own receipted example (cases/typesafe/judgments.json): an ordered scale, a choice with descriptions, a yes/no. */
+export const EXAMPLE_SCHEMA = `{
+  "quality": {
+    "type": "integer",
+    "description": "How good is this wine, according to the note?",
+    "anyOf": [
+      { "const": 0, "title": "faulty", "description": "Faulty or unpleasant" },
+      { "const": 1, "title": "simple", "description": "Simple and sound" },
+      { "const": 2, "title": "good", "description": "Good, well made" },
+      { "const": 3, "title": "excellent", "description": "Excellent, complex and structured" },
+      { "const": 4, "title": "profound", "description": "Profound, exceptional" }
+    ]
+  },
+  "style": {
+    "type": "string",
+    "description": "What is the dominant style described?",
+    "anyOf": [
+      { "const": "fruit", "description": "Fruit-forward" },
+      { "const": "oak", "description": "Oak-driven" },
+      { "const": "mineral", "description": "Mineral, savoury" }
+    ]
+  },
+  "ageing": { "type": "boolean", "description": "Does the note say the wine will improve with age?" }
+}`;
+export const EXAMPLE_STATE = "Ripe blackberry and cassis lead, framed by toasty oak and firm, fine-grained tannins. Long, layered finish; will reward a decade in the cellar.";
+export const DEFAULT_SETTINGS: Settings = { system: "You are an LM15 teacher. Explain things simply and keep answers short.", temperature: null, maxTokens: null, reasoning: "", judgments: false, schema: EXAMPLE_SCHEMA };
 export function exampleConversation(): Message[] { return [Message.user(EXAMPLE_QUESTION), Message.assistant(EXAMPLE_ANSWER)]; }
 
 /** The Anthropic API refuses a browser origin unless the caller says it means it. */
@@ -33,6 +68,36 @@ export const ANTHROPIC_BROWSER_HEADER = ["anthropic-dangerous-direct-browser-acc
 
 export function keyless(provider: string): boolean {
   return provider === "ollama" || provider === "custom";
+}
+
+/** TypeSafe (Jev) answers declared judgments only; every other provider answers them as structured output when asked. */
+export function judgmentsActive(connection: Connection, settings: Settings): boolean {
+  return connection.provider === "typesafe" || settings.judgments;
+}
+
+/** A provider that answers in one piece (TypeSafe): `complete`, never `stream`. */
+export function streams(connection: Connection): boolean {
+  return connection.provider === "custom" || (lookup(connection.provider)?.access.supports.stream ?? true);
+}
+
+/** The judgment properties the settings hold, validated: a JSON object whose properties declare at least one judgment (MAP-14 §1). */
+export function judgmentProperties(schema: string): JsonObject {
+  let value: unknown;
+  try {
+    value = parseJson(schema);
+  } catch (e) {
+    throw new Error(`Judgments must be a JSON object of properties: ${(e as Error).message}`);
+  }
+  if (!isJsonObject(value) || Object.keys(value).length === 0) throw new Error("Judgments must be a JSON object with at least one property.");
+  const found = judgmentsInSchema({ type: "object", properties: value });
+  if (found.size === 0) throw new Error("No property declares a judgment: use a string enum, an anyOf of const values, integer levels 0..n-1, or a boolean (MAP-14).");
+  return value;
+}
+
+/** Where the SDK sends this connection: the provider directly, or the relay once the user enabled it for that provider (relay.ts). */
+export function baseUrlFor(connection: Connection): string | undefined {
+  if (connection.provider === "custom") return connection.endpoint;
+  return relayed(connection.provider) ? relayBaseUrl(connection.provider) : undefined;
 }
 
 export function keyPage(provider: string): string | undefined {
@@ -49,8 +114,10 @@ export function createClient(connection: Connection, key?: string): ProviderLM {
     }
     return new OpenAIChatLM({ apiKey: key ?? "unused", baseUrl: url.href.replace(/\/$/, "") });
   }
+  const baseUrl = baseUrlFor(connection);
   return adapterFor(id, {
     apiKey: key ?? "unused",
+    ...(baseUrl !== undefined ? { baseUrl } : {}),
     ...(id === "anthropic" ? { access: access.withHeaders(access.ANTHROPIC_API, { [ANTHROPIC_BROWSER_HEADER[0]]: ANTHROPIC_BROWSER_HEADER[1] }) } : {}),
   });
 }
@@ -61,6 +128,10 @@ export function buildRequest(connection: Connection, settings: Settings, message
   if (settings.maxTokens !== null) config["maxTokens"] = settings.maxTokens;
   if (settings.temperature !== null) config["temperature"] = settings.temperature;
   if (settings.reasoning) config["reasoning"] = { effort: settings.reasoning };
+  if (judgmentsActive(connection, settings)) {
+    config["responseFormat"] = judgments(judgmentProperties(settings.schema) as Record<string, JsonObject>);
+    config["probabilities"] = "if_available";
+  }
   return RequestNs.create({
     model: connection.model.trim(),
     ...(settings.system.trim() ? { system: settings.system.trim() } : {}),
@@ -99,18 +170,30 @@ function plainText(message: Message): { role: "user" | "assistant"; text: string
   return { role: data.role, text: part.text };
 }
 
-function configLines(settings: Settings, lang: Language): string[] {
+function configLines(settings: Settings, lang: Language, connection?: Connection): string[] {
   const entries: Array<[string, string]> = [];
+  const judged = connection !== undefined && judgmentsActive(connection, settings);
+  const properties = judged ? judgmentProperties(settings.schema) : undefined;
   if (lang === "javascript") {
     if (settings.maxTokens !== null) entries.push(["maxTokens", String(settings.maxTokens)]);
     if (settings.temperature !== null) entries.push(["temperature", String(settings.temperature)]);
     if (settings.reasoning) entries.push(["reasoning", `{ effort: ${q(settings.reasoning)} }`]);
+    if (properties) {
+      entries.push(["responseFormat", `judgments(${indent(stringifyJson(properties, { indent: 2 }), 2).trimStart()})`]);
+      entries.push(["probabilities", q("if_available")]);
+      return [`  config: {`, ...entries.map(([k, v]) => `    ${k}: ${v},`), `  },`];
+    }
     return entries.length ? [`  config: { ${entries.map(([k, v]) => `${k}: ${v}`).join(", ")} },`] : [];
   }
   if (lang === "python") {
     if (settings.maxTokens !== null) entries.push(["max_tokens", String(settings.maxTokens)]);
     if (settings.temperature !== null) entries.push(["temperature", String(settings.temperature)]);
     if (settings.reasoning) entries.push(["reasoning", `Reasoning(effort=${q(settings.reasoning)})`]);
+    if (properties) {
+      entries.push(["response_format", `judgments(**${pyLiteral(properties, 2)})`]);
+      entries.push(["probabilities", q("if_available")]);
+      return [`    config=Config(`, ...entries.map(([k, v]) => `        ${k}=${v},`), `    ),`];
+    }
     return entries.length ? [`    config=Config(${entries.map(([k, v]) => `${k}=${v}`).join(", ")}),`] : [];
   }
   if (settings.maxTokens !== null) entries.push(["max_tokens", `Some(${settings.maxTokens})`]);
@@ -120,13 +203,18 @@ function configLines(settings: Settings, lang: Language): string[] {
 }
 
 export function exampleJavascript(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {
-  const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", "Message", "Request", "ResponseStream"];
+  const judged = judgmentsActive(connection, settings);
+  const streamed = streams(connection);
+  const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", "Message", "Request", ...(streamed ? ["ResponseStream"] : [])];
   if (connection.provider === "anthropic") imports.splice(1, 0, "access");
+  if (judged) imports.push("judgments");
   const lines = [`import { ${imports.join(", ")} } from "lm15/browser";`, ""];
+  const relay = baseUrlFor(connection);
   if (connection.provider === "custom") {
     lines.push("const lm = new OpenAIChatLM({", '  apiKey: "unused", // keyless custom server', `  baseUrl: ${q(connection.endpoint)},`, "});");
   } else {
     lines.push(`const lm = adapterFor(${q(connection.provider)}, {`, `  apiKey: ${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)},`);
+    if (relay !== undefined) lines.push("  // This API refuses browser origins; the page relays it (see the Relay note). Drop this line outside a browser.", `  baseUrl: ${q(relay)},`);
     if (connection.provider === "anthropic") lines.push("  // A page must say it means to call Anthropic directly.", "  access: access.withHeaders(access.ANTHROPIC_API, {", `    ${q(ANTHROPIC_BROWSER_HEADER[0])}: ${q(ANTHROPIC_BROWSER_HEADER[1])},`, "  }),");
     lines.push("});");
   }
@@ -138,25 +226,37 @@ export function exampleJavascript(connection: Connection, settings: Settings, me
       return simple ? `Message.${simple.role}(${q(simple.text)}),` : `Message.fromJSON(${stringifyJson(Message.toJSON(m), { indent: 2 })}),`;
     }).join("\n"), 2).split("\n"), `    Message.user(${q(prompt)}),`, "  ],");
   } else lines.push(`  messages: [Message.user(${q(prompt)})],`);
-  lines.push(...configLines(settings, "javascript"), "});", "", "const controller = new AbortController(); // Stop calls controller.abort()", "const result = new ResponseStream(lm.stream(request, { signal: controller.signal }), request);", "for await (const text of result) console.log(text);", "", "// Keep the reply for the next turn.", "const response = await result.response();", "const messages = [...request.messages, response.message];");
+  lines.push(...configLines(settings, "javascript", connection), "});", "");
+  if (streamed) {
+    lines.push("const controller = new AbortController(); // Stop calls controller.abort()", "const result = new ResponseStream(lm.stream(request, { signal: controller.signal }), request);", "for await (const text of result) console.log(text);", "", "// Keep the reply for the next turn.", "const response = await result.response();");
+  } else {
+    lines.push("const controller = new AbortController(); // Stop calls controller.abort()", "const response = await lm.complete(request, { signal: controller.signal }); // one piece: this API has no stream");
+  }
+  if (judged) lines.push("console.log(response.data); // the picked key per judgment", "console.log(response.probabilities); // one distribution per judgment where the provider measures one; else absent and recorded", "console.log(response.adaptations); // MAP-13: what this wire could not take as asked");
+  lines.push("const messages = [...request.messages, response.message];");
   return lines.join("\n");
 }
 
-const PY_CLASS: Record<string, string> = { "openai-responses": "AsyncOpenAILM", "openai-chat": "AsyncOpenAIChatLM", anthropic: "AsyncAnthropicLM", gemini: "AsyncGeminiLM" };
+const PY_CLASS: Record<string, string> = { "openai-responses": "AsyncOpenAILM", "openai-chat": "AsyncOpenAIChatLM", anthropic: "AsyncAnthropicLM", gemini: "AsyncGeminiLM", typesafe: "AsyncTypeSafeLM" };
 
 /** The Python that runs under Pyodide in this page, and on CPython without the transport line. */
 export function examplePython(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {
   const definition = lookup(connection.provider);
   const cls = connection.provider === "custom" ? "AsyncOpenAIChatLM" : (PY_CLASS[definition?.dialect ?? "openai-chat"] ?? "AsyncOpenAIChatLM");
-  const names = [cls, "AsyncResponseStream", "Message", "Request"];
-  if (configLines(settings, "python").length) names.push("Config");
+  const judged = judgmentsActive(connection, settings);
+  const streamed = streams(connection);
+  const names = [cls, ...(streamed ? ["AsyncResponseStream"] : []), "Message", "Request"];
+  if (configLines(settings, "python", connection).length) names.push("Config");
   if (settings.reasoning) names.push("Reasoning");
+  if (judged) names.push("judgments");
   const lines = [`from lm15 import ${names.sort().join(", ")}`];
   if (connection.provider === "anthropic") lines.push("from lm15.access import ANTHROPIC_API");
   if (messages.some((message) => !plainText(message))) lines.push("from lm15.serde import message_from_dict");
   lines.push("from lm15.transports import FetchTransport  # in a page (Pyodide); on CPython drop this and transport=", "", `lm = ${cls}(`, `    api_key=${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)},`);
+  const relay = baseUrlFor(connection);
   if (connection.provider === "custom") lines.push(`    base_url=${q(connection.endpoint)},`);
-  else if (definition?.bound) lines.push(`    compat=${q(connection.provider)},`);
+  else if (relay !== undefined) lines.push("    # This API refuses browser origins; the page relays it (see the Relay note). Drop this line outside a browser.", `    base_url=${q(relay)},`);
+  if (connection.provider !== "custom" && definition?.bound) lines.push(`    compat=${q(connection.provider)},`);
   if (connection.provider === "anthropic") lines.push("    # A page must say it means to call Anthropic directly.", `    access=ANTHROPIC_API.with_headers({${q(ANTHROPIC_BROWSER_HEADER[0])}: ${q(ANTHROPIC_BROWSER_HEADER[1])}}),`);
   lines.push("    transport=FetchTransport(),", ")", "", "request = Request(", `    model=${q(connection.model)},`);
   if (settings.system.trim()) lines.push(`    system=${q(settings.system.trim())},`);
@@ -166,12 +266,31 @@ export function examplePython(connection: Connection, settings: Settings, messag
       return simple ? `        Message.${simple.role}(${q(simple.text)}),` : `        message_from_dict(${pyLiteral(Message.toJSON(m), 2)}),`;
     }), `        Message.user(${q(prompt)}),`, "    ),");
   } else lines.push(`    messages=(Message.user(${q(prompt)}),),`);
-  lines.push(...configLines(settings, "python"), ")", "", "result = AsyncResponseStream(lm.stream(request), request)  # Stop closes the stream", "async for text in result:", '    print(text, end="", flush=True)', "", "# Keep the reply for the next turn.", "response = await result.response()", "messages = (*request.messages, response.message)");
+  lines.push(...configLines(settings, "python", connection), ")", "");
+  if (streamed) lines.push("result = AsyncResponseStream(lm.stream(request), request)  # Stop closes the stream", "async for text in result:", '    print(text, end="", flush=True)', "", "# Keep the reply for the next turn.", "response = await result.response()");
+  else lines.push("response = await lm.complete(request)  # one piece: this API has no stream");
+  if (judged) lines.push("print(response.data)  # the picked key per judgment", "print(response.probabilities)  # one distribution per judgment where the provider measures one; else None and recorded", "print(response.adaptations)  # MAP-13: what this wire could not take as asked");
+  lines.push("messages = (*request.messages, response.message)");
   return lines.join("\n");
 }
 
 /** The Rust of the same call; in this page the compiled lm15-rs codec runs it (the network is the page's). */
+/**
+ * The Rust SDK is pinned (sources.json) before MAP-13 (contract 2026-09-14).
+ * Where its bytes are known to differ from the other two runtimes, the
+ * page says which rule, instead of calling it a bug. Empty when the Rust
+ * pin catches up.
+ */
+export function rustPinGap(connection: Connection, request: Request): string | undefined {
+  if (connection.provider === "anthropic" && request.config?.maxTokens === undefined) return "Anthropic without max_tokens: the Rust pin sends the old 1024 default; MAP-13 defaults to the model class ceiling (16384) and records it.";
+  if (connection.provider === "ollama" && request.config?.reasoning !== undefined) return "Ollama with a reasoning effort: the Rust pin refuses; MAP-13 sends reasoning_effort (Ollama maps it to `think`).";
+  return undefined;
+}
+
+export const RUST_NOT_YET = "// Not in the Rust SDK at this pin: judgments (MAP-14) and the typesafe provider landed in the contract on 2026-09-17;\n// lm15-rs is pinned before that. The JavaScript and Python tabs run this request.";
+
 export function exampleRust(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {
+  if (judgmentsActive(connection, settings)) return RUST_NOT_YET;
   const imports = ["LMRouter", "Message", "Request", "ResponseStream", "RouterConfig"];
   if (configLines(settings, "rust").length) imports.push("Config");
   if (settings.reasoning) imports.push("Reasoning");
@@ -179,7 +298,8 @@ export function exampleRust(connection: Connection, settings: Settings, messages
   const lines = ["use futures_util::StreamExt;", `use lm15::{${imports.sort().join(", ")}};`, ""];
   const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
   lines.push("let router = LMRouter::with_config(", "    RouterConfig::new()", `        .api_key(${q(provider)}, ${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)})`);
-  if (connection.provider === "custom") lines.push(`        .base_url(${q(provider)}, ${q(connection.endpoint)})`);
+  const relay = baseUrlFor(connection);
+  if (relay !== undefined) lines.push(`        .base_url(${q(provider)}, ${q(relay)})`);
   lines.push(")?;", "", "let request = Request {", `    model: ${q(`${provider}:${connection.model}`)}.into(),`);
   if (settings.system.trim()) lines.push(`    system: Some(${q(settings.system.trim())}.into()),`);
   if (messages.length) {
@@ -193,6 +313,21 @@ export function exampleRust(connection: Connection, settings: Settings, messages
 }
 
 export interface Wire { method: string; url: string; headers: Array<[string, string]>; body: string }
+
+/** A judgment answer as text for the chat: the pick per judgment, with its distribution when the provider measured one. */
+export function renderAnswer(response: Response): string {
+  const part = response.dataPart;
+  if (!part) return response.text ?? "";
+  if (!isJsonObject(part.value)) return stringifyJson(part.value, { indent: 2 });
+  const lines: string[] = [];
+  for (const [name, picked] of Object.entries(part.value)) {
+    const dist = part.probabilities?.[name];
+    const spread = dist ? " · " + Object.entries(dist).sort(([, a], [, b]) => b - a).map(([k, p]) => `${k} ${Math.round(p * 100)}%`).join(", ") : "";
+    lines.push(`${name}: ${stringifyJson(picked)}${spread}`);
+  }
+  if (part.method) lines.push(`(measured by ${part.method.replace(/_/g, " ")})`);
+  return lines.join("\n");
+}
 
 /** Stable fuzzy ranking: exact, prefix, substring, then ordered-character matches. */
 export function fuzzyScore(query: string, candidate: string): number {

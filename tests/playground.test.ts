@@ -144,7 +144,10 @@ function sse(url: URL): string {
   return frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("");
 }
 
-test("nine local keys load privately; each provider receives only its key; manual keys, clearing, and reload work", { timeout: 120_000 }, async () => {
+/** TypeSafe answers in one piece: the three example judgments over the message. */
+const JEV_ANSWER = { model: "jev-test", answers: { quality: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } }, style: { type: "choice", choice: "fruit", probabilities: { fruit: 0.9, oak: 0.1, mineral: 0 } }, ageing: { type: "noul", noul: 0.97 } }, usage: { input_tokens: 40, output_tokens: 9 } };
+
+test("ten local keys load privately; each provider receives only its key; manual keys, clearing, and reload work", { timeout: 120_000 }, async () => {
   const installed = findBrowsers().find((b) => b.name === "chromium");
   assert.ok(installed, "Put Chromium on PATH to run browser tests");
   await fixture(async (envFile) => {
@@ -168,9 +171,12 @@ test("nine local keys load privately; each provider receives only its key; manua
       if (selected === "anthropic") assert.equal(headers["anthropic-dangerous-direct-browser-access"], "true");
       if (request.method() === "GET") {
         modelLists++;
-        return route.fulfill({ json: { data: [{ id: "model-one" }, { id: "model-two" }], models: [{ name: "models/model-one" }, { name: "models/model-two" }] }, headers: { "Access-Control-Allow-Origin": origin } });
+        // Gemini lists `models/<id>` and strips the prefix; TypeSafe lists bare names.
+        const names = url.hostname === "api.typesafe.ai" ? [{ name: "model-one" }, { name: "model-two" }] : [{ name: "models/model-one" }, { name: "models/model-two" }];
+        return route.fulfill({ json: { data: [{ id: "model-one" }, { id: "model-two" }], models: names }, headers: { "Access-Control-Allow-Origin": origin } });
       }
       sent++;
+      if (url.pathname.endsWith("/v1/systemone")) return route.fulfill({ json: JEV_ANSWER, headers: { "Access-Control-Allow-Origin": origin } });
       return route.fulfill({ contentType: "text/event-stream", body: sse(url), headers: { "Access-Control-Allow-Origin": origin } });
     });
     try {
@@ -210,14 +216,20 @@ test("nine local keys load privately; each provider receives only its key; manua
         await page.getByLabel("Message", { exact: true }).fill("Hello");
         await page.getByRole("button", { name: "Send", exact: true }).click();
         await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
-        assert.equal(await page.locator("#transcript article").last().locator("p").textContent(), "Hello");
+        const reply = await page.locator("#transcript article").last().locator("p").textContent();
+        if (selected === "typesafe") {
+          assert.match(reply ?? "", /style: "fruit" · fruit 90%, oak 10%, mineral 0%/);
+          assert.match(reply ?? "", /measured by provider classification/);
+          assert.equal(await page.getByLabel("Ask for judgments").isChecked(), true);
+          assert.equal(await page.getByLabel("Ask for judgments").isDisabled(), true);
+        } else assert.equal(reply, "Hello");
       }
-      assert.equal(sent, 9);
+      assert.equal(sent, 10);
       const discoveries = modelLists;
       await page.getByLabel("Message", { exact: true }).fill("/model mdltw");
       await page.getByLabel("Message", { exact: true }).press("Enter");
       assert.equal(await page.locator("#model-name").textContent(), "model-two");
-      assert.equal(sent, 9, "A slash command is never sent as a message");
+      assert.equal(sent, 10, "A slash command is never sent as a message");
       assert.equal(modelLists, discoveries, "Searching models uses the cached list");
       assert.match(await page.locator("#code").textContent() ?? "", /model-two/);
       await page.getByRole("button", { name: "Choose model", exact: true }).click();
@@ -239,7 +251,7 @@ test("nine local keys load privately; each provider receives only its key; manua
       await page.getByLabel("Message", { exact: true }).fill("Hello");
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
-      assert.equal(sent, 10);
+      assert.equal(sent, 11);
       await page.reload();
       await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
       assert.equal(await page.locator("#loaded").textContent(), "None");
@@ -656,4 +668,81 @@ test("the playground runs the same turn through Python (Pyodide) and Rust (wasm)
     assert.match((await page.locator("#code").textContent()) ?? "", /hello from Rust/);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await close(demo.server); }
+});
+
+test("the relay: a provider that blocks the browser fails first, the page asks in words, the resend goes through the relay, More lists and revokes it; without a relay the page only explains", { timeout: 120_000 }, async () => {
+  const installed = findBrowsers().find((b) => b.name === "chromium");
+  assert.ok(installed);
+  const demo = await startDemo();
+  const origin = new URL(demo.url).origin;
+  const browser = await chromium.launch({ executablePath: installed.bin });
+  const page = await browser.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const relay = "https://lm15-relay.test.workers.dev";
+  const seen: string[] = [];
+  await page.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin === origin) return route.continue();
+    seen.push(url.href);
+    if (url.origin === relay) {
+      assert.equal(url.pathname, "/api.typesafe.ai/v1/systemone");
+      assert.equal(route.request().headers()["authorization"], "Bearer dummy-typesafe-key");
+      return route.fulfill({ json: JEV_ANSWER, headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Expose-Headers": "*" } });
+    }
+    // The provider refuses the browser's origin: from inside the page that is a network failure with no status (what a CORS block looks like).
+    return route.abort("failed");
+  });
+  try {
+    await page.goto(demo.url);
+    await disableDiscovery(page);
+    await page.getByRole("button", { name: "Choose provider", exact: true }).click();
+    await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
+    await page.getByRole("option", { name: /TypeSafe/ }).first().click();
+    await page.waitForFunction(() => document.getElementById("provider-name")?.textContent === "TypeSafe (Jev)");
+    await page.getByLabel("API key", { exact: true }).fill("dummy-typesafe-key");
+    await page.getByRole("button", { name: "Use key for this provider" }).click();
+    assert.match(await page.locator("#code").textContent() ?? "", /judgments\(/);
+    assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /baseUrl/);
+
+    // No relay deployed: the dialog explains, offers nothing, and no key went anywhere but the provider.
+    await page.getByLabel("Message", { exact: true }).fill("A ripe, long wine.");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator("#relay-dialog[open]").waitFor();
+    assert.equal(await page.locator("#relay-provider").textContent(), "TypeSafe (Jev)");
+    assert.equal(await page.locator("#relay-unavailable").isVisible(), true);
+    assert.equal(await page.getByRole("button", { name: "Allow the relay and resend" }).isDisabled(), true);
+    await page.getByRole("button", { name: "Not now" }).click();
+    assert.deepEqual(seen, ["https://api.typesafe.ai/v1/systemone"]);
+    assert.match(await page.locator("#alert").textContent() ?? "", /block browser access/);
+
+    // A relay is configured (loopback override): the same failure now offers it; allowing resends through it.
+    await page.evaluate((url) => localStorage.setItem("lm15.playground.relay-url", url), relay);
+    await page.getByLabel("Message", { exact: true }).fill("A ripe, long wine.");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator("#relay-dialog[open]").waitFor();
+    assert.equal(await page.locator("#relay-unavailable").isVisible(), false);
+    await page.getByLabel("Remember this choice on this device").check();
+    await page.getByRole("button", { name: "Allow the relay and resend" }).click();
+    await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
+    assert.deepEqual(seen, ["https://api.typesafe.ai/v1/systemone", "https://api.typesafe.ai/v1/systemone", `${relay}/api.typesafe.ai/v1/systemone`]);
+    assert.match(await page.locator("#transcript article").last().locator("p").textContent() ?? "", /style: "fruit"/);
+    assert.equal(await page.locator("#transcript article").count(), 4, "the declined attempt stays as an incomplete turn; the attempt the user allowed was replaced by the relayed one");
+    assert.match(await page.locator("#code").textContent() ?? "", new RegExp(`baseUrl: "${relay}/api.typesafe.ai"`));
+    assert.match(await page.locator("#key-state").textContent() ?? "", /via the relay/);
+    assert.equal(await page.evaluate(() => localStorage.getItem("lm15.playground.relay")), '["typesafe"]');
+
+    // Another provider is untouched by the permission; More names what is relayed and revokes it.
+    await openMore(page);
+    assert.match(await page.locator("#relayed").textContent() ?? "", /TypeSafe \(Jev\) — requests to this provider go through the lm15 relay/);
+    await page.getByRole("button", { name: "Stop relaying" }).click();
+    assert.match(await page.locator("#relayed").textContent() ?? "", /^None/);
+    assert.equal(await page.evaluate(() => localStorage.getItem("lm15.playground.relay")), null);
+    await page.locator("#more-toggle").press("Escape");
+    assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /baseUrl/);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    await close(demo.server);
+  }
 });

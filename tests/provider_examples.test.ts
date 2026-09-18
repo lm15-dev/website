@@ -25,7 +25,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 import { Message, Request as RequestNs, UnsupportedFeatureError, continuationState, thinking, utf8Decode } from "lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
-import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, keyless, slashCommand, type Connection, type Settings } from "../src/playground/experience.ts";
+import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, RUST_NOT_YET, rustPinGap, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, keyless, slashCommand, streams, type Connection, type Settings } from "../src/playground/experience.ts";
 import { RustCodec } from "../src/playground/runtimes/rust.ts";
 import { withKey } from "../src/playground/runtimes/python.ts";
 import "lm15/node";
@@ -38,10 +38,12 @@ const history = [
   Message.user("Earlier question"),
   Message.assistant([thinking("Earlier hidden reasoning", { continuation: [continuationState("anthropic", "thinking_signature", { signature: "opaque-replay-signature" })] }), "Earlier answer"]),
 ];
-const FULL: Settings = { system: "Answer briefly.", temperature: 0.2, maxTokens: 64, reasoning: "low" };
+const FULL: Settings = { ...DEFAULT_SETTINGS, system: "Answer briefly.", temperature: 0.2, maxTokens: 64, reasoning: "low" };
+/** MAP-14 on a chat wire: the same judgments the TypeSafe rows carry, answered as structured output. */
+const JUDGED: Settings = { ...DEFAULT_SETTINGS, judgments: true };
 const cases = CONNECTIONS.flatMap((choice) =>
   ([[], history, exampleConversation()] as Message[][]).flatMap((messages) =>
-    [DEFAULT_SETTINGS, FULL].map((settings) => ({
+    [DEFAULT_SETTINGS, FULL, ...(choice.id === "openai" || choice.id === "anthropic" || choice.id === "gemini" ? [JUDGED] : [])].map((settings) => ({
       messages,
       settings,
       connection: { provider: choice.id, model: choice.model || "custom-model", endpoint: "http://localhost:1234/v1" } satisfies Connection,
@@ -49,6 +51,8 @@ const cases = CONNECTIONS.flatMap((choice) =>
     })),
   ),
 );
+/** The Rust SDK is pinned before judgments and the typesafe provider: those variants are named, not compared. */
+const rustCases = cases.filter((c) => c.connection.provider !== "typesafe" && !c.settings.judgments);
 const wheel = ensureWheel();
 const wasm = ensureRustWasm();
 
@@ -81,7 +85,7 @@ test("fuzzy selection ranks exact names first and rejects unordered matches; sla
 async function expected(c: (typeof cases)[number]) {
   const request = buildRequest(c.connection, c.settings, c.messages, prompt);
   try {
-    const built = await createClient(c.connection, c.key).buildRequest(request, true);
+    const built = await createClient(c.connection, c.key).buildRequest(request, streams(c.connection));
     return { request, refused: undefined, method: built.method, url: built.url, body: utf8Decode(built.body), headers: Object.fromEntries(built.headers.map(([k, v]) => [k.toLowerCase(), v])) };
   } catch (e) {
     if (!(e instanceof UnsupportedFeatureError)) throw e;
@@ -90,7 +94,7 @@ async function expected(c: (typeof cases)[number]) {
 }
 
 test(`JavaScript: all ${cases.length} variants type-check, execute, and build the page's request`, { timeout: 120_000 }, async (t) => {
-  assert.equal(cases.length, 66);
+  assert.equal(cases.length, 81);
   const sources = cases.map((c) => exampleJavascript(c.connection, c.settings, c.messages, prompt).replace("console.log(text)", "void text"));
   const files = new Map(sources.map((source, i) => [resolve(root, `src/playground/__example_${i}.ts`), source]));
   const options: ts.CompilerOptions = { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, strict: true, noEmit: true, skipLibCheck: true, types: [], lib: ["lib.es2023.d.ts", "lib.dom.d.ts"] };
@@ -105,7 +109,7 @@ test(`JavaScript: all ${cases.length} variants type-check, execute, and build th
   let calls: Array<{ url: string; body: string }> = [];
   t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
     calls.push({ url, body: new TextDecoder().decode(init.body as Uint8Array<ArrayBuffer>) });
-    return new Response(streamFor(url), { headers: { "Content-Type": "text/event-stream" } });
+    return replyFor(url);
   });
   const entry = import.meta.resolve('lm15/browser');
   for (const [i, c] of cases.entries()) {
@@ -131,7 +135,7 @@ test(`Python under Pyodide: all ${cases.length} variants execute and build the s
   let calls: Array<{ url: string; body: string; headers: Record<string, string> }> = [];
   (globalThis as { fetch: typeof fetch }).fetch = async (url, init) => {
     calls.push({ url: String(url), body: new TextDecoder().decode(init?.body as Uint8Array), headers: Object.fromEntries(new Headers(init?.headers).entries()) });
-    return new Response(streamFor(String(url)), { headers: { "Content-Type": "text/event-stream" } });
+    return replyFor(String(url));
   };
   const py = await loadPyodide({ stdout: () => {}, stderr: () => {} });
   await py.loadPackage(pathToFileURL((wheel as { path: string }).path).href, { messageCallback: () => {} });
@@ -160,11 +164,22 @@ test(`Python under Pyodide: all ${cases.length} variants execute and build the s
   }
 });
 
-test(`Rust under wasm: all ${cases.length} variants build the same bytes as JavaScript`, { timeout: 120_000 }, async () => {
+test(`Rust under wasm: all ${rustCases.length} chat variants build the same bytes as JavaScript; judgments and typesafe are named as not yet in the Rust SDK`, { timeout: 120_000 }, async () => {
   const rust = await RustCodec.load(readFileSync((wasm as { path: string }).path));
-  for (const c of cases) {
+  for (const c of cases.filter((x) => !rustCases.includes(x))) assert.equal(exampleRust(c.connection, c.settings, c.messages, prompt), RUST_NOT_YET, c.connection.provider);
+  let namedGaps = 0;
+  for (const c of rustCases) {
     const want = await expected(c);
     const codecConnection = c.connection.provider === "custom" ? { provider: "openai-chat", apiKey: c.key, baseUrl: c.connection.endpoint } : { provider: c.connection.provider, apiKey: c.key };
+    const gap = rustPinGap(c.connection, want.request);
+    if (gap) {
+      // The Rust pin predates MAP-13: the page names the difference instead of calling it a bug, and this test pins that it is the only kind of difference.
+      namedGaps++;
+      let rustBody: unknown;
+      try { rustBody = rust.buildRequest(codecConnection, RequestNs.toJSON(want.request), true).body; } catch (e) { rustBody = `refused: ${(e as Error).name}`; }
+      assert.notDeepEqual(rustBody, want.body ? JSON.parse(want.body) : undefined, `${c.connection.provider}: the named gap is real (${gap})`);
+      continue;
+    }
     if (want.refused) {
       assert.throws(() => rust.buildRequest(codecConnection, RequestNs.toJSON(want.request), true), (e: unknown) => e instanceof Error && e.name === "UnsupportedFeatureError", `${c.connection.provider}: Rust refuses as JavaScript does`);
       continue;
@@ -175,16 +190,26 @@ test(`Rust under wasm: all ${cases.length} variants build the same bytes as Java
     assert.equal(url.href, want.url, c.connection.provider);
     assert.deepEqual(built.body, JSON.parse(want.body), `${c.connection.provider}: Rust and JavaScript build the same body`);
   }
+  assert.equal(namedGaps, 6, "the named Rust-pin gaps: Anthropic without max_tokens (3 transcripts × default settings), Ollama with reasoning (3 transcripts × FULL)");
 });
 
 test("Rust: standalone examples match the generator and the pinned SDK imports", () => {
   const rendered = renderRustExamples();
   assert.ok(existsSync(rustExamplesPath), `${rustExamplesPath} is missing; run npm run rust:snippets`);
   assert.equal(readFileSync(rustExamplesPath, "utf-8"), rendered, "the Rust snippets drifted; run npm run rust:snippets and rcargo check --locked in examples/rust");
-  for (const c of cases.filter((x) => (x.settings === FULL) === x.messages.length > 0)) {
+  for (const c of rustCases.filter((x) => (x.settings === FULL) === x.messages.length > 0)) {
     assert.ok(rendered.includes(exampleRust(c.connection, c.settings, c.messages, prompt).split("\n")[1]!), c.connection.provider);
   }
 });
+
+/** A stream of the right dialect for the URL — or TypeSafe's one-piece answer to the three example judgments. */
+function replyFor(url: string): Response {
+  if (url.includes("/v1/systemone")) {
+    const body = { model: "jev-1", answers: { quality: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } }, style: { type: "choice", choice: "fruit", probabilities: { fruit: 0.9, oak: 0.1, mineral: 0 } }, ageing: { type: "noul", noul: 0.97 } }, usage: { input_tokens: 40, output_tokens: 9 } };
+    return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+  }
+  return new Response(streamFor(url), { headers: { "Content-Type": "text/event-stream" } });
+}
 
 /** A stream body of the right dialect for the URL, ending in `stop` with usage. */
 function streamFor(url: string): string {
@@ -223,4 +248,49 @@ test("a transcript parsed off the wire (RawNumber lexemes in an opaque payload) 
   const want = await createClient(connection, "k").buildRequest(request, true);
   const built = rust.buildRequest({ provider: "openai", apiKey: "k" }, RequestNs.toJSON(request), true);
   assert.deepEqual(built.body, JSON.parse(utf8Decode(want.body)), "the Rust codec builds the same body from a wire-parsed transcript");
+});
+
+test("judgments: TypeSafe and a chat wire answer the same declared judgments; the answer is a DataPart; the chat wire records the dropped probabilities", async () => {
+  const typesafe: Connection = { provider: "typesafe", model: "jev-latest", endpoint: "" };
+  const bare: Settings = { ...DEFAULT_SETTINGS, system: "" };
+  const request = buildRequest(typesafe, bare, [], "A ripe, long wine.");
+  assert.equal(request.config?.responseFormat?.type, "json_schema");
+  assert.equal(request.config?.probabilities, "if_available");
+  const built = await createClient(typesafe, "k").build(request, false);
+  const body = JSON.parse(utf8Decode(built.request.body)) as { state: string; questions: Record<string, { type: string }> };
+  assert.equal(body.state, "A ripe, long wine.");
+  assert.deepEqual(Object.values(body.questions).map((q) => q.type), ["score", "choice", "noul"]);
+  assert.deepEqual(built.adaptations, []);
+  // With a system prompt the state is the conversation object (D6): the system text and the messages, as Jev's docs address them.
+  const withSystem = await createClient(typesafe, "k").build(buildRequest(typesafe, DEFAULT_SETTINGS, [], "A ripe, long wine."), false);
+  assert.deepEqual((JSON.parse(utf8Decode(withSystem.request.body)) as { state: unknown }).state, { system: DEFAULT_SETTINGS.system, messages: [{ role: "user", content: "A ripe, long wine." }] });
+  const answer = createClient(typesafe, "k").parseResponse(request, new (await import("lm15/browser")).HttpResponse({ status: 200, body: new TextEncoder().encode(await replyFor("https://api.typesafe.ai/v1/systemone").text()) }));
+  assert.deepEqual(answer.data, { quality: 3, style: "fruit", ageing: true });
+  assert.equal(answer.dataPart?.method, "provider_classification");
+  assert.ok(Math.abs(answer.expected("quality")! - 3) < 1e-9);
+  const rendered = (await import("../src/playground/experience.ts")).renderAnswer(answer);
+  assert.match(rendered, /style: "fruit" · fruit 90%, oak 10%, mineral 0%/);
+  assert.match(rendered, /ageing: true · true 97%, false 3%/);
+  // The same judgments on Anthropic: the schema's typed anyOf branches are rewritten for the wire, and probabilities are recorded as dropped.
+  const anthropic: Connection = { provider: "anthropic", model: "claude-haiku-4-5", endpoint: "" };
+  const chat = await createClient(anthropic, "k").build(buildRequest(anthropic, JUDGED, [], "A ripe, long wine."), true);
+  assert.deepEqual(chat.adaptations.map((a) => [a.field, a.action]), [["config.max_tokens", "defaulted"], ["config.probabilities", "dropped"]]);
+  const schema = (JSON.parse(utf8Decode(chat.request.body)) as { output_config: { format: { schema: { properties: Record<string, { type?: string; anyOf?: { type?: string }[] }> } } } }).output_config.format.schema.properties;
+  assert.equal(schema["quality"]!.type, undefined);
+  assert.equal(schema["quality"]!.anyOf![0]!.type, "integer");
+  // A schema with no judgment is refused before anything is built.
+  assert.throws(() => buildRequest(typesafe, { ...bare, schema: '{"city": {"type": "string"}}' }, [], "x"), /No property declares a judgment/);
+  assert.throws(() => buildRequest(typesafe, { ...bare, schema: "not json" }, [], "x"), /JSON object of properties/);
+});
+
+test("the relay: off by default, per provider, remembered only on request; the SDK sees it as a baseUrl", async () => {
+  const relay = await import("../src/playground/relay.ts");
+  assert.equal(relay.relayAvailable(), relay.RELAY_URL !== "");
+  assert.equal(relay.relayBaseUrl("typesafe", "https://lm15-relay.example.workers.dev"), "https://lm15-relay.example.workers.dev/api.typesafe.ai");
+  assert.equal(relay.relayBaseUrl("openai", "https://r.example/"), "https://r.example/api.openai.com/v1");
+  assert.equal(relay.looksBrowserBlocked(Object.assign(new Error("Failed to fetch"), { name: "TransportError" })), true);
+  assert.equal(relay.looksBrowserBlocked(Object.assign(new Error("NetworkError when attempting to fetch resource."), { name: "TransportError" })), true);
+  assert.equal(relay.looksBrowserBlocked(Object.assign(new Error("POST https://api.typesafe.ai/v1/systemone: request failed"), { name: "TransportError", cause: new TypeError("Failed to fetch") })), true);
+  assert.equal(relay.looksBrowserBlocked(Object.assign(new Error("HTTP 401"), { name: "AuthError" })), false);
+  assert.equal(relay.looksBrowserBlocked(new Error("Add this provider's API key in Settings first.")), false);
 });
