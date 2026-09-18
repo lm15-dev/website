@@ -9,8 +9,9 @@
  * lm15 wheel 0.5 MB; both are served by this site, no CDN.
  */
 
-import { Message, Response, stringifyJson, type JsonObject, type Request } from "lm15/browser";
+import { Message, Response, type Request } from "lm15/browser";
 import { EXAMPLE_API_KEY, examplePython, keyless, streams, type Connection, type Settings, type Wire } from "../experience.ts";
+import { judgePython, specOfRequest } from "../judge.ts";
 import type { Runtime } from "./index.ts";
 
 interface Pyodide {
@@ -110,21 +111,46 @@ json.dumps(response_to_dict(response))
       py.setStdout({ batched: () => {} });
     }
   },
+
+  async judge(connection, key, request, signal): Promise<Response> {
+    const py = await boot(() => {});
+    py.setStdout({ batched: () => {} });
+    const program = withKey(judgeProgram(connection, request), key, connection);
+    // Pyodide cannot interrupt a running coroutine from here; an abort is honoured between inputs by the caller, and the reply of a stopped call is dropped.
+    try {
+      const out = String(await py.runPythonAsync(program));
+      if (signal.aborted) throw Object.assign(new Error("stopped"), { name: "TransportError" });
+      return Response.fromJSON(JSON.parse(out));
+    } catch (error) {
+      throw translate(error, signal);
+    }
+  },
 };
 
 /** The settings a Request carries, read back for the generator (the page passes the same object it built the request from). */
 function settingsOf(request: Request): Settings {
   const config = request.config ?? {};
-  const format = config.responseFormat;
-  const judged = format?.type === "json_schema";
   return {
     system: typeof request.system === "string" ? request.system : "",
     temperature: config.temperature ?? null,
     maxTokens: config.maxTokens ?? null,
     reasoning: config.reasoning?.effort ?? ("" as const),
-    judgments: judged,
-    schema: judged ? stringifyJson((format.schema["properties"] ?? {}) as JsonObject, { indent: 2 }) : "",
   };
+}
+
+/**
+ * The Python the page shows for a judge set, with this one input in the
+ * `inputs` list, plus the JSON of the loop's last response: the loop body
+ * runs unchanged (judge.ts pins that the displayed program and this one
+ * differ only in the list).
+ */
+export function judgeProgram(connection: Connection, request: Request): string {
+  const { spec, value } = specOfRequest(request);
+  return `${judgePython(connection, spec, [value])}
+import json
+from lm15.serde import response_to_dict
+json.dumps(response_to_dict(response))
+`;
 }
 
 /** A Python exception, as one line a person can read: the lm15 error class and its message. */

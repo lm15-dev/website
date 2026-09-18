@@ -1,9 +1,10 @@
-/** The playground: a chat, its settings, and the same request in three languages that actually run. */
+/** The playground: a chat or a judge set, its settings, and the same request in three languages that actually run. */
 import { Message, type Request } from "lm15/browser";
 import { CONNECTIONS } from "./connections.ts";
 import { Credentials } from "./credentials.ts";
 import { renderCode } from "./code-view.ts";
-import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, EXAMPLE_STATE, LANGUAGES, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentProperties, judgmentsActive, keyPage, keyless, rustPinGap, slashCommand, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
+import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyPage, keyless, rustPinGap, slashCommand, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
+import { JudgeView } from "./judge-ui.ts";
 import { disableAllRelays, enableRelay, looksBrowserBlocked, relayAvailable, relayed, relayedProviders } from "./relay.ts";
 import { Picker, type PickOption, type PickResult } from "./picker.ts";
 import { javascriptRuntime } from "./runtimes/javascript.ts";
@@ -24,8 +25,6 @@ const temperatureInput = $<HTMLInputElement>("temperature");
 const moreMenu = $<HTMLDetailsElement>("more-menu");
 const maxTokensInput = $<HTMLInputElement>("max-tokens");
 const reasoningInput = $<HTMLSelectElement>("reasoning");
-const judgmentsToggle = $<HTMLInputElement>("judgments-on");
-const schemaInput = $<HTMLTextAreaElement>("schema");
 const relayDialog = $<HTMLDialogElement>("relay-dialog");
 
 const RUNTIMES: Record<RuntimeId, Runtime> = { javascript: javascriptRuntime, python: pythonRuntime, rust: rustRuntime };
@@ -42,6 +41,9 @@ let runtime: RuntimeId = "javascript";
 let runtimeVersion = 0;
 let loadingRuntime = false;
 let copyTimer: ReturnType<typeof setTimeout> | undefined;
+type Mode = "chat" | "judge";
+let mode: Mode = "chat";
+let judge: JudgeView;
 
 const picker = new Picker(options, (kind, id) => {
   if (kind === "commands") {
@@ -66,11 +68,34 @@ function setView(view: string): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-target]")) button.setAttribute("aria-pressed", String(button.dataset.viewTarget === view));
 }
 function updateControls(): void {
+  const busy = Boolean(active) || (judge?.busy() ?? false);
   send.disabled = Boolean(active) || loadingRuntime || !RUNTIMES[runtime].loaded() || !prompt.value.trim();
   stop.disabled = !active;
   $("code-tabs").dataset.state = loadingRuntime ? "loading" : RUNTIMES[runtime].loaded() ? "ready" : "error";
   $("code-tabs").setAttribute("aria-busy", String(loadingRuntime));
-  for (const tab of document.querySelectorAll<HTMLButtonElement>("[data-language]")) tab.disabled = Boolean(active);
+  for (const tab of document.querySelectorAll<HTMLButtonElement>("[data-language]")) tab.disabled = busy;
+  // A judgments-only provider has no chat; nothing switches mode mid-run.
+  const chatClosed = judgmentsOnly(connection.provider);
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".mode-switch button")) {
+    button.disabled = busy || (button.dataset.mode === "chat" && chatClosed);
+    button.title = button.dataset.mode === "chat" && chatClosed ? `${currentChoice().label} answers judgments only; it has no chat.` : "";
+  }
+  judge?.refresh();
+}
+/** Chat and Judge share one key card and one code panel: the elements move; nothing is duplicated. */
+function setMode(next: Mode, remember = false): void {
+  mode = next;
+  document.body.dataset.mode = next;
+  $("chat-view").hidden = next === "judge";
+  $("judge-view").hidden = next === "chat";
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".mode-switch button")) button.setAttribute("aria-pressed", String(button.dataset.mode === next));
+  const keyCard = $("key-card"), codePanel = $("code-panel");
+  if (next === "judge") { $("judge-key-slot").append(keyCard); $("judge-code-slot").append(codePanel); }
+  else { $("settings-scroll").prepend(keyCard); $("chat-view").append(codePanel); }
+  const labels: Record<string, string> = next === "judge" ? { settings: "Questions", chat: "Results", code: "Code" } : { settings: "Settings", chat: "Chat", code: "Code" };
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-target]")) button.textContent = labels[button.dataset.viewTarget!]!;
+  if (remember) { try { localStorage.setItem("lm15.playground.mode", next); } catch { /* not remembered */ } }
+  refreshStatus();
 }
 function openConnection(): void {
   if (matchMedia("(max-width: 700px)").matches) setView("settings");
@@ -91,7 +116,6 @@ function cacheKey(): string { return `${connection.provider}:${connection.endpoi
 function draft(): string {
   const text = prompt.value.trim();
   if (text && !slashCommand(text)) return text;
-  if (judgmentsActive(connection, settings)) return EXAMPLE_STATE;
   return messages.length > 2 ? "Your next message" : EXAMPLE_DRAFT;
 }
 
@@ -108,19 +132,14 @@ async function updateCode(): Promise<void> {
   let error = invalidTemperature ? "Temperature must be 0 to 2 in steps of 0.1, or empty for the provider default." : invalidMax ? "Max tokens must be a whole number from 1 to 100000, or empty for the provider default." : "";
   $("settings-error").hidden = !error;
   $("settings-error").textContent = error;
-  let schemaError = "";
-  if (judgmentsActive(connection, settings)) {
-    try { judgmentProperties(settings.schema); } catch (e) { schemaError = e instanceof Error ? e.message : String(e); }
-  }
-  $("schema-error").hidden = !schemaError;
-  $("schema-error").textContent = schemaError;
-  schemaInput.setAttribute("aria-invalid", String(Boolean(schemaError)));
-  error ||= schemaError;
   try {
-    if (error) throw new Error(error);
-    if (runtime === "javascript") code = exampleJavascript(connection, settings, messages, text);
-    else if (runtime === "python") code = examplePython(connection, settings, messages, text);
-    else code = exampleRust(connection, settings, messages, text);
+    if (mode === "judge") code = judge.code(runtime);
+    else {
+      if (error) throw new Error(error);
+      if (runtime === "javascript") code = exampleJavascript(connection, settings, messages, text);
+      else if (runtime === "python") code = examplePython(connection, settings, messages, text);
+      else code = exampleRust(connection, settings, messages, text);
+    }
   } catch (error) {
     code = `// ${redact(error instanceof Error ? error.message : String(error))}`;
   }
@@ -145,14 +164,6 @@ function refreshStatus(): void {
   if (page) link.href = page;
   $("key-field").hidden = keyless(connection.provider);
   $("custom-endpoint").hidden = connection.provider !== "custom";
-  const locked = connection.provider === "typesafe";
-  judgmentsToggle.checked = judgmentsActive(connection, settings);
-  judgmentsToggle.disabled = locked;
-  $("judgments-section").dataset.locked = String(locked);
-  $("judgments-note").textContent = locked
-    ? "TypeSafe (Jev) answers declared judgments only, one call per message, and measures the probability of every key. Your message is the text being judged; a system prompt, if set, is sent with it as context."
-    : "Declared keys in, a distribution out (MAP-14). Your message is the text being judged. This provider answers the pick; TypeSafe also measures the probabilities.";
-  schemaInput.disabled = !judgmentsActive(connection, settings);
   const relays = relayedProviders();
   $("relayed").textContent = relays.length ? `${relays.map((id) => CONNECTIONS.find((c) => c.id === id)?.label ?? id).join(", ")} — requests to ${relays.length === 1 ? "this provider go" : "these providers go"} through the lm15 relay.` : "None. Every request goes from this page straight to its provider.";
   $("forget-relays").hidden = relays.length === 0;
@@ -168,7 +179,7 @@ function refreshStatus(): void {
 }
 
 function reset(): void {
-  generation++; active?.abort(); active = undefined; messages = judgmentsActive(connection, settings) ? [] : exampleConversation();
+  generation++; active?.abort(); active = undefined; messages = exampleConversation();
   $("transcript").replaceChildren(); $("usage").textContent = ""; $("fidelity").textContent = "";
   for (const message of messages) {
     const role = message.role === "user" ? "user" : "assistant";
@@ -189,10 +200,9 @@ function selectProvider(id: string): void {
   const choice = CONNECTIONS.find((candidate) => candidate.id === id);
   if (!choice) return;
   if (id !== connection.provider) {
-    const wasJudging = judgmentsActive(connection, settings);
     connection.provider = id; connection.model = choice.model; keyInput.value = ""; reset(); notify(); notifyKey();
-    const judging = judgmentsActive(connection, settings);
-    if (judging !== wasJudging && (prompt.value.trim() === EXAMPLE_DRAFT || prompt.value.trim() === EXAMPLE_STATE || !prompt.value.trim())) prompt.value = judging ? EXAMPLE_STATE : EXAMPLE_DRAFT;
+    // A judgments-only provider has no chat: the page judges with it and says so.
+    if (judgmentsOnly(id) && mode === "chat") { setMode("judge", true); notify(); }
   }
   refreshStatus();
   if (automatic.checked) void discover();
@@ -240,8 +250,8 @@ function options(kind: PickerKind, query: string): PickResult {
     ];
     status = "Commands configure the app. They are never sent to a model.";
   } else if (kind === "provider") {
-    entries = CONNECTIONS.map((choice) => ({ id: choice.id, label: choice.label, detail: credentials.get(choice.id) ? "Key loaded" : choice.env ? "Add key in Settings" : "Local / custom endpoint" }));
-    status = "Choose a provider · switching starts a new conversation";
+    entries = CONNECTIONS.map((choice) => ({ id: choice.id, label: choice.label, detail: `${credentials.get(choice.id) ? "Key loaded" : choice.env ? "Add key in Settings" : "Local / custom endpoint"}${judgmentsOnly(choice.id) ? " · judgments only, opens Judge" : ""}` }));
+    status = mode === "judge" ? "Choose a provider · judged inputs keep their answers until run again" : "Choose a provider · switching starts a new conversation";
   } else {
     const catalogue = catalogues.get(cacheKey());
     const listed = new Set(catalogue?.ids ?? []);
@@ -351,8 +361,7 @@ async function sendTurn(text: string): Promise<void> {
       if (following) scrollChat();
     });
     if (version !== generation) return;
-    // A judgment is one call over one text: the transcript is not replayed into the next one.
-    messages = judgmentsActive(connection, settings) ? [] : [...request.messages, response.message];
+    messages = [...request.messages, response.message];
     const usage = response.usage;
     const adapted = response.adaptations.length ? ` · adapted: ${response.adaptations.map((a) => `${a.field} ${a.action}`).join(", ")}` : "";
     $("usage").textContent = `${response.finishReason} · input ${usage?.inputTokens ?? "unreported"} · output ${usage?.outputTokens ?? "unreported"} · ${Math.round(performance.now() - started)} ms · ${chosen.label}${adapted}`;
@@ -444,12 +453,6 @@ temperatureInput.addEventListener("input", () => {
 });
 maxTokensInput.addEventListener("input", () => { if (maxTokensInput.validity.valid) settings.maxTokens = maxTokensInput.value === "" ? null : maxTokensInput.valueAsNumber; void updateCode(); });
 reasoningInput.addEventListener("change", () => { settings.reasoning = reasoningInput.value as Settings["reasoning"]; void updateCode(); });
-judgmentsToggle.addEventListener("change", () => {
-  settings.judgments = judgmentsToggle.checked;
-  if (prompt.value.trim() === EXAMPLE_DRAFT || prompt.value.trim() === EXAMPLE_STATE || !prompt.value.trim()) prompt.value = settings.judgments ? EXAMPLE_STATE : EXAMPLE_DRAFT;
-  reset(); refreshStatus();
-});
-schemaInput.addEventListener("input", () => { settings.schema = schemaInput.value; void updateCode(); });
 $("copy-code").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText($("code").textContent ?? ""); $("copy-status").textContent = "Copied"; $("copy-code").textContent = "Copied";
@@ -477,10 +480,31 @@ for (const { id, label } of LANGUAGES) {
   $("code-tabs").append(tab);
 }
 systemInput.value = DEFAULT_SETTINGS.system;
-schemaInput.value = DEFAULT_SETTINGS.schema;
 maxTokensInput.value = "";
 prompt.value = EXAMPLE_DRAFT;
 reset();
+judge = new JudgeView({
+  connection,
+  key: () => credentials.get(connection.provider),
+  runtime: () => runtime,
+  runtimes: RUNTIMES,
+  runtimeReady: () => !loadingRuntime && RUNTIMES[runtime].loaded() && !active,
+  providerLabel: () => currentChoice().label,
+  offerRelay,
+  errorMessage,
+  requireKey: () => {
+    if ((!credentials.get(connection.provider) || credentials.get(connection.provider) === EXAMPLE_API_KEY) && !keyless(connection.provider)) { notifyKey(`Add your ${currentChoice().label} API key to judge.`); openConnection(); return false; }
+    return true;
+  },
+  onBusy: () => updateControls(),
+  pickProvider: () => picker.open("provider"),
+  pickModel: () => { picker.open("model"); if (automatic.checked) void discover(); },
+  codeChanged: () => void updateCode(),
+});
+for (const button of document.querySelectorAll<HTMLButtonElement>(".mode-switch button")) button.addEventListener("click", () => { if (!button.disabled) setMode(button.dataset.mode as Mode, true); });
+let remembered: string | null = null;
+try { remembered = localStorage.getItem("lm15.playground.mode"); } catch { remembered = null; }
+setMode(remembered === "judge" ? "judge" : "chat");
 $("remember-note").hidden = Credentials.available();
 void credentials.load().then(() => { refreshStatus(); if (automatic.checked) void discover(); });
 refreshStatus();

@@ -224,4 +224,9 @@ export const rustRuntime: Runtime = {
       throw error;
     }
   },
+
+  async judge(): Promise<CanonicalResponse> {
+    // The Rust pin predates MAP-14: no judgments schema, no typesafe dialect (experience.ts RUST_NOT_YET). The page disables Run rather than translate.
+    throw Object.assign(new Error("The Rust SDK at this pin has no judgments (MAP-14). Judge with JavaScript or Python."), { name: "UnsupportedFeatureError" });
+  },
 };

@@ -18,6 +18,8 @@ https://lm15.dev/playground/ after the build and link checks pass.
 - `../styles/theme.css`: shared brand colors for the whole website.
 - `main.ts`, `picker.ts`, `code-view.ts`: interaction and code display.
 - `experience.ts`, `connections.ts`: provider choices, requests, and examples.
+- `judge.ts`, `judge-ui.ts`: Judge mode — the question set, the inputs, one
+  request per input, the three languages, the results table.
 - `credentials.ts`: temporary keys and optional encrypted browser storage.
 - `runtimes/`: JavaScript, Python, and Rust execution in the browser.
 - `../../scripts/build-playground.mjs`: packages only public assets.
@@ -28,7 +30,11 @@ edits do not build Python or Rust. Heavy runtimes download only when selected.
 
 ## Interface
 
-The main workspace contains a key field, request settings, chat, and three code
+The page has two modes, **Chat** and **Judge**, on one connection: the same
+provider, key, and language tabs. The key card and the code panel are single
+elements that move between the two layouts.
+
+The chat workspace contains a key field, request settings, chat, and three code
 tabs. Provider and model buttons sit beside Send. JavaScript / Python / Rust
 select both the displayed code and the SDK that executes the next message;
 there is no separate execution selector, JSON/curl tab, or New chat button.
@@ -53,6 +59,48 @@ Invalid numbers cannot be sent. Code wraps visually without changing copied
 source. Loading and failure messages remain; successful loading leaves no
 technical status paragraph.
 
+## Judge mode
+
+Judge applies one question set to many inputs, one call per input (MAP-14:
+declared keys in, a distribution out). The question set is the JSON Schema
+`properties` object that `judgments({...})` takes; the form on the left is a
+view over it, reading with the SDK's `judgmentsInSchema` and writing with its
+`choice`, `yesNo` and `score`. **{ } JSON** edits the same object directly; a
+property the form cannot show is kept verbatim and named.
+
+Inputs have a shape: **Text** (one string each), **Fields** (one JSON object
+each, sent as a data part — Jev reads it as structured state) or
+**Conversation** (one transcript each). Each shape keeps its own inputs. A
+question can point at a piece of a structured input with backticks; the hint
+above the questions names the path under contract rule D6. The code panel is
+the whole set as one loop, in the SDK's own spelling; Python executes that
+program with one input, the loop body unchanged (`judgeProgram`).
+
+Every provider judges: TypeSafe measures the probability of every declared
+key and the outputs draw the distribution (a sparkline per question; hover or
+tap for the numbers); a chat wire answers the pick and the row records
+`config.probabilities dropped`. Z.AI's wire takes no schema at all: the row
+says the questions never reached the model. Rust is pinned before MAP-14, so
+the tab says so and Run is off. Where the SDK pins fall short of the contract
+for a shape, the page names the rule and does not run
+(`shapeGap`: at this pin, Fields on a chat wire — the Responses dialect refuses
+a user data part and the Chat, Anthropic and Gemini dialects send an empty text
+in its place; `tests/judge_examples.test.ts` pins that until the ports catch
+up).
+
+The run is sequential (the shown loop), stops at the first failure with the
+input named, offers the relay on a browser-blocked provider and resumes
+through it, and judges only inputs that changed since their last verdict.
+The set, its verdicts and the chosen mode are remembered on the device
+(`lm15.playground.judge`, `lm15.playground.mode`); nothing is written until
+the person changes something. **Export CSV** writes one column per declared
+key only when something was measured; **Export JSON** is the verdicts as the
+SDK returned them.
+
+TypeSafe answers judgments only: choosing it from Chat opens Judge, and Chat
+is closed while it is selected. The former **Ask for judgments** switch in
+Chat is gone; judgments are Judge mode.
+
 ## Teaching example
 
 The initial conversation asks what LM15 is, includes one short answer, and has
@@ -66,8 +114,9 @@ never stored or accepted as a real key. Saving a real key does not erase the
 teaching example. Plain text turns use short Message constructors in the code;
 messages with metadata or continuation state retain the full canonical replay.
 
-`npm test` checks 66 generated request variants per SDK, including the teaching
-conversation with no token cap. `npm run rust:snippets` updates the standalone
+`npm test` checks 66 generated chat request variants per SDK, including the
+teaching conversation with no token cap, and 36 Judge variants (every provider
+in each shape) in JavaScript and Python. `npm run rust:snippets` updates the standalone
 Rust example project; from `examples/rust`, `rcargo check --locked` verifies its
 55 snippets without running provider requests.
 

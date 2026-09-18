@@ -29,6 +29,8 @@ export interface Runtime {
   wire(connection: Connection, key: string | undefined, request: Request): Promise<Wire>;
   /** Send and stream. `onText` receives text as it arrives; the Response is the runtime's own, materialized. */
   stream(connection: Connection, key: string | undefined, request: Request, signal: AbortSignal, onText: (text: string) => void): Promise<Response>;
+  /** Judge one input (judge.ts): one `complete`, one piece back. The Response is the runtime's own. */
+  judge(connection: Connection, key: string | undefined, request: Request, signal: AbortSignal): Promise<Response>;
 }
 
 /** A canonical Message from a runtime that returned JSON. */

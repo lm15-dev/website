@@ -1,0 +1,46 @@
+/** Provider replies for the example suites: a stream of the right dialect for the URL, or TypeSafe's one-piece answer. No network. */
+
+/** A stream of the right dialect for the URL — or TypeSafe's one-piece answer to the three example judgments. */
+export function replyFor(url: string, text = "Hi"): Response {
+  if (url.includes("/v1/systemone")) {
+    const body = { model: "jev-1", answers: { quality: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } }, style: { type: "choice", choice: "fruit", probabilities: { fruit: 0.9, oak: 0.1, mineral: 0 } }, ageing: { type: "noul", noul: 0.97 } }, usage: { input_tokens: 40, output_tokens: 9 } };
+    return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+  }
+  return new Response(streamFor(url, text), { headers: { "Content-Type": "text/event-stream" } });
+}
+
+/** The three example judgments answered as structured output by a chat wire (the pick, no distribution), or by Jev. */
+export const JUDGED_TEXT = '{"quality":3,"style":"fruit","ageing":true}';
+
+/** A one-piece (non-streaming) reply of the right dialect for the URL — what `complete` gets — carrying the judged text; Jev answers its own way. */
+export function judgeReplyFor(url: string): Response {
+  if (url.includes("/v1/systemone")) return replyFor(url);
+  let body: unknown;
+  if (url.includes("/responses")) body = { id: "r", model: "m", status: "completed", output: [{ type: "message", id: "msg", role: "assistant", content: [{ type: "output_text", text: JUDGED_TEXT }] }], usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 } };
+  else if (url.includes("/messages")) body = { id: "r", type: "message", role: "assistant", model: "m", content: [{ type: "text", text: JUDGED_TEXT }], stop_reason: "end_turn", usage: { input_tokens: 2, output_tokens: 1 } };
+  else if (url.includes("generateContent")) body = { candidates: [{ content: { role: "model", parts: [{ text: JUDGED_TEXT }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 2, candidatesTokenCount: 1, totalTokenCount: 3 } };
+  else body = { id: "r", model: "m", choices: [{ index: 0, message: { role: "assistant", content: JUDGED_TEXT }, finish_reason: "stop" }], usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } };
+  return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+}
+
+/** A stream body of the right dialect for the URL, ending in `stop` with usage. */
+export function streamFor(url: string, text = "Hi"): string {
+  let frames: unknown[];
+  if (url.includes("/responses")) frames = [
+    { type: "response.created", response: { id: "r", model: "m" } },
+    { type: "response.output_text.delta", output_index: 0, content_index: 0, delta: text },
+    { type: "response.completed", response: { id: "r", status: "completed", output: [], usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 } } },
+  ];
+  else if (url.includes("/messages")) frames = [
+    { type: "message_start", message: { id: "r", model: "m", usage: { input_tokens: 2 } } },
+    { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: text } },
+    { type: "content_block_stop", index: 0 },
+    { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 1 } },
+    { type: "message_stop" },
+  ];
+  else if (url.includes("streamGenerateContent")) frames = [{ candidates: [{ content: { role: "model", parts: [{ text: text }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 2, candidatesTokenCount: 1, totalTokenCount: 3 } }];
+  else frames = [{ id: "r", model: "m", choices: [{ delta: { role: "assistant", content: text } }] }, { choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } }];
+  return frames.map((f) => `data: ${JSON.stringify(f)}\n\n`).join("") + (url.includes("/responses") || url.includes("/messages") || url.includes("streamGenerateContent") ? "" : "data: [DONE]\n\n");
+}
+

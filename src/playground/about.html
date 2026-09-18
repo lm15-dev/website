@@ -17,7 +17,8 @@
 <ul>
 <li>Your browser sends messages and the selected provider's key directly to that provider. That provider's privacy rules apply to those requests. The one exception is the <a href="#relay">relay</a>, which is off until you allow it for a provider.</li>
 <li>GitHub Pages hosts the public files and handles normal hosting traffic, including your IP address. The app does not send your keys or messages to GitHub, and includes no analytics, advertising, or third-party scripts.</li>
-<li>The conversation stays in the page's memory and is lost on refresh. It is sent again to your provider with each turn so the conversation can continue.</li>
+<li>In Chat, the conversation stays in the page's memory and is lost on refresh. It is sent again to your provider with each turn so the conversation can continue.</li>
+<li>In Judge, the questions, the inputs and their answers are kept in this site's browser storage (unencrypted: they are not secrets) so a set survives a refresh. <strong>Clear results</strong> drops the answers; removing the inputs drops the rest. Nothing of it leaves the browser except the request to your provider, one per input.</li>
 <li>Keys also stay in memory unless you choose <strong>Remember on this device</strong>. Remembered keys are encrypted in this site's browser storage. <strong>Forget</strong> deletes them. Keys stored on localhost or a different website do not carry over here.</li>
 <li>Encryption does not protect against scripts running on this page: they must be able to use the key to send a request. Only use the playground if you trust this site and its updates. Prefer limited-budget keys and revoke keys you no longer need.</li>
 </ul>

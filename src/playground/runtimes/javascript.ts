@@ -1,7 +1,7 @@
 /** The JavaScript runtime: this page's own `lm15/browser`, no loading step. */
 
-import { ResponseStream, utf8Decode, type Request, type Response } from "lm15/browser";
-import { createClient, renderAnswer, streams, type Connection, type Wire } from "../experience.ts";
+import { ResponseStream, stringifyJson, utf8Decode, type Request, type Response } from "lm15/browser";
+import { createClient, streams, type Connection, type Wire } from "../experience.ts";
 import type { Runtime } from "./index.ts";
 
 export const javascriptRuntime: Runtime = {
@@ -17,13 +17,16 @@ export const javascriptRuntime: Runtime = {
   async stream(connection, key, request, signal, onText): Promise<Response> {
     const lm = createClient(connection, key);
     if (!streams(connection)) {
-      // One piece (TypeSafe): the answer is a DataPart, rendered once it lands.
+      // One piece: the answer lands whole.
       const response = await lm.complete(request, { signal });
-      onText(renderAnswer(response));
+      onText(response.text ?? (response.data !== undefined ? stringifyJson(response.data, { indent: 2 }) : ""));
       return response;
     }
     const result = new ResponseStream(lm.stream(request, { signal }), request);
     for await (const text of result) onText(text);
     return result.response();
+  },
+  judge(connection, key, request, signal): Promise<Response> {
+    return createClient(connection, key).complete(request, { signal });
   },
 };

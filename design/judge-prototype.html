@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lm15 playground — Judge mode (design prototype)</title>
+<style>
+/* Palette copied from src/playground/app.css + theme.css so this looks like the live site. */
+:root {
+  color-scheme: light dark;
+  --lm-brand: #0051ff; --lm-on-brand: #fff;
+  --lm-brand-hover: color-mix(in srgb, var(--lm-brand) 85%, black);
+  --accent: var(--lm-brand); --accent-soft: color-mix(in srgb, var(--lm-brand) 7%, white);
+  --bg: #f4f6f5; --surface: #fff; --soft: #f8faf9; --code-bg: #fafcfb;
+  --ink: #1d2924; --muted: #607168; --line: #e0e7e3; --strong-line: #c6d2cc;
+  --danger: #b73a36; --danger-soft: #fff0ef; --warn: #8a5a00; --warn-soft: #fff6e0;
+  --code-ink: #111; --code-muted: #666;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: color-mix(in srgb, var(--lm-brand) 40%, white); --accent-soft: color-mix(in srgb, var(--lm-brand) 22%, #151820);
+    --bg: #0d1210; --surface: #151c18; --soft: #19221d; --code-bg: #111914;
+    --ink: #e0ebe4; --muted: #a2b3a8; --line: #2a3830; --strong-line: #465b4d;
+    --danger: #ffaca5; --danger-soft: #381e1d; --warn: #f0c060; --warn-soft: #302810;
+    --code-ink: #e5e5e5; --code-muted: #aaa;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); }
+button, input, textarea, select { font: inherit; color: inherit; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+button { cursor: pointer; padding: 5px 10px; min-height: 32px; }
+button:hover:not(:disabled) { background: var(--soft); border-color: var(--strong-line); }
+a { color: var(--accent); text-decoration: none; }
+code { font: 12px ui-monospace, Consolas, monospace; background: color-mix(in srgb, var(--line) 50%, transparent); padding: 0 4px; border-radius: 3px; }
+.primary { background: var(--lm-brand); border-color: var(--lm-brand); color: var(--lm-on-brand); }
+.primary:hover:not(:disabled) { background: var(--lm-brand-hover); border-color: var(--lm-brand-hover); }
+.text-button { border-color: transparent; background: transparent; min-height: 28px; padding: 3px 0; color: var(--muted); font-size: 12px; }
+.text-button:hover:not(:disabled) { color: var(--accent); background: transparent; border-color: transparent; }
+.danger { color: var(--danger); }
+.muted { color: var(--muted); }
+small, .small { font-size: 12px; }
+textarea { resize: vertical; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; padding: 2px; background: var(--surface); }
+.seg button { border: 0; background: transparent; color: var(--muted); min-height: 22px; padding: 0 9px; border-radius: 4px; font-size: 12px; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+
+.proto-banner { background: var(--warn-soft); color: var(--warn); border-bottom: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); padding: 6px 24px; font-size: 12px; }
+.proto-banner b { font-weight: 600; }
+
+/* Toolbar */
+.workspace-toolbar { display: flex; align-items: center; gap: 20px; min-height: 64px; padding: 10px 24px; }
+.brand { font-size: 19px; font-weight: 700; letter-spacing: -.7px; color: var(--ink); }
+.mode-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; padding: 2px; background: var(--surface); }
+.mode-switch button { border: 0; background: transparent; color: var(--muted); min-height: 28px; padding: 2px 14px; border-radius: 5px; font-size: 13px; }
+.mode-switch button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.connection { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.chip { display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 8px; font-size: 12px; }
+.chip > span:last-child { color: var(--muted); }
+.model-chip { flex: 1; max-width: 360px; }
+.toolbar-actions { margin-left: auto; display: flex; gap: 6px; }
+
+/* Layout: questions | (code / results) */
+.split { display: grid; grid-template-columns: 360px minmax(560px, 1fr); height: calc(100dvh - 112px); min-height: 560px; margin: 0 24px 16px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); transition: grid-template-columns .15s ease; }
+body[data-raw="1"] #judge-view { grid-template-columns: 470px minmax(520px, 1fr); }
+.panel { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.settings-panel { background: var(--soft); border-right: 1px solid var(--line); }
+.scroll { flex: 1; min-height: 0; overflow: auto; padding: 18px 16px; display: flex; flex-direction: column; scrollbar-width: thin; scrollbar-color: var(--strong-line) transparent; }
+.panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 12px; }
+.panel-heading h2 { font-size: 13px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+label.field { display: block; font-size: 12px; color: var(--muted); margin-top: 10px; }
+label.field input, label.field textarea, label.field select { display: block; width: 100%; margin-top: 4px; font-size: 13px; padding: 6px 8px; color: var(--ink); }
+
+/* Question cards */
+.question { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin-bottom: 10px; }
+.question > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; }
+.question > summary::-webkit-details-marker { display: none; }
+.question > summary::before { content: "▸"; color: var(--muted); font-size: 11px; width: 10px; }
+.question[open] > summary::before { content: "▾"; }
+.question .qname { font-weight: 600; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.question .qkind { margin-left: auto; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+.question .qbody { padding: 0 12px 12px; border-top: 1px solid var(--line); }
+.levels { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.levels li { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+.levels li .n { width: 16px; color: var(--muted); font-family: ui-monospace, monospace; text-align: right; }
+.levels li input { flex: 1; padding: 3px 6px; font-size: 12px; }
+.levels li .x { border: 0; background: none; color: var(--muted); min-height: 0; padding: 0 4px; }
+.add-line { display: flex; gap: 6px; margin-top: 14px; }
+.add-line select { flex: 1; font-size: 13px; }
+.paths-hint { margin: 0 0 12px; padding: 8px 10px; border: 1px dashed var(--strong-line); border-radius: 6px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.paths-hint code { color: var(--accent); }
+body[data-shape="text"] .paths-hint { display: none; }
+/* Raw JSON editor */
+.raw-editor { display: none; flex: 1; min-height: 360px; flex-direction: column; border: 1px solid var(--strong-line); border-radius: 8px; background: var(--code-bg); overflow: hidden; }
+.raw-editor:focus-within { border-color: var(--accent); }
+#raw-json { flex: 1; border: 0; border-radius: 0; background: transparent; resize: none; width: 100%; padding: 14px; font: 13px/1.65 ui-monospace, Consolas, monospace; color: var(--code-ink); outline: none; white-space: pre-wrap; overflow: auto; tab-size: 2; }
+.raw-status { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.raw-status .ok { color: var(--accent); }
+.raw-status .spacer { flex: 1; }
+.raw-status button { font-size: 11.5px; min-height: 22px; padding: 1px 8px; }
+body[data-raw="1"] .raw-editor { display: flex; }
+body[data-raw="1"] .question-list, body[data-raw="1"] .add-line, body[data-raw="1"] .paths-hint { display: none; }
+.instructions { margin-top: 22px; }
+.instructions textarea { min-height: 84px; }
+
+/* Right column */
+.right { display: grid; grid-template-rows: minmax(200px, .9fr) 6px minmax(220px, 1.1fr); min-height: 0; min-width: 0; }
+.divider { background: var(--soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); cursor: row-resize; position: relative; }
+.divider::after { content: ""; position: absolute; left: 50%; top: 1px; width: 36px; height: 2px; margin-left: -18px; border-radius: 2px; background: var(--strong-line); }
+body[data-results="0"] .right { grid-template-rows: 1fr 6px 44px; }
+body[data-results="0"] .io, body[data-results="0"] .footer-bar { display: none; }
+.code-panel { background: var(--code-bg); }
+.code-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.code-tabs { display: flex; gap: 14px; }
+.code-tabs button { min-height: 48px; padding: 8px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: 12px; }
+.code-tabs button:hover:not(:disabled) { background: transparent; }
+.code-tabs button[aria-pressed="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.code-panel pre { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 16px 20px; color: var(--code-ink); font: 14px/1.7 ui-monospace, "SFMono-Regular", Consolas, monospace; tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tk-c { color: var(--code-muted); font-style: italic; }
+.tk-v { color: var(--accent); }
+
+/* Results */
+.results-panel { background: var(--surface); }
+.run-bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; min-height: 44px; }
+.run-bar h2 { font-size: 13px; font-weight: 600; margin: 0 6px 0 0; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.run-bar .primary { min-height: 28px; padding: 3px 12px; font-size: 13px; }
+.run-bar .count, .method-line { font-size: 12px; color: var(--muted); }
+.method-line .measured { color: var(--accent); }
+#toggle-results { margin-left: auto; }
+/* One shared table: an input and its output are the same row, so heights always match. */
+.io { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--strong-line) transparent; }
+.io-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.io-table col.c-in { width: 50%; } .io-table col.c-out { width: 50%; }
+.io-table thead th { position: sticky; top: 0; z-index: 2; background: var(--surface); text-align: left; font-weight: 400; padding: 0; border-bottom: 1px solid var(--line); }
+.io-table th.out, .io-table td.out { border-left: 1px solid var(--line); }
+.io-head { display: flex; align-items: center; gap: 10px; padding: 8px 14px; min-height: 40px; }
+.io-head h3 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.io-head .sub { font-size: 12px; color: var(--muted); }
+.io-head .spacer { flex: 1; }
+.io-table tbody td { vertical-align: top; padding: 10px 14px 10px 10px; border-bottom: 1px solid var(--line); }
+.io-table tr.selected td { background: var(--accent-soft); }
+.io-table tfoot td { padding: 0; position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); }
+.num { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 22px; padding: 0 6px; border-radius: 5px; font: 11.5px ui-monospace, Consolas, monospace; color: var(--muted); border: 1px solid var(--line); background: var(--surface); margin-top: 2px; }
+.selected .num { color: var(--accent); border-color: var(--accent); }
+.io-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: start; }
+.io-row .x { border: 0; background: none; color: var(--muted); min-height: 0; padding: 2px 4px; font-size: 14px; }
+.io-row .x:hover { color: var(--danger); background: none; }
+.in-status { grid-column: 2; font-size: 11px; color: var(--muted); padding-left: 4px; }
+.in-status .done { color: var(--accent); }
+.in-text { width: 100%; border: 0; background: transparent; padding: 2px 4px; font-size: 13px; line-height: 1.5; color: var(--ink); resize: none; min-height: 24px; overflow: hidden; }
+.in-text:focus { outline: 1px solid var(--accent); border-radius: 4px; }
+/* fields shape */
+.fields-grid { display: grid; gap: 6px 10px; }
+.fields-grid .fkey { font: 11px ui-monospace, Consolas, monospace; color: var(--muted); padding-top: 4px; white-space: nowrap; }
+.fields-grid .fval { border: 1px solid transparent; background: transparent; padding: 2px 6px; font-size: 13px; color: var(--ink); resize: none; min-height: 24px; overflow: hidden; width: 100%; }
+.fields-grid .fval:hover { border-color: var(--line); }
+.fields-grid .fval:focus { outline: none; border-color: var(--accent); }
+.fields-grid .fval.num { font-family: ui-monospace, monospace; display: block; height: auto; text-align: left; }
+.field-defs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 14px 8px; border-top: 1px solid var(--line); background: var(--soft); font-size: 12px; }
+.field-defs .fd { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font: 12px ui-monospace, Consolas, monospace; }
+.field-defs .fd select { border: 0; background: transparent; color: var(--muted); font-size: 11px; padding: 0 2px; }
+.field-defs .fd .x { border: 0; background: none; color: var(--muted); min-height: 0; padding: 0 4px; font-size: 13px; }
+.field-defs .lbl { color: var(--muted); margin-right: 4px; }
+body:not([data-shape="fields"]) .field-defs { display: none; }
+/* conversation shape */
+.convo { display: flex; flex-direction: column; gap: 4px; }
+.msg { display: grid; grid-template-columns: 64px 1fr auto; gap: 8px; align-items: start; }
+.msg .role { font: 11px ui-monospace, Consolas, monospace; color: var(--muted); padding: 5px 0 0 4px; }
+.msg .role.assistant { color: var(--accent); }
+.msg textarea { border: 1px solid transparent; background: transparent; padding: 3px 6px; font-size: 13px; line-height: 1.5; color: var(--ink); resize: none; min-height: 24px; overflow: hidden; }
+.msg textarea:hover { border-color: var(--line); }
+.msg textarea:focus { outline: none; border-color: var(--accent); }
+.msg .x { border: 0; background: none; color: var(--muted); min-height: 0; padding: 4px; font-size: 13px; visibility: hidden; }
+.msg:hover .x { visibility: visible; }
+.convo .add-msg { font-size: 11.5px; color: var(--muted); padding: 2px 0 0 72px; }
+.convo .add-msg button { min-height: 0; padding: 0 6px; font-size: 11.5px; }
+.io-add { display: flex; gap: 8px; padding: 10px 14px; align-items: center; background: var(--soft); }
+.io-add .hint { flex: 1; }
+.io-add textarea { flex: 1; min-height: 36px; font-size: 13px; padding: 6px 8px; color: var(--ink); }
+.io-add .hint { font-size: 12px; color: var(--muted); flex: 1; }
+/* outputs: one quiet line per question; hover for the full distribution */
+.out-row { padding: 2px 0 0 4px; }
+.answers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.ans { min-width: 0; cursor: help; }
+.ans .q { display: block; font: 11px ui-monospace, Consolas, monospace; color: var(--muted); margin-bottom: 1px; }
+.ans .pick { font-weight: 600; font-size: 13px; display: block; }
+.ans .p { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 5px; }
+.ans .p b { font-weight: 400; color: var(--muted); }
+.ans .line { display: flex; align-items: flex-end; gap: 9px; }
+.ans .line .pick { white-space: normal; overflow: visible; line-height: 1.25; }
+.ans .p { display: block; margin: 1px 0 0; }
+.spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 26px; flex-shrink: 0; padding-bottom: 1px; border-bottom: 1px solid var(--line); }
+.spark i { display: block; width: 7px; min-height: 2px; border-radius: 1px 1px 0 0; background: color-mix(in srgb, var(--accent) 38%, transparent); }
+.spark i.top { background: var(--accent); }
+.spark.yn i { width: 10px; }
+.spark { cursor: default; }
+.spark:hover i { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.spark:hover i.top { background: color-mix(in srgb, var(--accent) 60%, transparent); }
+.spark:hover i.hover, .spark:hover i.hover.top { background: var(--accent); }
+.ans { cursor: default; }
+/* distribution popover */
+.pop { position: fixed; z-index: 20; pointer-events: none; min-width: 170px; padding: 8px 10px; background: var(--surface); color: var(--ink); border: 1px solid var(--strong-line); border-radius: 7px; box-shadow: 0 6px 20px #0003; font-size: 12px; }
+.pop[hidden] { display: none; }
+.pop .ph { font: 11px ui-monospace, Consolas, monospace; color: var(--muted); margin-bottom: 5px; }
+.pop .pr { display: grid; grid-template-columns: minmax(70px, auto) 90px 38px; gap: 8px; align-items: center; padding: 1px 0; }
+.pop .pr .k { white-space: nowrap; }
+.pop .pr .n { color: var(--muted); font-family: ui-monospace, monospace; font-size: 11px; margin-right: 7px; }
+.pop .pr i { display: block; height: 5px; border-radius: 2px; background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.pop .pr.top .k { font-weight: 600; } .pop .pr.top i { background: var(--accent); }
+.pop .pr.hover { background: var(--accent-soft); margin: 0 -6px; padding: 1px 6px; border-radius: 4px; }
+.pop .pr b { font-weight: 400; text-align: right; font-family: ui-monospace, monospace; color: var(--muted); }
+.pop .pf { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.out-meta { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.out-row pre { margin: 0; font: 12.5px/1.55 ui-monospace, Consolas, monospace; color: var(--code-ink); white-space: pre-wrap; }
+.out-row .pending-note { font-size: 12px; color: var(--muted); padding-top: 3px; }
+.footer-bar { display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.footer-bar .spacer { flex: 1; }
+
+/* Chat mode stand-in */
+#chat-view { display: none; }
+body[data-mode="chat"] #chat-view { display: grid; }
+body[data-mode="chat"] #judge-view { display: none; }
+.stand-in { grid-column: 1 / -1; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 40px; line-height: 1.7; }
+@media (max-width: 1100px) { .split { grid-template-columns: 300px minmax(0, 1fr); } }
+</style>
+</head>
+<body data-mode="judge" data-raw="0" data-results="1" data-shape="text">
+<div class="proto-banner"><b>Design prototype</b> — static mockup, nothing is sent anywhere. Numbers are invented but shaped like real Jev output. New here: the <b>input shape</b> switch in the Inputs header (Text / Fields / Conversation) — the code, the inputs list and the questions hint follow it.</div>
+
+<header class="workspace-toolbar">
+  <a class="brand" href="#">lm15</a>
+  <div class="mode-switch" role="tablist" aria-label="Mode">
+    <button type="button" role="tab" data-mode="chat" aria-pressed="false">Chat</button>
+    <button type="button" role="tab" data-mode="judge" aria-pressed="true">Judge</button>
+  </div>
+  <div class="connection">
+    <button type="button" class="chip"><span>TypeSafe (Jev)</span><span>▾</span></button>
+    <button type="button" class="chip model-chip"><span>jev-latest</span><span>▾</span></button>
+  </div>
+  <div class="toolbar-actions"><button type="button">More ▾</button></div>
+</header>
+
+<main class="split" id="chat-view">
+  <div class="stand-in">Chat mode stays exactly as it is today —<br>minus the “Ask for judgments” checkbox, which moves into Judge mode.<br><small>(click <b>Judge</b> above to go back to the prototype)</small></div>
+</main>
+
+<main class="split" id="judge-view">
+  <aside class="panel settings-panel" aria-label="Questions">
+    <div class="scroll">
+      <div class="panel-heading"><h2>Questions</h2><button type="button" class="text-button" id="raw-toggle">{ } Raw JSON</button></div>
+      <p class="paths-hint" id="paths-hint"></p>
+
+      <div class="question-list" id="question-list">
+        <details class="question" open>
+          <summary><span class="qname">quality</span><span class="qkind">scale · 5 levels</span></summary>
+          <div class="qbody">
+            <label class="field">Question<input id="q-quality" value="How good is this wine, overall?"></label>
+            <label class="field">Levels, worst to best</label>
+            <ol class="levels">
+              <li><span class="n">0</span><input value="faulty"><button class="x" title="Remove">×</button></li>
+              <li><span class="n">1</span><input value="poor"><button class="x" title="Remove">×</button></li>
+              <li><span class="n">2</span><input value="fair"><button class="x" title="Remove">×</button></li>
+              <li><span class="n">3</span><input value="good"><button class="x" title="Remove">×</button></li>
+              <li><span class="n">4</span><input value="outstanding"><button class="x" title="Remove">×</button></li>
+            </ol>
+            <button type="button" class="text-button">+ level</button>
+          </div>
+        </details>
+        <details class="question">
+          <summary><span class="qname">style</span><span class="qkind">choice · 4 options</span></summary>
+          <div class="qbody">
+            <label class="field">Question<input value="Which style best describes it?"></label>
+            <label class="field">Options</label>
+            <ol class="levels">
+              <li><span class="n"></span><input value="fruit-forward"><button class="x">×</button></li>
+              <li><span class="n"></span><input value="oaky"><button class="x">×</button></li>
+              <li><span class="n"></span><input value="mineral"><button class="x">×</button></li>
+              <li><span class="n"></span><input value="earthy"><button class="x">×</button></li>
+            </ol>
+            <button type="button" class="text-button">+ option</button>
+          </div>
+        </details>
+        <details class="question">
+          <summary><span class="qname">ages</span><span class="qkind">yes / no</span></summary>
+          <div class="qbody"><label class="field">Question<input value="Will it improve with five more years in bottle?"></label></div>
+        </details>
+      </div>
+
+      <div class="raw-editor">
+        <textarea id="raw-json" spellcheck="false">{
+  "quality": {
+    "type": "score",
+    "question": "How good is this wine, overall?",
+    "levels": ["faulty", "poor", "fair", "good", "outstanding"]
+  },
+  "style": {
+    "type": "choice",
+    "question": "Which style best describes it?",
+    "options": ["fruit-forward", "oaky", "mineral", "earthy"]
+  },
+  "ages": {
+    "type": "yes_no",
+    "question": "Will it improve with five more years in bottle?"
+  }
+}</textarea>
+        <div class="raw-status"><span class="ok">✓ valid</span><span>3 questions</span><span class="spacer"></span><button type="button">Format</button><button type="button">Copy</button></div>
+      </div>
+
+      <div class="add-line">
+        <select id="new-kind"><option value="">+ question…</option><option value="yes">Yes / no</option><option value="choice">Choice</option><option value="scale">Scale</option></select>
+      </div>
+
+      <div class="instructions">
+        <div class="panel-heading"><h2>Instructions</h2></div>
+        <label class="field">How to read each input <small class="muted">(optional · sent as the system text)</small>
+          <textarea>These are tasting notes written by a sommelier. Judge the wine described, not the writing.</textarea>
+        </label>
+      </div>
+    </div>
+  </aside>
+
+  <div class="right">
+    <section class="panel code-panel" aria-label="Code">
+      <div class="code-toolbar">
+        <div class="code-tabs" id="code-tabs">
+          <button type="button" data-lang="js" aria-pressed="true">JavaScript</button>
+          <button type="button" data-lang="py" aria-pressed="false">Python</button>
+          <button type="button" data-lang="rs" aria-pressed="false">Rust</button>
+        </div>
+        <button type="button" class="text-button">Copy</button>
+      </div>
+      <pre id="code"></pre>
+    </section>
+
+    <div class="divider" title="Drag to resize (not wired in the prototype)"></div>
+
+    <section class="panel results-panel" aria-label="Results">
+      <div class="run-bar">
+        <h2>Results</h2>
+        <button type="button" class="primary" id="run-all">Run all</button>
+        <span class="count" id="run-count"></span>
+        <span class="method-line">→ TypeSafe · jev-latest · <span class="measured">measured probabilities</span></span>
+        <button type="button" class="text-button" id="toggle-results">Hide ▾</button>
+      </div>
+      <div class="io">
+        <table class="io-table">
+          <colgroup><col class="c-in"><col class="c-out"></colgroup>
+          <thead>
+            <tr>
+              <th><div class="io-head"><h3>Inputs</h3><span class="sub" id="in-count"></span><span class="spacer"></span>
+                <span class="small muted">shape</span>
+                <div class="seg" id="shape"><button type="button" data-shape="text" aria-pressed="true">Text</button><button type="button" data-shape="fields" aria-pressed="false">Fields</button><button type="button" data-shape="convo" aria-pressed="false">Conversation</button></div></div>
+                <div class="field-defs" id="field-defs"></div></th>
+              <th class="out"><div class="io-head"><h3>Outputs</h3><span class="sub" id="out-count"></span><span class="spacer"></span>
+                <div class="seg" id="out-view"><button type="button" data-view="table" aria-pressed="true">Answers</button><button type="button" data-view="json" aria-pressed="false">JSON</button></div></div></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+          <tfoot><tr><td><div class="io-add" id="io-add"></div></td><td class="out"></td></tr></tfoot>
+        </table>
+      </div>
+      <div class="footer-bar">
+        <span id="tally"></span><span class="spacer"></span>
+        <button type="button" class="text-button">Export CSV</button>
+        <button type="button" class="text-button">Export JSON</button>
+        <button type="button" class="text-button danger">Clear results</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="pop" id="pop" hidden></div>
+<script>
+// ---------- fake data, shaped like real Jev output ----------
+const LEVELS = ["faulty","poor","fair","good","outstanding"];
+const STYLES = ["fruit-forward","oaky","mineral","earthy"];
+const J = [
+  { quality: [0,.05,.15,.45,.35], style: [.62,.28,.06,.04], ages: .87 },
+  { quality: [.52,.4,.07,.01,0],  style: [.2,.06,.41,.33],  ages: .08 },
+  { quality: [0,.03,.22,.6,.15],  style: [.12,.04,.78,.06], ages: .55 },
+];
+const NOTES = [
+  "Ripe blackberry and cassis, firm tannin, long cedar finish. Needs time.",
+  "Thin, sour, faintly oxidised. Drink up.",
+  "Wet stone and lime zest, taut acidity, saline finish.",
+];
+// one dataset per shape; all three share the same fake answers
+const data = {
+  text:   NOTES.map((t,i) => ({ value: t, jev: J[i], tokens: 480-i*20, pending: false })),
+  fields: [
+    { value: { note: NOTES[0], price_eur: 48, region: "Pauillac" },  jev: J[0], tokens: 512, pending: false },
+    { value: { note: NOTES[1], price_eur: 6,  region: "unknown" },   jev: J[1], tokens: 470, pending: false },
+    { value: { note: NOTES[2], price_eur: 22, region: "Chablis" },   jev: J[2], tokens: 498, pending: false },
+  ],
+  convo: [
+    { value: { messages: [ { role: "user", content: "Something to lay down for ten years?" }, { role: "assistant", content: "The 2019 Pauillac: " + NOTES[0] } ] }, jev: J[0], tokens: 560, pending: false },
+    { value: { messages: [ { role: "user", content: "Cheapest red you have." }, { role: "assistant", content: "The house red, honestly: " + NOTES[1] } ] }, jev: J[1], tokens: 505, pending: false },
+    { value: { messages: [ { role: "user", content: "A white for oysters." }, { role: "assistant", content: "Chablis. " + NOTES[2] }, { role: "user", content: "Will it keep?" } ] }, jev: J[2], tokens: 590, pending: false },
+  ],
+};
+const fieldDefs = [ { name: "note", type: "text" }, { name: "price_eur", type: "number" }, { name: "region", type: "text" } ];
+let shape = "text", selected = -1, outView = "table";
+const rows = () => data[shape];
+
+const pct = p => Math.round(p*100) + "%";
+const argmax = a => a.indexOf(Math.max(...a));
+const expected = a => a.reduce((s,p,i)=>s+p*i,0);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const grow = ta => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
+
+// ---------- outputs (minimal) ----------
+function spark(dist, kind, labels, q, foot) {
+  const top = argmax(dist), max = Math.max(...dist);
+  return `<span class="spark ${kind}" data-q="${q}" data-kind="${kind}" data-dist="${dist.join(",")}" data-labels="${labels.join("|")}" data-foot="${foot||""}">${dist.map((p,i)=>`<i data-i="${i}" class="${i===top?'top':''}" style="height:${Math.max(2, Math.round(p/max*24))}px"></i>`).join("")}</span>`;
+}
+function ans(q, pick, dist, kind, labels, extra, foot) {
+  const p = Math.max(...dist);
+  return `<div class="ans"><span class="q">${q}</span><div class="line">${spark(dist, kind, labels, q, foot)}<span class="pick">${pick}<span class="p">${pct(p)}${extra ? ` <b>· ${extra}</b>` : ""}</span></span></div></div>`;
+}
+function answers(j) {
+  const q = j.quality, st = j.style, tq = argmax(q), ts = argmax(st), yes = j.ages >= .5;
+  return `<div class="answers">
+    ${ans("quality", LEVELS[tq], q, "ordered", LEVELS, `expected ${expected(q).toFixed(1)}`, `expected level ${expected(q).toFixed(2)} of 0–4 · Σ p·i`)}
+    ${ans("style", STYLES[ts], st, "choice", STYLES)}
+    ${ans("ages", yes ? "yes" : "no", [1-j.ages, j.ages], "yn", ["no", "yes"])}
+  </div>`;
+}
+function judgmentsJSON(j) {
+  const q = j.quality, st = j.style;
+  return JSON.stringify({
+    quality: { pick: LEVELS[argmax(q)], expected: +expected(q).toFixed(2), probabilities: Object.fromEntries(LEVELS.map((l,i)=>[l, q[i]])) },
+    style:   { pick: STYLES[argmax(st)], probabilities: Object.fromEntries(STYLES.map((l,i)=>[l, st[i]])) },
+    ages:    { pick: j.ages >= .5, probabilities: { yes: +j.ages.toFixed(2), no: +(1-j.ages).toFixed(2) } },
+  }, null, 2);
+}
+function preview(r) {
+  if (shape === "text") return r.value;
+  if (shape === "fields") return fieldDefs.map(f => `${f.name}: ${r.value[f.name]}`).join(" · ");
+  return r.value.messages.map(m => `${m.role}: ${m.content}`).join("  ▸  ");
+}
+
+// ---------- inputs per shape ----------
+function inputBody(r, i) {
+  if (shape === "text") return `<textarea class="in-text" rows="1">${esc(r.value)}</textarea>`;
+  if (shape === "fields") return `<div class="fields-grid" style="grid-template-columns:auto 1fr">${fieldDefs.map(f =>
+    `<span class="fkey">${f.name}</span><textarea class="fval ${f.type==='number'?'num':''}" data-f="${f.name}" rows="1">${esc(r.value[f.name])}</textarea>`).join("")}</div>`;
+  return `<div class="convo">${r.value.messages.map((m, k) =>
+    `<div class="msg"><span class="role ${m.role}">${m.role}</span><textarea data-k="${k}" rows="1">${esc(m.content)}</textarea><button class="x" title="Remove message">×</button></div>`).join("")}
+    <div class="add-msg">+ <button type="button" class="text-button" data-add="user">user</button> · <button type="button" class="text-button" data-add="assistant">assistant</button></div></div>`;
+}
+function renderFieldDefs() {
+  const el = document.getElementById("field-defs");
+  el.innerHTML = `<span class="lbl">fields</span>` + fieldDefs.map(f => `<span class="fd">${f.name}<select><option ${f.type==='text'?'selected':''}>text</option><option ${f.type==='number'?'selected':''}>number</option><option ${f.type==='json'?'selected':''}>json</option></select><button class="x" title="Remove field">×</button></span>`).join("")
+    + `<button type="button" class="text-button" id="add-field">+ field</button>`;
+  el.querySelector("#add-field").addEventListener("click", () => { const n = prompt("Field name", "grape"); if (!n) return; fieldDefs.push({ name: n, type: "text" }); data.fields.forEach(r => { r.value[n] = ""; r.pending = true; }); render(); });
+}
+function renderAdd() {
+  const el = document.getElementById("io-add");
+  if (shape === "text") el.innerHTML = `<textarea id="new-text" placeholder="New input — one per line to add several"></textarea><button type="button" id="add-text">Add input</button>`;
+  else if (shape === "fields") el.innerHTML = `<button type="button" id="add-text">+ Add input</button><button type="button">Paste CSV / JSON…</button><span class="hint">one object per input · CSV header = field names</span>`;
+  else el.innerHTML = `<button type="button" id="add-text">+ Add input</button><button type="button">Paste JSON…</button><span class="hint">one conversation per input</span>`;
+  el.querySelector("#add-text").addEventListener("click", () => {
+    if (shape === "text") { const ta = el.querySelector("#new-text"); ta.value.split("\n").map(s=>s.trim()).filter(Boolean).forEach(t => rows().push({ value: t, pending: true })); }
+    else if (shape === "fields") rows().push({ value: Object.fromEntries(fieldDefs.map(f => [f.name, ""])), pending: true });
+    else rows().push({ value: { messages: [ { role: "user", content: "" } ] }, pending: true });
+    render();
+  });
+}
+function renderHint() {
+  const h = document.getElementById("paths-hint");
+  if (shape === "fields") h.innerHTML = `Inputs have fields. Point a question at one with backticks, e.g. <code>\`note\`</code> or <code>\`price_eur\`</code>. Without a path, Jev reads the whole object.`;
+  if (shape === "convo") h.innerHTML = `Inputs are conversations. Point a question at a turn with backticks, e.g. <code>\`messages[-1].content\`</code> for the last message. Without a path, Jev reads the whole transcript.`;
+  const q = document.getElementById("q-quality");
+  q.value = shape === "convo" ? "How good is the wine the assistant recommends in `messages[1].content`?" : shape === "fields" ? "How good is the wine in `note`, for its `price_eur`?" : "How good is this wine, overall?";
+}
+
+function render() {
+  const tb = document.getElementById("rows"); tb.innerHTML = "";
+  rows().forEach((r, i) => {
+    const tr = document.createElement("tr"); tr.dataset.i = i; if (i === selected) tr.className = "selected";
+    tr.innerHTML = `<td><div class="io-row"><span class="num">${i+1}</span><div>${inputBody(r, i)}</div><button class="x" title="Remove input">×</button>
+      <span class="in-status">${r.pending ? "not judged yet" : `<span class="done">judged</span> · ${r.tokens} tokens · 0.9 s`}</span></div></td>
+      <td class="out"><div class="out-row"><div class="out-body"></div></div></td>`;
+    tb.appendChild(tr);
+    tr.querySelectorAll("td:first-child textarea").forEach(ta => { grow(ta); ta.addEventListener("input", () => {
+      if (shape === "text") r.value = ta.value; else if (shape === "fields") r.value[ta.dataset.f] = ta.value; else r.value.messages[+ta.dataset.k].content = ta.value;
+      r.pending = true; grow(ta); renderOut(); }); });
+    tr.querySelector(".io-row > .x").addEventListener("click", () => { rows().splice(i,1); selected = -1; render(); });
+    tr.querySelectorAll("[data-add]").forEach(b => b.addEventListener("click", () => { r.value.messages.push({ role: b.dataset.add, content: "" }); r.pending = true; render(); }));
+    tr.querySelectorAll(".msg .x").forEach((b, k) => b.addEventListener("click", () => { r.value.messages.splice(k,1); r.pending = true; render(); }));
+    tr.addEventListener("focusin", () => { selected = i; highlight(); });
+    tr.addEventListener("click", e => { if (!e.target.closest("button")) { selected = i; highlight(); } });
+  });
+  renderFieldDefs(); renderAdd(); renderHint(); renderOut(); renderCode();
+}
+function renderOut() {
+  document.querySelectorAll("#rows tr").forEach(tr => {
+    const r = rows()[+tr.dataset.i], body = tr.querySelector(".out-body");
+    if (r.pending) body.innerHTML = `<span class="pending-note">— run to judge</span>`;
+    else if (outView === "json") body.innerHTML = `<pre>${esc(judgmentsJSON(r.jev))}</pre>`;
+    else body.innerHTML = answers(r.jev);
+    tr.querySelector(".in-status").innerHTML = r.pending ? "not judged yet" : `<span class="done">judged</span> · ${r.tokens} tokens · 0.9 s`;
+  });
+  counts();
+}
+function highlight() { document.querySelectorAll("#rows tr").forEach(el => el.classList.toggle("selected", +el.dataset.i === selected)); }
+function counts() {
+  const rs = rows(), n = rs.length, pend = rs.filter(r=>r.pending).length, calls = pend || n;
+  document.getElementById("run-count").innerHTML = `${n} inputs · 3 questions · <b>${calls} call${calls===1?"":"s"}</b>` + (pend ? ` <span class="muted">(${pend} changed or new)</span>` : "");
+  document.getElementById("run-all").textContent = pend ? `Run ${pend} new` : "Run all";
+  document.getElementById("in-count").textContent = `${n} · ${shape === "text" ? "one text each" : shape === "fields" ? "one object each" : "one transcript each"}`;
+  document.getElementById("out-count").textContent = `${n-pend} of ${n} judged`;
+  const tok = rs.filter(r=>!r.pending).reduce((s,r)=>s+r.tokens,0);
+  document.getElementById("tally").textContent = `${n-pend} of ${n} judged · ${tok.toLocaleString()} tokens · ≈ $${(tok*0.0000028).toFixed(3)}`;
+}
+
+// ---------- code (real SDK spelling) ----------
+let lang = "js";
+const v = s => `<span class="tk-v">${esc(s)}</span>`, c = s => `<span class="tk-c">${esc(s)}</span>`;
+const SYS = "These are tasting notes written by a sommelier. Judge the wine described, not the writing.";
+function jsInputs() {
+  if (shape === "text") return `const inputs = [\n${NOTES.map(t => `  ${v(JSON.stringify(t))},`).join("\n")}\n];\n\n${c("// one text per call")}\nconst message = (input) => Message.user(input);`;
+  if (shape === "fields") return `const inputs = [\n${data.fields.map(r => `  { note: ${v(JSON.stringify(r.value.note))}, price_eur: ${v(r.value.price_eur)}, region: ${v(JSON.stringify(r.value.region))} },`).join("\n")}\n];\n\n${c("// a JSON object per call: Jev reads it as structured state (`note`, `price_eur` in the questions)")}\nconst message = (input) => Message.user([{ type: ${v('"data"')}, value: input }]);`;
+  return `const inputs = [\n${data.convo.map(r => `  [ ${r.value.messages.map(m => `Message.${m.role}(${v(JSON.stringify(m.content))})`).join(", ")} ],`).join("\n")}\n];\n\n${c("// a whole conversation per call: Jev reads { system, messages } and `messages[i].content` in the questions")}\nconst message = (input) => input;`;
+}
+function jsCode() {
+  const msgs = shape === "convo" ? "messages: message(input)" : "messages: [message(input)]";
+  return `${c("// The same program the Results strip just ran: one call per input.")}
+import { LMRouter, Message, judgments, choice, yesNo, score } from ${v('"lm15"')};
+
+const router = new LMRouter();
+const questions = judgments({
+  quality: score(${v(JSON.stringify(document.getElementById("q-quality").value))},
+                 [${LEVELS.map(l => v(JSON.stringify(l))).join(", ")}]),
+  style:   choice(${v('"Which style best describes it?"')}, [${STYLES.map(l => v(JSON.stringify(l))).join(", ")}]),
+  ages:    yesNo(${v('"Will it improve with five more years in bottle?"')}),
+});
+
+${jsInputs()}
+
+for (const input of inputs) {
+  const r = await router.complete({
+    model: ${v('"typesafe:jev-latest"')},
+    system: ${v(JSON.stringify(SYS))},
+    ${msgs},
+    config: { responseFormat: questions, probabilities: ${v('"if_available"')} },
+  });
+  console.log(r.data);              ${c("// { quality: \"good\", style: \"fruit-forward\", ages: true }")}
+  console.log(r.probabilities);     ${c("// per question: { key: p, … } — measured by Jev")}
+  console.log(r.method);            ${c("// \"provider_classification\"")}
+}`;
+}
+function pyInputs() {
+  if (shape === "text") return `inputs = [\n${NOTES.map(t => `    ${v(JSON.stringify(t))},`).join("\n")}\n]\nmessage = lambda x: Message.user(x)`;
+  if (shape === "fields") return `inputs = [\n${data.fields.map(r => `    {"note": ${v(JSON.stringify(r.value.note))}, "price_eur": ${v(r.value.price_eur)}, "region": ${v(JSON.stringify(r.value.region))}},`).join("\n")}\n]\n${c("# a JSON object per call: Jev reads it as structured state")}\nmessage = lambda x: Message.user(data(x))`;
+  return `inputs = [\n${data.convo.map(r => `    [${r.value.messages.map(m => `Message.${m.role}(${v(JSON.stringify(m.content))})`).join(", ")}],`).join("\n")}\n]\n${c("# a whole conversation per call")}\nmessage = lambda x: x`;
+}
+function pyCode() {
+  const msgs = shape === "convo" ? "messages=message(x)" : "messages=[message(x)]";
+  return `${c("# The same program the Results strip just ran: one call per input.")}
+from lm15 import LMRouter, Request, Message, Config, judgments, choice, score, yes_no${shape === "fields" ? ", data" : ""}
+
+router = LMRouter()
+questions = judgments(
+    quality=score(${v(JSON.stringify(document.getElementById("q-quality").value))},
+                  [${LEVELS.map(l => v(JSON.stringify(l))).join(", ")}]),
+    style=choice(${v('"Which style best describes it?"')}, [${STYLES.map(l => v(JSON.stringify(l))).join(", ")}]),
+    ages=yes_no(${v('"Will it improve with five more years in bottle?"')}),
+)
+
+${pyInputs()}
+
+for x in inputs:
+    r = router.complete(Request(
+        model=${v('"typesafe:jev-latest"')},
+        system=${v(JSON.stringify(SYS))},
+        ${msgs},
+        config=Config(response_format=questions, probabilities=${v('"if_available"')}),
+    ))
+    print(r.data, r.probabilities, r.method)   ${c("# pick · measured distribution · 'provider_classification'")}
+    print(r.expected(${v('"quality"')}))               ${c("# position on the 0..4 scale")}`;
+}
+function renderCode() {
+  const pre = document.getElementById("code");
+  pre.innerHTML = lang === "js" ? jsCode() : lang === "py" ? pyCode() : c("// The Rust SDK is pinned before judgments landed.\n// This tab will show the loop once lm15-rs catches up; for now it says so plainly\n// instead of showing code that would not compile.");
+}
+
+// ---------- distribution popover ----------
+const pop = document.getElementById("pop");
+function showPop(sp, hi) {
+  const dist = sp.dataset.dist.split(",").map(Number), labels = sp.dataset.labels.split("|"), top = argmax(dist), max = Math.max(...dist), ordered = sp.dataset.kind === "ordered";
+  pop.innerHTML = `<div class="ph">${sp.dataset.q} · measured by Jev</div>` + dist.map((p,i) =>
+    `<div class="pr ${i===top?'top':''} ${i===hi?'hover':''}"><span class="k">${ordered ? `<span class="n">${i}</span>` : ""}${labels[i]}</span><i style="width:${p/max*100}%"></i><b>${pct(p)}</b></div>`).join("")
+    + (sp.dataset.foot ? `<div class="pf">${sp.dataset.foot}</div>` : "");
+  pop.hidden = false;
+  const r = sp.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  let x = r.left, y = r.top - h - 8; if (y < 8) y = r.bottom + 8; if (x + w > innerWidth - 8) x = innerWidth - 8 - w;
+  pop.style.left = x + "px"; pop.style.top = y + "px";
+}
+document.addEventListener("mouseover", e => {
+  const sp = e.target.closest(".spark"); if (!sp) { if (!e.target.closest(".pop")) pop.hidden = true; return; }
+  const bar = e.target.closest("i"); sp.querySelectorAll("i").forEach(b => b.classList.toggle("hover", b === bar));
+  showPop(sp, bar ? +bar.dataset.i : -1);
+});
+document.addEventListener("mouseout", e => { const sp = e.target.closest(".spark"); if (sp && !sp.contains(e.relatedTarget)) { pop.hidden = true; sp.querySelectorAll("i").forEach(b => b.classList.remove("hover")); } });
+document.querySelector(".io").addEventListener("scroll", () => pop.hidden = true);
+
+// ---------- interactions ----------
+document.getElementById("shape").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return; shape = b.dataset.shape; selected = -1;
+  document.body.dataset.shape = shape;
+  document.querySelectorAll("#shape button").forEach(x => x.setAttribute("aria-pressed", x === b)); render();
+});
+document.getElementById("run-all").addEventListener("click", () => {
+  const btn = document.getElementById("run-all"); btn.disabled = true; btn.textContent = "Running…";
+  const pend = rows().filter(r=>r.pending);
+  pend.forEach((r, k) => setTimeout(() => {
+    Object.assign(r, { pending: false, tokens: 430 + Math.round(Math.random()*90), jev: { quality: rndDist(5), style: rndDist(4), ages: Math.random() } });
+    render(); if (k === pend.length-1) btn.disabled = false;
+  }, 700 * (k+1)));
+  if (!pend.length) setTimeout(() => { btn.disabled = false; render(); }, 900);
+});
+function rndDist(n) { const a = Array.from({length:n}, () => Math.random()**3); const s = a.reduce((x,y)=>x+y); return a.map(x=>Math.round(x/s*100)/100); }
+document.querySelectorAll(".mode-switch button").forEach(b => b.addEventListener("click", () => {
+  document.body.dataset.mode = b.dataset.mode;
+  document.querySelectorAll(".mode-switch button").forEach(x => x.setAttribute("aria-pressed", x === b));
+}));
+document.getElementById("raw-toggle").addEventListener("click", () => {
+  const on = document.body.dataset.raw === "1"; document.body.dataset.raw = on ? "0" : "1";
+  document.getElementById("raw-toggle").textContent = on ? "{ } Raw JSON" : "☰ Form";
+});
+document.getElementById("toggle-results").addEventListener("click", () => {
+  const on = document.body.dataset.results === "1"; document.body.dataset.results = on ? "0" : "1";
+  document.getElementById("toggle-results").textContent = on ? "Show ▴" : "Hide ▾";
+});
+document.getElementById("out-view").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return; outView = b.dataset.view;
+  document.querySelectorAll("#out-view button").forEach(x => x.setAttribute("aria-pressed", x === b)); renderOut();
+});
+document.getElementById("code-tabs").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return; lang = b.dataset.lang;
+  document.querySelectorAll("#code-tabs button").forEach(x => x.setAttribute("aria-pressed", x === b)); renderCode();
+});
+document.getElementById("q-quality").addEventListener("input", renderCode);
+document.getElementById("new-kind").addEventListener("change", e => {
+  const kind = e.target.value; if (!kind) return; e.target.value = "";
+  const name = kind === "yes" ? "new_flag" : kind === "choice" ? "new_choice" : "new_scale";
+  const label = kind === "yes" ? "yes / no" : kind === "choice" ? "choice · 2 options" : "scale · 3 levels";
+  const body = kind === "yes" ? `<label class="field">Question<input placeholder="Is …?"></label>`
+    : `<label class="field">Question<input placeholder="Which …?"></label><label class="field">${kind==="choice"?"Options":"Levels, worst to best"}</label><ol class="levels">${(kind==="choice"?[1,2]:[0,1,2]).map(n=>`<li><span class="n">${kind==="scale"?n:""}</span><input placeholder="…"><button class="x">×</button></li>`).join("")}</ol><button type="button" class="text-button">+ ${kind==="choice"?"option":"level"}</button>`;
+  const d = document.createElement("details"); d.className = "question"; d.open = true;
+  d.innerHTML = `<summary><span class="qname" contenteditable spellcheck="false">${name}</span><span class="qkind">${label}</span></summary><div class="qbody">${body}<button type="button" class="text-button danger" style="margin-top:10px" onclick="this.closest('details').remove()">Remove question</button></div>`;
+  document.getElementById("question-list").appendChild(d); d.querySelector(".qname").focus();
+});
+const want = new URLSearchParams(location.search).get("shape");
+if (want && data[want]) { shape = want; document.body.dataset.shape = want; document.querySelectorAll("#shape button").forEach(x => x.setAttribute("aria-pressed", x.dataset.shape === want)); }
+render();
+</script>
+</body>
+</html>

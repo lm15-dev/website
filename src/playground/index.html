@@ -14,6 +14,10 @@
 <h1 class="sr-only">Playground</h1>
 <header class="workspace-toolbar">
   <a class="brand" href="/" aria-label="LM15 home">lm15</a>
+  <div class="mode-switch" role="group" aria-label="Mode">
+    <button id="mode-chat" type="button" data-mode="chat" aria-pressed="true">Chat</button>
+    <button id="mode-judge" type="button" data-mode="judge" aria-pressed="false">Judge</button>
+  </div>
   <div class="toolbar-actions">
     <details id="more-menu" class="more-menu">
       <summary id="more-toggle">More</summary>
@@ -45,10 +49,10 @@
   <button type="button" data-view-target="chat" aria-controls="chat-panel" aria-pressed="true">Chat</button>
   <button type="button" data-view-target="code" aria-controls="code-panel" aria-pressed="false">Code</button>
 </nav>
-<main class="split">
+<main id="chat-view" class="split">
   <aside id="settings" class="settings-panel" aria-label="Settings">
-    <div class="settings-scroll">
-      <section class="key-card" aria-label="Provider key">
+    <div id="settings-scroll" class="settings-scroll">
+      <section id="key-card" class="key-card" aria-label="Provider key">
         <form id="credentials">
           <div id="key-field">
             <div class="section-heading"><label for="key">API key</label><a id="get-key" href="#" target="_blank" rel="noopener noreferrer">Get a key</a></div>
@@ -69,13 +73,6 @@
         <div class="control-row"><label for="max-tokens">Max tokens</label><input id="max-tokens" type="number" min="1" max="100000" placeholder="Default" aria-describedby="settings-error" title="Leave empty to use the provider default"></div>
         <label for="reasoning">Reasoning effort</label><select id="reasoning" aria-describedby="reasoning-note"><option value="">Model decides</option><option value="off">Off</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Maximum</option></select>
         <p id="settings-error" class="field-error" role="status" hidden></p>
-      </div>
-      <div class="setting-section" id="judgments-section">
-        <label class="checkbox"><input id="judgments-on" type="checkbox"> Ask for judgments</label>
-        <p id="judgments-note" class="setting-help">Declared keys in, a distribution out (MAP-14). Your message is the text being judged. TypeSafe answers judgments only and measures the probabilities; other providers answer the pick.</p>
-        <label for="schema">Judgments (JSON Schema properties)</label>
-        <textarea id="schema" rows="12" spellcheck="false" aria-describedby="schema-error"></textarea>
-        <p id="schema-error" class="field-error" role="status" hidden></p>
       </div>
     </div>
   </aside>
@@ -107,6 +104,83 @@
     <span id="copy-status" class="sr-only" role="status"></span>
   </aside>
 </main>
+<main id="judge-view" class="split judge-split" hidden>
+  <aside id="judge-questions" class="settings-panel" aria-label="Questions">
+    <div class="settings-scroll">
+      <div id="judge-key-slot"></div>
+      <section class="setting-section judge-section" aria-labelledby="judge-questions-title">
+        <div class="section-heading"><h2 id="judge-questions-title" class="panel-title">Questions</h2><button id="judge-raw-toggle" class="text-button" type="button" aria-pressed="false">{ } JSON</button></div>
+        <p id="judge-paths-hint" class="paths-hint" hidden></p>
+        <div id="judge-question-list" class="question-list"></div>
+        <div id="judge-raw" class="raw-editor" hidden>
+          <label class="sr-only" for="judge-raw-json">Questions as JSON Schema properties</label>
+          <textarea id="judge-raw-json" spellcheck="false" aria-describedby="judge-raw-status"></textarea>
+          <div class="raw-status"><span id="judge-raw-status" role="status"></span><span class="spacer"></span><button id="judge-raw-format" class="text-button" type="button">Format</button></div>
+        </div>
+        <label class="sr-only" for="judge-add-question">Add a question</label>
+        <select id="judge-add-question" class="add-question"><option value="">+ question…</option><option value="yesNo">Yes / no</option><option value="choice">Choice</option><option value="score">Scale</option></select>
+        <p id="judge-questions-error" class="field-error" role="status" hidden></p>
+      </section>
+      <section class="setting-section" aria-labelledby="judge-instructions-title">
+        <div class="section-heading"><h2 id="judge-instructions-title" class="panel-title">Instructions</h2></div>
+        <label for="judge-instructions" class="setting-help">How to read each input <span class="muted">(optional · sent as the system text)</span></label>
+        <textarea id="judge-instructions" rows="4"></textarea>
+      </section>
+    </div>
+  </aside>
+  <div class="judge-right">
+    <div id="judge-code-slot" class="judge-code-slot"></div>
+    <div class="judge-divider" role="separator" aria-orientation="horizontal" aria-label="Resize code and results" tabindex="0"></div>
+    <section id="judge-results" class="results-panel" aria-label="Results">
+      <div class="run-bar">
+        <h2 class="panel-title">Results</h2>
+        <button id="judge-run" type="button" class="primary">Run all</button>
+        <button id="judge-stop" type="button" class="stop-button" disabled>Stop</button>
+        <span id="judge-count" class="run-count" role="status"></span>
+        <div class="connection judge-connection">
+          <button id="judge-provider-button" type="button" class="chip provider-chip" aria-label="Choose provider" aria-haspopup="dialog"><span id="judge-provider-name">OpenAI</span><span aria-hidden="true">⌄</span></button>
+          <button id="judge-model-button" type="button" class="chip model-chip" aria-label="Choose model" aria-haspopup="dialog"><span id="judge-model-name">gpt-4.1-mini</span><span aria-hidden="true">⌄</span></button>
+        </div>
+        <button id="judge-toggle-results" class="text-button" type="button" aria-expanded="true">Hide ▾</button>
+      </div>
+      <p id="judge-gap" class="judge-gap" role="status" hidden></p>
+      <p id="judge-alert" class="judge-alert" role="alert" hidden></p>
+      <div id="judge-io" class="io">
+        <table class="io-table">
+          <colgroup><col class="c-in"><col class="c-out"></colgroup>
+          <thead>
+            <tr>
+              <th scope="col"><div class="io-head"><h3>Inputs</h3><span id="judge-in-count" class="sub"></span><span class="spacer"></span>
+                <span class="sub">shape</span>
+                <div class="seg" id="judge-shape" role="group" aria-label="Input shape"><button type="button" data-shape="text" aria-pressed="true">Text</button><button type="button" data-shape="fields" aria-pressed="false">Fields</button><button type="button" data-shape="conversation" aria-pressed="false">Conversation</button></div></div>
+                <div id="judge-field-defs" class="field-defs" hidden></div></th>
+              <th scope="col" class="out"><div class="io-head"><h3>Outputs</h3><span id="judge-out-count" class="sub"></span><span id="judge-method" class="sub method-line"></span><span class="spacer"></span>
+                <div class="seg" id="judge-out-view" role="group" aria-label="Output view"><button type="button" data-view="answers" aria-pressed="true">Answers</button><button type="button" data-view="json" aria-pressed="false">JSON</button></div></div></th>
+            </tr>
+          </thead>
+          <tbody id="judge-rows"></tbody>
+          <tfoot><tr><td><div id="judge-add" class="io-add"></div></td><td class="out"></td></tr></tfoot>
+        </table>
+      </div>
+      <div class="footer-bar">
+        <span id="judge-tally" role="status"></span><span class="spacer"></span>
+        <button id="judge-export-csv" class="text-button" type="button">Export CSV</button>
+        <button id="judge-export-json" class="text-button" type="button">Export JSON</button>
+        <button id="judge-clear-results" class="text-button danger" type="button">Clear results</button>
+      </div>
+      <p class="fine-print">Calls may cost money: one per input.</p>
+    </section>
+  </div>
+</main>
+<div id="judge-pop" class="pop" role="tooltip" hidden></div>
+<dialog id="judge-paste" aria-labelledby="judge-paste-title">
+  <div class="dialog-heading"><h2 id="judge-paste-title">Paste inputs</h2><button id="judge-paste-close" class="quiet" type="button" aria-label="Close">✕</button></div>
+  <p id="judge-paste-help" class="dialog-text"></p>
+  <label class="sr-only" for="judge-paste-text">Inputs</label>
+  <textarea id="judge-paste-text" rows="10" spellcheck="false"></textarea>
+  <p id="judge-paste-error" class="field-error" role="alert" hidden></p>
+  <div class="dialog-actions"><button id="judge-paste-cancel" class="text-button" type="button">Cancel</button><button id="judge-paste-add" class="primary" type="button">Add inputs</button></div>
+</dialog>
 <dialog id="relay-dialog" aria-labelledby="relay-title" aria-describedby="relay-text">
   <div class="dialog-heading"><h2 id="relay-title">This provider blocks browsers</h2><button id="relay-close" class="quiet" aria-label="Close">✕</button></div>
   <div id="relay-text" class="dialog-text">

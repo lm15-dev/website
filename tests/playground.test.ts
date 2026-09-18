@@ -206,7 +206,7 @@ test("ten local keys load privately; each provider receives only its key; manual
       assert.ok(readability.background > 0.9, "Use a light code background in light mode");
       assert.ok(readability.contrast >= 7, "Code text must have at least 7:1 contrast");
       assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
-      for (const choice of choices) {
+      for (const choice of choices.filter((c) => c.id !== "typesafe")) {
         assert.equal((await page.content()).includes(key(choice.id)), false);
         selected = choice.id; expectedKey = key(selected);
         await page.getByRole("button", { name: "Choose provider", exact: true }).click();
@@ -216,20 +216,14 @@ test("ten local keys load privately; each provider receives only its key; manual
         await page.getByLabel("Message", { exact: true }).fill("Hello");
         await page.getByRole("button", { name: "Send", exact: true }).click();
         await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
-        const reply = await page.locator("#transcript article").last().locator("p").textContent();
-        if (selected === "typesafe") {
-          assert.match(reply ?? "", /style: "fruit" · fruit 90%, oak 10%, mineral 0%/);
-          assert.match(reply ?? "", /measured by provider classification/);
-          assert.equal(await page.getByLabel("Ask for judgments").isChecked(), true);
-          assert.equal(await page.getByLabel("Ask for judgments").isDisabled(), true);
-        } else assert.equal(reply, "Hello");
+        assert.equal(await page.locator("#transcript article").last().locator("p").textContent(), "Hello");
       }
-      assert.equal(sent, 10);
+      assert.equal(sent, 9);
       const discoveries = modelLists;
       await page.getByLabel("Message", { exact: true }).fill("/model mdltw");
       await page.getByLabel("Message", { exact: true }).press("Enter");
       assert.equal(await page.locator("#model-name").textContent(), "model-two");
-      assert.equal(sent, 10, "A slash command is never sent as a message");
+      assert.equal(sent, 9, "A slash command is never sent as a message");
       assert.equal(modelLists, discoveries, "Searching models uses the cached list");
       assert.match(await page.locator("#code").textContent() ?? "", /model-two/);
       await page.getByRole("button", { name: "Choose model", exact: true }).click();
@@ -251,7 +245,21 @@ test("ten local keys load privately; each provider receives only its key; manual
       await page.getByLabel("Message", { exact: true }).fill("Hello");
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
-      assert.equal(sent, 11);
+      assert.equal(sent, 10);
+      // TypeSafe judges only: choosing it from Chat opens Judge, and Chat is closed to it. Its key reaches only it, one call per input.
+      selected = "typesafe"; expectedKey = key(selected);
+      await page.getByLabel("API key", { exact: true }).fill("x"); // a draft in the key field is not a key
+      await page.getByRole("button", { name: "Choose provider", exact: true }).click();
+      await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
+      await page.getByRole("option", { name: /TypeSafe/ }).first().click();
+      await page.waitForFunction(() => document.body.dataset.mode === "judge");
+      assert.equal(await page.getByRole("button", { name: "Chat", exact: true }).isDisabled(), true);
+      await page.getByLabel("API key", { exact: true }).fill(expectedKey);
+      await page.getByRole("button", { name: "Use key for this provider" }).click();
+      await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
+      await page.getByRole("button", { name: "Run all", exact: true }).click();
+      await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "3 of 3 judged");
+      assert.equal(sent, 13);
       await page.reload();
       await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
       assert.equal(await page.locator("#loaded").textContent(), "None");
@@ -670,7 +678,7 @@ test("the playground runs the same turn through Python (Pyodide) and Rust (wasm)
   } finally { await browser.close(); await close(demo.server); }
 });
 
-test("the relay: a provider that blocks the browser fails first, the page asks in words, the resend goes through the relay, More lists and revokes it; without a relay the page only explains", { timeout: 120_000 }, async () => {
+test("the relay: a provider that blocks the browser fails first, the page asks in words, the run resumes through the relay, More lists and revokes it; without a relay the page only explains", { timeout: 120_000 }, async () => {
   const installed = findBrowsers().find((b) => b.name === "chromium");
   assert.ok(installed);
   const demo = await startDemo();
@@ -701,35 +709,33 @@ test("the relay: a provider that blocks the browser fails first, the page asks i
     await page.getByRole("button", { name: "Choose provider", exact: true }).click();
     await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
     await page.getByRole("option", { name: /TypeSafe/ }).first().click();
-    await page.waitForFunction(() => document.getElementById("provider-name")?.textContent === "TypeSafe (Jev)");
+    await page.waitForFunction(() => document.body.dataset.mode === "judge" && document.getElementById("judge-provider-name")?.textContent === "TypeSafe (Jev)");
     await page.getByLabel("API key", { exact: true }).fill("dummy-typesafe-key");
     await page.getByRole("button", { name: "Use key for this provider" }).click();
-    assert.match(await page.locator("#code").textContent() ?? "", /judgments\(/);
+    assert.match(await page.locator("#code").textContent() ?? "", /judgments\(\{/);
     assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /baseUrl/);
 
-    // No relay deployed: the dialog explains, offers nothing, and no key went anywhere but the provider.
-    await page.getByLabel("Message", { exact: true }).fill("A ripe, long wine.");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    // No relay deployed: the dialog explains, offers nothing, and no key went anywhere but the provider. The run stops at the first input.
+    await page.getByRole("button", { name: "Run all", exact: true }).click();
     await page.locator("#relay-dialog[open]").waitFor();
     assert.equal(await page.locator("#relay-provider").textContent(), "TypeSafe (Jev)");
     assert.equal(await page.locator("#relay-unavailable").isVisible(), true);
     assert.equal(await page.getByRole("button", { name: "Allow the relay and resend" }).isDisabled(), true);
     await page.getByRole("button", { name: "Not now" }).click();
+    await page.waitForFunction(() => !document.getElementById("judge-alert")?.hidden);
     assert.deepEqual(seen, ["https://api.typesafe.ai/v1/systemone"]);
-    assert.match(await page.locator("#alert").textContent() ?? "", /block browser access/);
+    assert.match(await page.locator("#judge-alert").textContent() ?? "", /Input 1: .*block browser access/s);
+    assert.equal(await page.locator("#judge-out-count").textContent(), "0 of 3 judged");
 
-    // A relay is configured (loopback override): the same failure now offers it; allowing resends through it.
+    // A relay is configured (loopback override): the same failure now offers it; allowing resumes the run through it, input 1 first.
     await page.evaluate((url) => localStorage.setItem("lm15.playground.relay-url", url), relay);
-    await page.getByLabel("Message", { exact: true }).fill("A ripe, long wine.");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.getByRole("button", { name: "Run all", exact: true }).click();
     await page.locator("#relay-dialog[open]").waitFor();
     assert.equal(await page.locator("#relay-unavailable").isVisible(), false);
     await page.getByLabel("Remember this choice on this device").check();
     await page.getByRole("button", { name: "Allow the relay and resend" }).click();
-    await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
-    assert.deepEqual(seen, ["https://api.typesafe.ai/v1/systemone", "https://api.typesafe.ai/v1/systemone", `${relay}/api.typesafe.ai/v1/systemone`]);
-    assert.match(await page.locator("#transcript article").last().locator("p").textContent() ?? "", /style: "fruit"/);
-    assert.equal(await page.locator("#transcript article").count(), 4, "the declined attempt stays as an incomplete turn; the attempt the user allowed was replaced by the relayed one");
+    await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "3 of 3 judged");
+    assert.deepEqual(seen, ["https://api.typesafe.ai/v1/systemone", "https://api.typesafe.ai/v1/systemone", `${relay}/api.typesafe.ai/v1/systemone`, `${relay}/api.typesafe.ai/v1/systemone`, `${relay}/api.typesafe.ai/v1/systemone`]);
     assert.match(await page.locator("#code").textContent() ?? "", new RegExp(`baseUrl: "${relay}/api.typesafe.ai"`));
     assert.match(await page.locator("#key-state").textContent() ?? "", /via the relay/);
     assert.equal(await page.evaluate(() => localStorage.getItem("lm15.playground.relay")), '["typesafe"]');
