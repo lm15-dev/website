@@ -138,10 +138,16 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
     await second.fill("Thin and sour, but honest.");
     assert.match(await page.locator("#judge-rows tr").nth(1).locator(".in-status").textContent() ?? "", /changed · run again/);
     assert.equal(await page.getByRole("button", { name: "Run 1 new" }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "Run all again" }).isVisible(), true, "with one changed, the whole set can still be redone");
     await page.getByRole("button", { name: "Run 1 new" }).click();
     await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "4 of 4 judged");
     assert.equal(bodies.length, 5);
     assert.deepEqual((bodies[4]!.state as { messages: Array<{ content: string }> }).messages[0]!.content, "Thin and sour, but honest.");
+    // Everything judged: Run all judges everything again (it is not a no-op).
+    assert.equal(await page.getByRole("button", { name: "Run all again" }).isHidden(), true);
+    await page.getByRole("button", { name: "Run all", exact: true }).click();
+    await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "4 of 4 judged" && document.getElementById("judge-run")?.textContent === "Run all");
+    assert.equal(bodies.length, 9, "four more calls: every input again");
 
     // The exports say what was measured.
     const [csv] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Export CSV" }).click()]);

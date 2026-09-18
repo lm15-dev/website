@@ -551,19 +551,24 @@ export class JudgeView {
   // ─── Counts and the run ──────────────────────────────────────────
 
   private pending(): Row[] { return this.rows.filter((r) => r.stale && !inputIsBlank(r.value)); }
+  private runnable(): Row[] { return this.rows.filter((r) => !inputIsBlank(r.value)); }
 
   private renderCounts(): void {
     const n = this.rows.length, judgments = this.judgments().length, pending = this.pending().length, blank = this.rows.filter((r) => inputIsBlank(r.value)).length;
     const calls = pending || n - blank;
     $("judge-count").textContent = `${n} input${n === 1 ? "" : "s"} · ${judgments} question${judgments === 1 ? "" : "s"} · ${calls} call${calls === 1 ? "" : "s"}${pending && pending < n ? ` (${pending} changed or new)` : ""}${blank ? ` · ${blank} blank skipped` : ""}`;
     const run = $<HTMLButtonElement>("judge-run");
-    run.textContent = this.running ? "Running…" : pending && pending < n - blank ? `Run ${pending} new` : "Run all";
+    const partial = pending > 0 && pending < n - blank;
+    run.textContent = this.running ? "Running…" : partial ? `Run ${pending} new` : "Run all";
+    // With some rows changed, the main button judges only those; a second, quieter one redoes the whole set.
+    const again = $<HTMLButtonElement>("judge-run-again"); again.hidden = !partial || Boolean(this.running);
     const rustPinned = this.host.runtime() === "rust";
     const gap = shapeGap(this.host.connection, this.spec);
     run.disabled = Boolean(this.running) || !this.host.runtimeReady() || calls === 0 || Boolean(this.questionsError()) || rustPinned || Boolean(gap);
     run.title = rustPinned ? "The Rust SDK at this pin has no judgments (MAP-14). Judge with JavaScript or Python." : gap ?? "";
     const note = $("judge-gap"); note.hidden = !gap && !rustPinned; note.textContent = gap ?? (rustPinned ? run.title : "");
     $<HTMLButtonElement>("judge-stop").disabled = !this.running;
+    $<HTMLButtonElement>("judge-run-again").disabled = run.disabled;
     $("judge-in-count").textContent = `${n} · ${this.spec.shape === "text" ? "one text each" : this.spec.shape === "fields" ? "one object each" : "one transcript each"}`;
     const judged = this.rows.filter((r) => r.verdict && !r.stale).length;
     $("judge-out-count").textContent = `${judged} of ${n} judged`;
@@ -578,14 +583,18 @@ export class JudgeView {
 
   private showAlert(text = ""): void { const el = $("judge-alert"); el.textContent = text; el.hidden = !text; }
 
-  async run(): Promise<void> {
+  /** Judge the changed inputs, or — `all`, or when nothing changed — every input again. */
+  async run(all = false): Promise<void> {
     if (this.running || !this.host.runtimeReady() || this.host.runtime() === "rust" || shapeGap(this.host.connection, this.spec)) return;
     const error = this.questionsError();
     if (error) { this.showAlert(error); return; }
     if (!this.host.requireKey()) return;
     if (!this.host.connection.model.trim()) { this.showAlert("Choose a model first."); return; }
-    const todo = this.pending();
+    const pending = this.pending();
+    const todo = all || pending.length === 0 ? this.runnable() : pending;
     if (!todo.length) return;
+    for (const row of todo) row.stale = true;
+    this.renderRows();
     const controller = new AbortController();
     const generation = ++this.generation;
     this.running = controller; this.host.onBusy(true); this.showAlert(); this.renderCounts();
@@ -607,7 +616,7 @@ export class JudgeView {
           if (looksBrowserBlocked(e) && !relayed(connection.provider) && !keyless(connection.provider) && await this.host.offerRelay()) {
             // Allowed: the same input again, through the relay; the loop then goes on.
             row.stale = true; this.running = undefined; this.host.onBusy(false); this.renderCounts();
-            return void this.run();
+            return void this.run(all);
           }
           row.error = this.host.errorMessage(e);
           this.showAlert(`Input ${this.rows.indexOf(row) + 1}: ${row.error}\nThe run stopped here; fix the cause and run the pending inputs again.`);
@@ -643,6 +652,7 @@ export class JudgeView {
 
   private wire(): void {
     $("judge-run").addEventListener("click", () => void this.run());
+    $("judge-run-again").addEventListener("click", () => void this.run(true));
     $("judge-stop").addEventListener("click", () => this.running?.abort());
     $("judge-provider-button").addEventListener("click", () => this.host.pickProvider());
     $("judge-model-button").addEventListener("click", () => this.host.pickModel());
