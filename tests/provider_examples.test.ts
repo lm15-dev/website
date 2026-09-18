@@ -285,7 +285,8 @@ test("judgments: TypeSafe and a chat wire answer the same declared judgments; th
 
 test("the relay: off by default, per provider, remembered only on request; the SDK sees it as a baseUrl", async () => {
   const relay = await import("../src/playground/relay.ts");
-  assert.equal(relay.relayAvailable(), relay.RELAY_URL !== "");
+  assert.equal(relay.relayAvailable(), true);
+  assert.equal(relay.RELAY_URL, "https://lm15-relay.mrive052.workers.dev");
   assert.equal(relay.relayBaseUrl("typesafe", "https://lm15-relay.example.workers.dev"), "https://lm15-relay.example.workers.dev/api.typesafe.ai");
   assert.equal(relay.relayBaseUrl("openai", "https://r.example/"), "https://r.example/api.openai.com/v1");
   assert.equal(relay.looksBrowserBlocked(Object.assign(new Error("Failed to fetch"), { name: "TransportError" })), true);

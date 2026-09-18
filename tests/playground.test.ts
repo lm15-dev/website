@@ -695,6 +695,8 @@ test("the relay: a provider that blocks the browser fails first, the page asks i
   });
   try {
     await page.goto(demo.url);
+    // Phase one plays a site with no relay deployed (an empty loopback override); phase two points at a fake Worker.
+    await page.evaluate(() => localStorage.setItem("lm15.playground.relay-url", ""));
     await disableDiscovery(page);
     await page.getByRole("button", { name: "Choose provider", exact: true }).click();
     await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
@@ -738,6 +740,7 @@ test("the relay: a provider that blocks the browser fails first, the page asks i
     await page.getByRole("button", { name: "Stop relaying" }).click();
     assert.match(await page.locator("#relayed").textContent() ?? "", /^None/);
     assert.equal(await page.evaluate(() => localStorage.getItem("lm15.playground.relay")), null);
+    await page.evaluate(() => localStorage.removeItem("lm15.playground.relay-url"));
     await page.locator("#more-toggle").press("Escape");
     assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /baseUrl/);
     assert.deepEqual(errors, []);

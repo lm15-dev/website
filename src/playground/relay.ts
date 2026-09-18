@@ -17,7 +17,7 @@
 import { adapterFor } from "lm15/browser";
 
 /** The deployed Worker (relay/README.md). Empty until deployed: the page then explains instead of offering. */
-export const RELAY_URL = "";
+export const RELAY_URL = "https://lm15-relay.mrive052.workers.dev";
 
 /**
  * Where the relay is. On a loopback host (the local playground, the browser
