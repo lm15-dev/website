@@ -30,8 +30,12 @@ edits do not build Python or Rust. Heavy runtimes download only when selected.
 
 ## Interface
 
-The page has two modes, **Chat** and **Judge**, on one connection: the same
-provider, key, and language tabs. The key card and the code panel are single
+The page has two modes, **Chat** and **Judge**, sharing the connection controls
+and language tabs. Chat starts on OpenAI; Judge starts on TypeSafe's
+`jev-latest`. Each mode keeps its own provider/model selection while the page
+is open, so switching back does not overwrite a deliberate choice. Reloading
+restores the remembered mode and its default provider; connection selections
+are not persisted. The key card and the code panel are single
 elements that move between the two layouts.
 
 The chat workspace contains a key field, request settings, chat, and three code
@@ -109,8 +113,9 @@ the person changes something. **Export CSV** writes one column per declared
 key only when something was measured; **Export JSON** is the verdicts as the
 SDK returned them.
 
-TypeSafe answers judgments only: choosing it from Chat opens Judge, and Chat
-is closed while it is selected. The former **Ask for judgments** switch in
+TypeSafe answers judgments only: choosing it from Chat opens Judge. The Chat
+button remains available and restores the previous chat provider rather than
+trying to chat with Jev. The former **Ask for judgments** switch in
 Chat is gone; judgments are Judge mode.
 
 ## Error diagnostics

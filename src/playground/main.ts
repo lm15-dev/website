@@ -45,6 +45,13 @@ let loadingRuntime = false;
 let copyTimer: ReturnType<typeof setTimeout> | undefined;
 type Mode = "chat" | "judge";
 let mode: Mode = "chat";
+const judgeDefault = CONNECTIONS.find(choice => choice.id === "typesafe")!;
+// Session-only selections: Judge starts with Jev; Chat keeps its own model.
+// Mutate `connection` in place because the shared controls and JudgeView hold it.
+const modeConnections: Record<Mode, Connection> = {
+  chat: { ...connection },
+  judge: { provider: judgeDefault.id, model: judgeDefault.model, endpoint: connection.endpoint },
+};
 let judge: JudgeView;
 /** The code panel shows the program, or the request that program puts on the wire (built by the selected runtime, never sent). */
 let codeView: "code" | "request" = "code";
@@ -78,16 +85,23 @@ function updateControls(): void {
   $("code-tabs").dataset.state = loadingRuntime ? "loading" : RUNTIMES[runtime].loaded() ? "ready" : "error";
   $("code-tabs").setAttribute("aria-busy", String(loadingRuntime));
   for (const tab of document.querySelectorAll<HTMLButtonElement>("[data-language]")) tab.disabled = busy;
-  // A judgments-only provider has no chat; nothing switches mode mid-run.
-  const chatClosed = judgmentsOnly(connection.provider);
+  // Mode switches restore that mode's model; a judgments-only selection
+  // must not trap the user in Judge. Nothing switches mode mid-run.
   for (const button of document.querySelectorAll<HTMLButtonElement>(".mode-switch button")) {
-    button.disabled = busy || (button.dataset.mode === "chat" && chatClosed);
-    button.title = button.dataset.mode === "chat" && chatClosed ? `${currentChoice().label} answers judgments only; it has no chat.` : "";
+    button.disabled = busy;
+    button.title = "";
   }
   judge?.refresh();
 }
 /** Chat and Judge share one key card and one code panel: the elements move; nothing is duplicated. */
 function setMode(next: Mode, remember = false): void {
+  const changed = next !== mode;
+  if (changed) {
+    modeConnections[mode] = { ...connection };
+    Object.assign(connection, modeConnections[next]);
+    keyInput.value = ""; // never carry an unsubmitted key into another provider
+    notify(); notifyKey();
+  }
   mode = next;
   document.body.dataset.mode = next;
   $("chat-view").hidden = next === "judge";
@@ -100,6 +114,7 @@ function setMode(next: Mode, remember = false): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-target]")) button.textContent = labels[button.dataset.viewTarget!]!;
   if (remember) { try { localStorage.setItem("lm15.playground.mode", next); } catch { /* not remembered */ } }
   refreshStatus();
+  if (changed && automatic.checked) void discover();
 }
 function openConnection(): void {
   if (matchMedia("(max-width: 700px)").matches) setView("settings");
@@ -247,10 +262,10 @@ function credentialsChanged(): void {
 function selectProvider(id: string): void {
   const choice = CONNECTIONS.find((candidate) => candidate.id === id);
   if (!choice) return;
+  // Save the actual chat selection before moving to a judgments-only provider.
+  if (judgmentsOnly(id) && mode === "chat") setMode("judge", true);
   if (id !== connection.provider) {
     connection.provider = id; connection.model = choice.model; keyInput.value = ""; reset(); notify(); notifyKey();
-    // A judgments-only provider has no chat: the page judges with it and says so.
-    if (judgmentsOnly(id) && mode === "chat") { setMode("judge", true); notify(); }
   }
   refreshStatus();
   if (automatic.checked) void discover();

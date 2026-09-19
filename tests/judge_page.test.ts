@@ -13,6 +13,60 @@ import { startDemo } from "../scripts/serve-playground.ts";
 import { findBrowsers } from "./support/browser.ts";
 import { disableDiscovery, waitRuntimeReady } from "./support/playground.ts";
 
+test("Judge defaults to Jev, restores mode-specific choices, and starts on Jev after reload", { timeout: 60_000 }, async (t) => {
+  const installed = findBrowsers().find(b => b.name === "chromium");
+  assert.ok(installed);
+  const demo = await startDemo();
+  t.after(() => close(demo.server));
+  const browser = await chromium.launch({ executablePath: installed.bin });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  const url = process.env["SITE_URL"] ? new URL("/playground/", process.env["SITE_URL"]).href : demo.url;
+  const origin = new URL(url).origin;
+  const external: string[] = [];
+  await page.route("**/*", route => {
+    if (new URL(route.request().url()).origin === origin) return route.continue();
+    external.push(route.request().url());
+    return route.abort();
+  });
+  await page.goto(url);
+  await disableDiscovery(page);
+  assert.equal(await page.locator("#provider-name").textContent(), "OpenAI");
+  await page.getByLabel("API key", { exact: true }).fill("unsubmitted-chat-key");
+  await page.getByRole("button", { name: "Judge", exact: true }).click();
+  assert.equal(await page.locator("#judge-provider-name").textContent(), "TypeSafe (Jev)");
+  assert.match(await page.locator("#code").textContent() ?? "", /jev-latest/);
+  assert.equal(await page.getByLabel("API key", { exact: true }).inputValue(), "");
+  assert.equal(await page.getByRole("button", { name: "Chat", exact: true }).isEnabled(), true);
+
+  // A deliberate Judge provider choice is retained while switching modes.
+  await page.getByRole("button", { name: "Choose provider", exact: true }).click();
+  await page.getByRole("combobox", { name: "Search choices" }).fill("anthropic");
+  await page.getByRole("option", { name: /^Anthropic/ }).first().click();
+  assert.equal(await page.locator("#judge-provider-name").textContent(), "Anthropic");
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  assert.equal(await page.locator("#provider-name").textContent(), "OpenAI");
+  await page.getByRole("button", { name: "Judge", exact: true }).click();
+  assert.equal(await page.locator("#judge-provider-name").textContent(), "Anthropic");
+
+  // Only mode and question set persist today, not connection selections.
+  await page.reload();
+  await page.waitForFunction(() => document.body.dataset.mode === "judge");
+  assert.equal(await page.locator("#judge-provider-name").textContent(), "TypeSafe (Jev)");
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  assert.equal(await page.locator("#provider-name").textContent(), "OpenAI");
+
+  // Explicitly choosing Jev from Chat still opens Judge; Chat remains usable.
+  await page.getByRole("button", { name: "Choose provider", exact: true }).click();
+  await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
+  await page.getByRole("option", { name: /TypeSafe/ }).first().click();
+  await page.waitForFunction(() => document.body.dataset.mode === "judge");
+  assert.equal(await page.locator("#judge-provider-name").textContent(), "TypeSafe (Jev)");
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  assert.equal(await page.locator("#provider-name").textContent(), "OpenAI");
+  assert.deepEqual(external, [], "Selecting a default never submits inference or sends credentials");
+});
+
 const JEV_ANSWER = { model: "jev-test", answers: { quality: { type: "score", probabilities: { "0": 0, "1": 0.05, "2": 0.15, "3": 0.45, "4": 0.35 } }, style: { type: "choice", choice: "fruit", probabilities: { fruit: 0.62, oak: 0.28, mineral: 0.1 } }, ageing: { type: "noul", noul: 0.87 } }, usage: { input_tokens: 40, output_tokens: 9 } };
 
 async function close(server: Awaited<ReturnType<typeof startDemo>>["server"]) {
@@ -24,10 +78,7 @@ async function openJudgeWithTypeSafe(page: Page): Promise<void> {
   await disableDiscovery(page);
   await page.getByRole("button", { name: "Judge", exact: true }).click();
   await page.waitForFunction(() => document.body.dataset.mode === "judge");
-  await page.getByRole("button", { name: "Choose provider", exact: true }).click();
-  await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
-  await page.getByRole("option", { name: /TypeSafe/ }).first().click();
-  await page.waitForFunction(() => document.getElementById("judge-provider-name")?.textContent === "TypeSafe (Jev)");
+  assert.equal(await page.locator("#judge-provider-name").textContent(), "TypeSafe (Jev)");
   await page.getByLabel("API key", { exact: true }).fill("dummy-typesafe-key");
   await page.getByRole("button", { name: "Use key for this provider" }).click();
   await page.waitForFunction(() => document.getElementById("key-state")?.textContent?.startsWith("Key ready"));
@@ -164,18 +215,18 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
     assert.match(await page.locator("#judge-rows tr").nth(1).locator("textarea").inputValue(), /honest/);
 
     // The Request view: what the selected runtime builds for the selected input, never sent, the key blanked; it follows the selection.
-    // (After the reload the connection is the default OpenAI again; the set is what was remembered.)
+    // A remembered Judge session opens with Jev, not the Chat default.
     await page.getByRole("button", { name: "Request", exact: true }).click();
     await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.startsWith("Built by JavaScript for input 1 of 4"));
     let wire = await page.locator("#code").textContent() ?? "";
-    assert.match(wire, /^POST https:\/\/api\.openai\.com\/v1\/responses\n\nContent-Type: application\/json\nAuthorization: Bearer \[your key\]\n\n\{/);
-    assert.match(wire, /"name": "judgments"/);
-    assert.match(wire, /"quality": \{\n\s+"type": "integer"/);
+    assert.match(wire, /^POST https:\/\/api\.typesafe\.ai\/v1\/systemone\n\nContent-Type: application\/json\nAuthorization: Bearer \[your key\]\n\n\{/);
+    assert.match(wire, /"questions":/);
+    assert.match(wire, /"quality": \{\n\s+"type": "score"/);
     assert.doesNotMatch(wire, /"stream": true/, "a judge call is one piece");
     await page.locator("#judge-rows tr").nth(1).locator("textarea").focus();
     await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.startsWith("Built by JavaScript for input 2 of 4"));
     wire = await page.locator("#code").textContent() ?? "";
-    assert.match(wire, /"text": "Thin and sour, but honest\."/);
+    assert.match(wire, /"state": "Thin and sour, but honest\."/);
     assert.equal(await page.locator("#copy-code").textContent(), "Copy request");
     await page.locator('[data-language="python"]').click();
     await waitRuntimeReady(page, "Python");
@@ -232,6 +283,11 @@ test("Judge: shapes keep their own inputs; Fields on a chat wire is JSON text; o
     await disableDiscovery(page);
     await page.getByRole("button", { name: "Judge", exact: true }).click();
     await page.waitForFunction(() => document.body.dataset.mode === "judge");
+    assert.equal(await page.locator("#judge-provider-name").textContent(), "TypeSafe (Jev)");
+    // A different Judge provider remains an explicit choice.
+    await page.getByRole("button", { name: "Choose provider", exact: true }).click();
+    await page.getByRole("combobox", { name: "Search choices" }).fill("openai");
+    await page.getByRole("option", { name: /^OpenAI/ }).first().click();
     assert.equal(await page.locator("#judge-provider-name").textContent(), "OpenAI");
     await page.getByLabel("API key", { exact: true }).fill("dummy-openai-key");
     await page.getByRole("button", { name: "Use key for this provider" }).click();

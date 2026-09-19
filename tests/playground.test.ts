@@ -253,7 +253,7 @@ test("ten local keys load privately; each provider receives only its key; manual
       await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
       await page.getByRole("option", { name: /TypeSafe/ }).first().click();
       await page.waitForFunction(() => document.body.dataset.mode === "judge");
-      assert.equal(await page.getByRole("button", { name: "Chat", exact: true }).isDisabled(), true);
+      assert.equal(await page.getByRole("button", { name: "Chat", exact: true }).isDisabled(), false, "Chat restores its own model");
       await page.getByLabel("API key", { exact: true }).fill(expectedKey);
       await page.getByRole("button", { name: "Use key for this provider" }).click();
       await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
