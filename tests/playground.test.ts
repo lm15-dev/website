@@ -755,3 +755,49 @@ test("the relay: a provider that blocks the browser fails first, the page asks i
     await close(demo.server);
   }
 });
+
+test("the Request view: the code panel shows what the selected runtime puts on the wire for the current turn, never sent, with the key blanked", { timeout: 90_000 }, async () => {
+  const installed = findBrowsers().find((b) => b.name === "chromium");
+  assert.ok(installed);
+  const demo = await startDemo();
+  const origin = new URL(demo.url).origin;
+  const browser = await chromium.launch({ executablePath: installed.bin });
+  const page = await browser.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  let sent = 0;
+  await page.route("**/*", async (route) => { if (new URL(route.request().url()).origin === origin) return route.continue(); sent++; return route.abort(); });
+  try {
+    await page.goto(demo.url);
+    await disableDiscovery(page);
+    await page.getByRole("button", { name: "Request", exact: true }).click();
+    await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.startsWith("Built by JavaScript for this turn"));
+    let wire = await page.locator("#code").textContent() ?? "";
+    assert.match(wire, /^POST https:\/\/api\.openai\.com\/v1\/responses\n\n/);
+    assert.match(wire, /Authorization: Bearer \[your key\]/);
+    assert.match(wire, /"stream": true/);
+    assert.ok(wire.includes(`"text": ${JSON.stringify(EXAMPLE_QUESTION)}`), "the example transcript is in the body");
+    assert.match(wire, /"text": "Can you show me a tiny example\?"/, "the draft is the last message");
+    // The view follows the draft and the settings, and a stored key is blanked.
+    await page.getByLabel("Message", { exact: true }).fill("Why is the sky blue?");
+    await page.waitForFunction(() => /Why is the sky blue\?/.test(document.getElementById("code")?.textContent ?? ""));
+    await focusSettings(page);
+    await page.getByLabel("Temperature").fill("0.3");
+    await page.waitForFunction(() => /"temperature": 0\.3/.test(document.getElementById("code")?.textContent ?? ""));
+    await page.getByLabel("API key", { exact: true }).fill("sk-real-secret-key");
+    await page.getByRole("button", { name: "Use key for this provider" }).click();
+    await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.includes("Your key is blanked"));
+    wire = await page.locator("#code").textContent() ?? "";
+    assert.doesNotMatch(wire, /sk-real-secret-key/);
+    assert.match(wire, /Bearer \[your key\]/);
+    assert.equal(sent, 0, "the Request view sends nothing");
+    // Python builds the same bytes.
+    await page.locator('[data-language="python"]').click();
+    await waitRuntimeReady(page, "Python");
+    await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.startsWith("Built by Python"));
+    assert.equal(await page.locator("#code").textContent(), wire);
+    await page.getByRole("button", { name: "Code", exact: true }).click();
+    assert.match(await page.locator("#code").textContent() ?? "", /^from lm15 import/);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); await close(demo.server); }
+});

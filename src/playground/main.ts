@@ -44,6 +44,8 @@ let copyTimer: ReturnType<typeof setTimeout> | undefined;
 type Mode = "chat" | "judge";
 let mode: Mode = "chat";
 let judge: JudgeView;
+/** The code panel shows the program, or the request that program puts on the wire (built by the selected runtime, never sent). */
+let codeView: "code" | "request" = "code";
 
 const picker = new Picker(options, (kind, id) => {
   if (kind === "commands") {
@@ -144,9 +146,53 @@ async function updateCode(): Promise<void> {
     code = `// ${redact(error instanceof Error ? error.message : String(error))}`;
   }
   if (version !== codeVersion) return;
-  renderCode($("code"), redact(code), runtime);
   $("copy-status").textContent = "";
-  $("copy-code").textContent = "Copy code";
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-code-view]")) button.setAttribute("aria-pressed", String(button.dataset.codeView === codeView));
+  $("code-scroll").dataset.view = codeView;
+  if (codeView === "code") {
+    renderCode($("code"), redact(code), runtime);
+    $("copy-code").textContent = "Copy code";
+    $("request-note").hidden = true;
+    return;
+  }
+  $("copy-code").textContent = "Copy request";
+  await updateRequestView(version, error, text);
+}
+
+/** The wire: what the selected runtime's SDK builds for the current turn or input, with the key blanked. Nothing is sent. */
+async function updateRequestView(version: number, settingsError: string, text: string): Promise<void> {
+  const note = $("request-note");
+  // "curl" colouring: strings and numbers, `#` comments — a URL's `//` is not a comment here.
+  const show = (message: string, body = "") => { if (version !== codeVersion) return; note.textContent = message; note.hidden = false; renderCode($("code"), body, "curl"); };
+  const chosen = RUNTIMES[runtime];
+  if (loadingRuntime || !chosen.loaded()) return show(`${chosen.label} is not loaded yet; the request is built by the runtime that would send it.`);
+  if (mode === "judge" && runtime === "rust") return show("The Rust SDK at this pin has no judgments (MAP-14) and no typesafe provider; JavaScript and Python build this request.");
+  let request: Request, which: string;
+  try {
+    if (mode === "judge") {
+      const current = judge.currentRequest();
+      if (!current) return show("Add an input to see its request.");
+      request = current.request; which = current.label;
+    } else {
+      if (settingsError) return show(settingsError);
+      request = buildRequest(connection, settings, messages, text); which = "this turn";
+    }
+  } catch (e) { return show(errorMessage(e)); }
+  // Without a key, the example key stands in, as in the code; a real key is blanked, never shown.
+  const key = credentials.get(connection.provider) ?? EXAMPLE_API_KEY;
+  try {
+    const wire = await chosen.wire(connection, key, request);
+    if (version !== codeVersion) return;
+    const lines = [`${wire.method} ${wire.url}`, "", ...wire.headers.map(([k, v]) => `${k}: ${v}`), ""];
+    let body = wire.body;
+    try { body = JSON.stringify(JSON.parse(wire.body), null, 2); } catch { /* not JSON: as is */ }
+    lines.push(body);
+    note.textContent = `Built by ${chosen.label} for ${which}, not sent.${credentials.get(connection.provider) ? " Your key is blanked here." : " The example key stands in for yours."}`;
+    note.hidden = false;
+    renderCode($("code"), redact(lines.join("\n").split(key).join("[your key]")), "curl");
+  } catch (e) {
+    show(`${chosen.label} cannot build this request: ${errorMessage(e)}`);
+  }
 }
 
 function refreshStatus(): void {
@@ -453,10 +499,11 @@ temperatureInput.addEventListener("input", () => {
 });
 maxTokensInput.addEventListener("input", () => { if (maxTokensInput.validity.valid) settings.maxTokens = maxTokensInput.value === "" ? null : maxTokensInput.valueAsNumber; void updateCode(); });
 reasoningInput.addEventListener("change", () => { settings.reasoning = reasoningInput.value as Settings["reasoning"]; void updateCode(); });
+for (const button of document.querySelectorAll<HTMLButtonElement>("[data-code-view]")) button.addEventListener("click", () => { codeView = button.dataset.codeView as typeof codeView; void updateCode(); });
 $("copy-code").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText($("code").textContent ?? ""); $("copy-status").textContent = "Copied"; $("copy-code").textContent = "Copied";
-    clearTimeout(copyTimer); copyTimer = setTimeout(() => { $("copy-code").textContent = "Copy code"; }, 1800);
+    clearTimeout(copyTimer); copyTimer = setTimeout(() => { $("copy-code").textContent = codeView === "request" ? "Copy request" : "Copy code"; }, 1800);
   }
   catch { $("copy-status").textContent = "Clipboard unavailable; select the code to copy it."; }
 });

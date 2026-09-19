@@ -98,8 +98,10 @@
     </div>
   </section>
   <aside id="code-panel" class="code-panel" aria-label="Code">
-    <header class="code-toolbar"><div id="code-tabs" class="code-tabs" role="group" aria-label="Run language" data-state="ready" aria-busy="false"></div><button id="copy-code" class="quiet" type="button">Copy code</button></header>
+    <header class="code-toolbar"><div id="code-tabs" class="code-tabs" role="group" aria-label="Run language" data-state="ready" aria-busy="false"></div>
+      <div class="code-tools"><div class="seg" id="code-view" role="group" aria-label="Panel view"><button type="button" data-code-view="code" aria-pressed="true">Code</button><button type="button" data-code-view="request" aria-pressed="false">Request</button></div><button id="copy-code" class="quiet" type="button">Copy code</button></div></header>
     <div class="runtime-feedback"><p id="runtime-status" class="note" role="status"></p><button id="retry-runtime" class="text-button" type="button" hidden>Retry loading</button></div>
+    <p id="request-note" class="note request-note" role="status" hidden></p>
     <pre id="code-scroll" tabindex="0" aria-label="Example code"><code id="code"></code></pre>
     <span id="copy-status" class="sr-only" role="status"></span>
   </aside>

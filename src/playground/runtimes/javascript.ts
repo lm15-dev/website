@@ -2,6 +2,7 @@
 
 import { ResponseStream, stringifyJson, utf8Decode, type Request, type Response } from "lm15/browser";
 import { createClient, streams, type Connection, type Wire } from "../experience.ts";
+import { isJudgeRequest } from "../judge.ts";
 import type { Runtime } from "./index.ts";
 
 export const javascriptRuntime: Runtime = {
@@ -11,7 +12,7 @@ export const javascriptRuntime: Runtime = {
   loaded: () => true,
   async load() {},
   async wire(connection, key, request): Promise<Wire> {
-    const built = await createClient(connection, key).buildRequest(request, streams(connection));
+    const built = await createClient(connection, key).buildRequest(request, streams(connection) && !isJudgeRequest(request));
     return { method: built.method, url: built.url, headers: built.headers.map(([k, v]) => [k, v]), body: utf8Decode(built.body) };
   },
   async stream(connection, key, request, signal, onText): Promise<Response> {

@@ -11,7 +11,7 @@
 
 import { Message, Response, type Request } from "lm15/browser";
 import { EXAMPLE_API_KEY, examplePython, keyless, streams, type Connection, type Settings, type Wire } from "../experience.ts";
-import { judgePython, specOfRequest } from "../judge.ts";
+import { isJudgeRequest, judgePython, specOfRequest } from "../judge.ts";
 import type { Runtime } from "./index.ts";
 
 interface Pyodide {
@@ -62,6 +62,14 @@ function split(request: Request): { messages: Message[]; prompt: string } {
   const prompt = last.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
   return { messages: all, prompt };
 }
+function splitArgs(request: Request): [Message[], string] { const { messages, prompt } = split(request); return [messages, prompt]; }
+
+/** The judge program up to its loop, then the loop body once with `x = inputs[0]`, stopping before the call. */
+function unrollOne(source: string): string {
+  const [head, body] = source.split("\nfor x in inputs:\n");
+  const built = body!.split("\n    response = await lm.complete(request)")[0]!;
+  return `${head}\nx = inputs[0]\n${built.replace(/^    /gm, "")}`;
+}
 
 export const pythonRuntime: Runtime = {
   id: "python",
@@ -72,17 +80,19 @@ export const pythonRuntime: Runtime = {
 
   async wire(connection, key, request): Promise<Wire> {
     const py = await boot(() => {});
-    const { messages, prompt } = split(request);
-    const source = examplePython(connection, settingsOf(request), messages, prompt);
     // The same construction with the sync class (no transport needed) and its
-    // build_request: the bytes, no network. Public API only.
-    const head = source.split(/\n(?:result = AsyncResponseStream|response = await lm\.complete)/)[0]!
+    // build_request: the bytes, no network. Public API only. A judge request
+    // is the shown loop's program with this one input; the request is built
+    // in the loop body, so the head runs up to it and one iteration is unrolled.
+    const judged = isJudgeRequest(request);
+    const source = judged ? judgePython(connection, specOfRequest(request).spec, [specOfRequest(request).value]) : examplePython(connection, settingsOf(request), ...splitArgs(request));
+    const head = (judged ? unrollOne(source) : source.split(/\n(?:result = AsyncResponseStream|response = await lm\.complete)/)[0]!)
       .replace(/\bAsync(OpenAILM|OpenAIChatLM|AnthropicLM|GeminiLM|TypeSafeLM)\b/g, "$1")
       .replace(/^from lm15\.transports import FetchTransport.*\n/m, "")
       .replace(/^    transport=FetchTransport\(\),\n/m, "");
     const program = `${withKey(head, key, connection)}
 import json
-_built = lm.build_request(request, stream=${streams(connection) ? "True" : "False"})
+_built = lm.build_request(request, stream=${streams(connection) && !judged ? "True" : "False"})
 json.dumps({"method": _built.method, "url": _built.url, "headers": list(_built.headers), "body": _built.body.decode("utf-8")})
 `;
     return JSON.parse(String(await py.runPythonAsync(program))) as Wire;

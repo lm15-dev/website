@@ -8,7 +8,7 @@
  * the two modes share one provider, one key, one set of language tabs.
  */
 
-import { judgmentsInSchema, stringifyJson, type Judgment, type JsonObject, type JsonValue } from "lm15/browser";
+import { judgmentsInSchema, stringifyJson, type Judgment, type JsonObject, type JsonValue, type Request } from "lm15/browser";
 import { keyless, type Connection } from "./experience.ts";
 import { EXAMPLE_INPUTS, EXAMPLE_SPEC, EXAMPLE_FIELDS, shapeGap, distribution, emptyInput, expectedLevel, fieldText, fieldValue, freeName, inputIsBlank, inputSummary, judgeJavascript, judgePython, judgeRequest, judgeRust, parseCsv, parseInputs, parseProperties, pickLabel, readQuestions, toCsv, toJsonExport, verdictOf, withQuestion, withoutQuestion, type FieldDef, type InputValue, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type Turn, type Verdict } from "./judge.ts";
 import { looksBrowserBlocked, relayed } from "./relay.ts";
@@ -86,6 +86,14 @@ export class JudgeView {
   }
 
   busy(): boolean { return this.running !== undefined; }
+
+  /** The request one input makes — the selected row, else the first — for the Request view; which one it is, in words. */
+  currentRequest(): { request: Request; label: string } | undefined {
+    const rows = this.rows.filter((r) => !inputIsBlank(r.value));
+    const row = rows.find((r) => r.id === this.selected) ?? rows[0];
+    if (!row) return undefined;
+    return { request: judgeRequest(this.host.connection, this.spec, row.value), label: `input ${this.rows.indexOf(row) + 1} of ${this.rows.length}` };
+  }
 
   /** The provider, model, key or runtime changed. */
   refresh(): void {
@@ -394,6 +402,7 @@ export class JudgeView {
     if (this.selected === id) return;
     this.selected = id;
     for (const tr of $("judge-rows").querySelectorAll("tr")) tr.classList.toggle("selected", tr.dataset.id === String(id));
+    this.host.codeChanged(); // the Request view follows the selected input
   }
 
   private inputCell(row: Row, index: number): HTMLElement {

@@ -238,6 +238,12 @@ export function judgeRequest(connection: Connection, spec: JudgeSpec, value: Inp
   });
 }
 
+/** A judge request: a json_schema response format declaring at least one judgment. It is sent with `complete`, never streamed. */
+export function isJudgeRequest(request: Request): boolean {
+  const format = request.config?.responseFormat;
+  return format?.type === "json_schema" && judgmentsInSchema(format.schema).size > 0;
+}
+
 /** The spec and input a judge Request carries — what a runtime that re-renders its program needs (runtimes/python.ts). */
 export function specOfRequest(request: Request): { spec: JudgeSpec; value: InputValue } {
   const format = request.config?.responseFormat;

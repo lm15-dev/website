@@ -162,6 +162,32 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
     assert.equal(await page.locator("#judge-rows tr").count(), 4);
     assert.match(await page.locator("#judge-rows tr").nth(1).locator("textarea").inputValue(), /honest/);
 
+    // The Request view: what the selected runtime builds for the selected input, never sent, the key blanked; it follows the selection.
+    // (After the reload the connection is the default OpenAI again; the set is what was remembered.)
+    await page.getByRole("button", { name: "Request", exact: true }).click();
+    await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.startsWith("Built by JavaScript for input 1 of 4"));
+    let wire = await page.locator("#code").textContent() ?? "";
+    assert.match(wire, /^POST https:\/\/api\.openai\.com\/v1\/responses\n\nContent-Type: application\/json\nAuthorization: Bearer \[your key\]\n\n\{/);
+    assert.match(wire, /"name": "judgments"/);
+    assert.match(wire, /"quality": \{\n\s+"type": "integer"/);
+    assert.doesNotMatch(wire, /"stream": true/, "a judge call is one piece");
+    await page.locator("#judge-rows tr").nth(1).locator("textarea").focus();
+    await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.startsWith("Built by JavaScript for input 2 of 4"));
+    wire = await page.locator("#code").textContent() ?? "";
+    assert.match(wire, /"text": "Thin and sour, but honest\."/);
+    assert.equal(await page.locator("#copy-code").textContent(), "Copy request");
+    await page.locator('[data-language="python"]').click();
+    await waitRuntimeReady(page, "Python");
+    await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.startsWith("Built by Python for input 2 of 4"));
+    assert.equal(await page.locator("#code").textContent(), wire, "Python builds the same bytes as JavaScript for this input");
+    await page.locator('[data-language="rust"]').click();
+    await waitRuntimeReady(page, "Rust");
+    await page.waitForFunction(() => /Rust SDK at this pin has no judgments/.test(document.getElementById("request-note")?.textContent ?? ""));
+    await page.getByRole("button", { name: "Code", exact: true }).click();
+    await page.waitForFunction(() => document.getElementById("request-note")?.hidden);
+    await page.locator('[data-language="javascript"]').click();
+    await waitRuntimeReady(page, "JavaScript");
+
     // Rust at this pin: the tab says so; Run is off with the reason.
     await page.locator('[data-language="rust"]').click();
     await waitRuntimeReady(page, "Rust");

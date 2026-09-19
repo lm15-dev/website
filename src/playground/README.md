@@ -37,7 +37,12 @@ elements that move between the two layouts.
 The chat workspace contains a key field, request settings, chat, and three code
 tabs. Provider and model buttons sit beside Send. JavaScript / Python / Rust
 select both the displayed code and the SDK that executes the next message;
-there is no separate execution selector, JSON/curl tab, or New chat button.
+there is no separate execution selector or New chat button. **Code | Request**
+in the panel's corner switches between the program and the request that program
+puts on the wire — method, URL, headers and body, built by the selected
+runtime's own SDK (`Runtime.wire`) for the current turn or the selected Judge
+input, never sent, the key blanked. Python builds it from the shown program's
+head (a judge loop unrolled once); Rust names its pin gap in Judge.
 Selecting Python or Rust loads that runtime on demand. Tabs are locked during
 a running turn so execution cannot silently change.
 

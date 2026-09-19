@@ -150,6 +150,7 @@ function base64(bytes: Uint8Array): string {
 
 import { Request as RequestNs, Response as CanonicalResponse, stringifyJson, type Request } from "lm15/browser";
 import { ANTHROPIC_BROWSER_HEADER, keyless, type Connection, type Wire } from "../experience.ts";
+import { isJudgeRequest } from "../judge.ts";
 import type { Runtime } from "./index.ts";
 
 const WASM_URL = new URL("../../vendor/rust/lm15.wasm", import.meta.url).href;
@@ -190,7 +191,7 @@ export const rustRuntime: Runtime = {
 
   async wire(connection, key, request): Promise<Wire> {
     const rust = await boot(() => {});
-    return wireOf(rust.buildRequest(connectionOf(connection, key), RequestNs.toJSON(request), true));
+    return wireOf(rust.buildRequest(connectionOf(connection, key), RequestNs.toJSON(request), !isJudgeRequest(request)));
   },
 
   async stream(connection, key, request, signal, onText): Promise<CanonicalResponse> {
