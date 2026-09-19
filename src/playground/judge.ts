@@ -560,10 +560,14 @@ export const EXAMPLE_SPEC: JudgeSpec = {
     style: choice("What is the dominant style described?", { fruit: "Fruit-forward", oak: "Oak-driven", mineral: "Mineral, savoury" }),
     ageing: yesNo("Does the note say the wine will improve with age?"),
   },
-  instructions: "These are tasting notes written by a sommelier. Judge the wine described, not the writing.",
+  // No instructions by default: the request is the docs' quick start — a string state and the questions, nothing else.
+  instructions: "",
   shape: "text",
   fields: [],
 };
+
+/** What a person might add as instructions; the example does not start with them. */
+export const EXAMPLE_INSTRUCTIONS = "These are tasting notes written by a sommelier. Judge the wine described, not the writing.";
 
 export const EXAMPLE_INPUTS: readonly string[] = [
   "Ripe blackberry and cassis lead, framed by toasty oak and firm, fine-grained tannins. Long, layered finish; will reward a decade in the cellar.",

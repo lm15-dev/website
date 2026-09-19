@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { HttpResponse, Response, choice, judgmentsInSchema, score, stringifyJson, utf8Decode, yesNo } from "lm15/browser";
 import { createClient, type Connection } from "../src/playground/experience.ts";
-import { EXAMPLE_INPUTS, EXAMPLE_SPEC, distribution, expectedLevel, fieldValue, freeName, inputSummary, judgeJavascript, judgePython, judgeRequest, parseCsv, parseInputs, parseProperties, pickLabel, questionOf, readQuestions, specOfRequest, toCsv, toJsonExport, verdictOf, withQuestion, withoutQuestion, writeQuestion, type JudgeSpec, type Question, type Verdict } from "../src/playground/judge.ts";
+import { EXAMPLE_INPUTS, EXAMPLE_INSTRUCTIONS, EXAMPLE_SPEC, distribution, expectedLevel, fieldValue, freeName, inputSummary, judgeJavascript, judgePython, judgeRequest, parseCsv, parseInputs, parseProperties, pickLabel, questionOf, readQuestions, specOfRequest, toCsv, toJsonExport, verdictOf, withQuestion, withoutQuestion, writeQuestion, type JudgeSpec, type Question, type Verdict } from "../src/playground/judge.ts";
 import { judgeProgram } from "../src/playground/runtimes/python.ts";
 import { replyFor } from "./support/replies.ts";
 
@@ -56,24 +56,29 @@ test("editing keeps the other questions and their order; names never collide; a 
 });
 
 test("one request per input, in the input's shape: a text, a data part, or the transcript; the instructions are the system text", async () => {
-  const text = judgeRequest(typesafe, EXAMPLE_SPEC, EXAMPLE_INPUTS[0]!);
+  const WITH: JudgeSpec = { ...EXAMPLE_SPEC, instructions: EXAMPLE_INSTRUCTIONS };
+  const bare = judgeRequest(typesafe, EXAMPLE_SPEC, EXAMPLE_INPUTS[0]!);
+  assert.equal(bare.system, undefined);
+  assert.deepEqual(bare.messages.map((m) => m.parts[0]!.type), ["text"], "the default is the quick start: the text is the state");
+  const text = judgeRequest(typesafe, WITH, EXAMPLE_INPUTS[0]!);
   assert.equal(text.system, undefined, "Jev has no system prompt: the instructions are in the state");
   assert.equal(text.config?.responseFormat?.type, "json_schema");
   assert.equal(text.config?.probabilities, "if_available");
   assert.deepEqual(text.messages.map((m) => m.parts[0]!.type), ["data"]);
-  assert.equal(judgeRequest(openai, EXAMPLE_SPEC, EXAMPLE_INPUTS[0]!).system, EXAMPLE_SPEC.instructions, "a chat wire takes them as the system prompt");
+  assert.equal(judgeRequest(openai, WITH, EXAMPLE_INPUTS[0]!).system, EXAMPLE_INSTRUCTIONS, "a chat wire takes them as the system prompt");
   const fields: JudgeSpec = { ...EXAMPLE_SPEC, shape: "fields", fields: [{ name: "note", type: "text" }, { name: "price_eur", type: "number" }] };
-  const object = judgeRequest(typesafe, { ...fields, instructions: "" }, { note: "Ripe.", price_eur: 48 });
+  const object = judgeRequest(typesafe, fields, { note: "Ripe.", price_eur: 48 });
   assert.deepEqual(object.messages[0]!.parts[0], { type: "data", value: { note: "Ripe.", price_eur: 48 } });
-  const convo = judgeRequest(typesafe, { ...EXAMPLE_SPEC, shape: "conversation", instructions: "" }, [{ role: "user", content: "Red?" }, { role: "assistant", content: "Ripe." }]);
+  const convo = judgeRequest(typesafe, { ...EXAMPLE_SPEC, shape: "conversation" }, [{ role: "user", content: "Red?" }, { role: "assistant", content: "Ripe." }]);
   assert.deepEqual(convo.messages.map((m) => m.role), ["user"], "one user part on Jev; the transcript is inside it");
-  assert.deepEqual(judgeRequest(openai, { ...EXAMPLE_SPEC, shape: "conversation", instructions: "" }, [{ role: "user", content: "Red?" }, { role: "assistant", content: "Ripe." }]).messages.map((m) => m.role), ["user", "assistant"]);
+  assert.deepEqual(judgeRequest(openai, { ...EXAMPLE_SPEC, shape: "conversation" }, [{ role: "user", content: "Red?" }, { role: "assistant", content: "Ripe." }]).messages.map((m) => m.role), ["user", "assistant"]);
   assert.equal(convo.system, undefined);
   // On the Jev wire (2026-09-19 D1/D4): the state is the input verbatim; the instructions a named key; a transcript the caller's own array.
   const state = async (request: typeof text) => (JSON.parse(utf8Decode((await createClient(typesafe, "k").buildRequest(request, false)).body)) as { state: unknown }).state;
-  assert.deepEqual(await state(text), { instructions: EXAMPLE_SPEC.instructions, text: EXAMPLE_INPUTS[0] });
-  assert.deepEqual(await state(judgeRequest(typesafe, { ...EXAMPLE_SPEC, instructions: "" }, "A wine.")), "A wine.");
-  assert.deepEqual(await state(judgeRequest(typesafe, { ...fields, instructions: "" }, { note: "Ripe.", price_eur: 48 })), { note: "Ripe.", price_eur: 48 });
+  assert.deepEqual(await state(text), { instructions: EXAMPLE_INSTRUCTIONS, text: EXAMPLE_INPUTS[0] });
+  assert.deepEqual(await state(bare), EXAMPLE_INPUTS[0]);
+  assert.deepEqual(await state(judgeRequest(typesafe, EXAMPLE_SPEC, "A wine.")), "A wine.");
+  assert.deepEqual(await state(judgeRequest(typesafe, fields, { note: "Ripe.", price_eur: 48 })), { note: "Ripe.", price_eur: 48 });
   assert.deepEqual(await state(convo), { messages: [{ role: "user", content: "Red?" }, { role: "assistant", content: "Ripe." }] });
   // A runtime that re-renders its program without the source reads the spec and the input back off a chat-wire request, for every shape.
   for (const [spec, value] of [[EXAMPLE_SPEC, EXAMPLE_INPUTS[1]!], [fields, { note: "Ripe.", price_eur: 48 }], [{ ...EXAMPLE_SPEC, shape: "conversation" } as JudgeSpec, [{ role: "user", content: "Red?" }, { role: "assistant", content: "Ripe." }]]] as const) {
@@ -101,10 +106,11 @@ test("the code spells the questions with the SDK's sugar when the sugar reproduc
   assert.match(js, /style: choice\("What is the dominant style described\?", \{\n    fruit: "Fruit-forward",\n    oak: "Oak-driven",\n    mineral: "Mineral, savoury",\n  \}\)/);
   assert.match(judgeJavascript(openai, { ...EXAMPLE_SPEC, properties: { ok: choice("Ok?", ["yes", "no"]) } }, ["t"]), /ok: choice\("Ok\?", \["yes", "no"\]\)/);
   assert.match(js, /ageing: yesNo\("Does the note say the wine will improve with age\?"\)/);
-  assert.match(js, /messages: \[Message\.user\(\{ type: "data", value: \{ instructions: "These are tasting notes[^"]*", text: input \} \}\)\]/, "on Jev the instructions ride in the state");
+  assert.match(js, /messages: \[Message\.user\(input\)\]/, "the default Jev code is the quick start");
+  assert.match(judgeJavascript(typesafe, { ...EXAMPLE_SPEC, instructions: EXAMPLE_INSTRUCTIONS }, EXAMPLE_INPUTS), /messages: \[Message\.user\(\{ type: "data", value: \{ instructions: "These are tasting notes[^"]*", text: input \} \}\)\]/, "with instructions, they ride in the state");
   assert.match(judgeJavascript(openai, EXAMPLE_SPEC, EXAMPLE_INPUTS), /messages: \[Message\.user\(input\)\]/);
   const py = judgePython(typesafe, EXAMPLE_SPEC, EXAMPLE_INPUTS);
-  assert.match(py, /^from lm15 import AsyncTypeSafeLM, Config, Message, Request, choice, data, judgments, score, yes_no$/m, "data() carries the state on Jev");
+  assert.match(py, /^from lm15 import AsyncTypeSafeLM, Config, Message, Request, choice, judgments, score, yes_no$/m, "no data() in the default: the text is the state");
   assert.match(py, /style=choice\("What is the dominant style described\?", \{\n        "fruit": "Fruit-forward",\n        "oak": "Oak-driven",\n        "mineral": "Mineral, savoury",\n    \}\)/);
   assert.match(py, /ageing=yes_no\(/);
   // Fields: a data part, and `data` imported in Python.

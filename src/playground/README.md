@@ -82,9 +82,11 @@ is the whole set as one loop, in the SDK's own spelling; Python executes that
 program with one input, the loop body unchanged (`judgeProgram`, given the
 spec and input it was built from).
 
-On Jev the state is the one user part, verbatim (contract
-2026-09-19-jev-state, D1): Jev has no system prompt and no conversation, so
-the page writes what a caller would — the instructions as the state key
+The example set starts with no instructions, so the default request is the
+docs' quick start: a string state and the questions, nothing else. On Jev the
+state is the one user part, verbatim (contract 2026-09-19-jev-state, D1): Jev
+has no system prompt and no conversation, so when instructions are added the
+page writes what a caller would — the instructions as the state key
 `instructions` (a bare text goes beside it as `text`), a transcript as the
 state's `messages` array — and the shown code does exactly that
 (`jevState`). A field named `instructions` is refused by name. On a chat

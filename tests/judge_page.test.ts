@@ -103,8 +103,8 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
     await page.getByRole("button", { name: "Run all", exact: true }).click();
     await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "4 of 4 judged");
     assert.equal(bodies.length, 4);
-    // 2026-09-19 D4: Jev has no system prompt; the instructions ride in the state as a named key beside the text.
-    assert.deepEqual(bodies[3]!.state, { instructions: "These are tasting notes written by a sommelier. Judge the wine described, not the writing.", text: "A fourth note." });
+    // The default is the docs' quick start: the state is the text itself, nothing around it.
+    assert.equal(bodies[3]!.state, "A fourth note.");
     assert.deepEqual(Object.keys(bodies[0]!.questions), ["quality", "ageing"]);
     assert.equal(bodies[0]!.questions["quality"]!.type, "score");
     assert.equal(bodies[0]!.model, "jev-latest");
@@ -143,7 +143,7 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
     await page.getByRole("button", { name: "Run 1 new" }).click();
     await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "4 of 4 judged");
     assert.equal(bodies.length, 5);
-    assert.equal((bodies[4]!.state as { text: string }).text, "Thin and sour, but honest.");
+    assert.equal(bodies[4]!.state, "Thin and sour, but honest.");
     // Everything judged: Run all judges everything again (it is not a no-op).
     assert.equal(await page.getByRole("button", { name: "Run all again" }).isHidden(), true);
     await page.getByRole("button", { name: "Run all", exact: true }).click();
@@ -269,12 +269,15 @@ test("Judge: shapes keep their own inputs; Fields on a chat wire is JSON text; o
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent?.startsWith("Key ready"));
     assert.equal(await page.locator("#judge-gap").isHidden(), true);
+    // Without instructions the state is the object itself; typing instructions puts them beside the fields (D4).
+    assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /instructions:/);
+    await page.getByLabel(/How to read each input/).fill("These are tasting notes written by a sommelier.");
     await page.getByLabel("Input 1 price_eur").fill("52");
     const states: unknown[] = [];
     await page.route("https://api.typesafe.ai/**", async (route) => { states.push(route.request().postDataJSON().state); return route.fulfill({ json: JEV_ANSWER, headers: { "Access-Control-Allow-Origin": origin } }); });
-    await page.getByRole("button", { name: "Run 1 new", exact: true }).click(); // the other row keeps its OpenAI verdict until run again
+    await page.getByRole("button", { name: "Run all", exact: true }).click(); // new instructions: every row is judged again
     await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "2 of 2 judged" && document.getElementById("judge-run")?.textContent === "Run all");
-    assert.equal(states.length, 1);
+    assert.equal(states.length, 2);
     // D1/D4: the state is the object verbatim, its number a number, with the instructions beside the fields as a key of their own.
     const state = states[0] as { instructions: string; note: string; price_eur: number };
     assert.equal(state.price_eur, 52);
