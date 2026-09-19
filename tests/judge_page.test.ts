@@ -103,7 +103,8 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
     await page.getByRole("button", { name: "Run all", exact: true }).click();
     await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "4 of 4 judged");
     assert.equal(bodies.length, 4);
-    assert.deepEqual(bodies[3]!.state, { system: "These are tasting notes written by a sommelier. Judge the wine described, not the writing.", messages: [{ role: "user", content: "A fourth note." }] });
+    // 2026-09-19 D4: Jev has no system prompt; the instructions ride in the state as a named key beside the text.
+    assert.deepEqual(bodies[3]!.state, { instructions: "These are tasting notes written by a sommelier. Judge the wine described, not the writing.", text: "A fourth note." });
     assert.deepEqual(Object.keys(bodies[0]!.questions), ["quality", "ageing"]);
     assert.equal(bodies[0]!.questions["quality"]!.type, "score");
     assert.equal(bodies[0]!.model, "jev-latest");
@@ -142,7 +143,7 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
     await page.getByRole("button", { name: "Run 1 new" }).click();
     await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "4 of 4 judged");
     assert.equal(bodies.length, 5);
-    assert.deepEqual((bodies[4]!.state as { messages: Array<{ content: string }> }).messages[0]!.content, "Thin and sour, but honest.");
+    assert.equal((bodies[4]!.state as { text: string }).text, "Thin and sour, but honest.");
     // Everything judged: Run all judges everything again (it is not a no-op).
     assert.equal(await page.getByRole("button", { name: "Run all again" }).isHidden(), true);
     await page.getByRole("button", { name: "Run all", exact: true }).click();
@@ -209,7 +210,7 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
   }
 });
 
-test("Judge: shapes keep their own inputs; Fields on a chat wire is named as a pin gap and never sent; Conversation judges the transcript; Chat mode is untouched", { timeout: 120_000 }, async () => {
+test("Judge: shapes keep their own inputs; Fields on a chat wire is JSON text; on Jev the state is the object verbatim with the instructions as a key; Conversation judges the transcript; Chat mode is untouched", { timeout: 120_000 }, async () => {
   const installed = findBrowsers().find((b) => b.name === "chromium");
   assert.ok(installed);
   const demo = await startDemo();
@@ -246,15 +247,19 @@ test("Judge: shapes keep their own inputs; Fields on a chat wire is named as a p
     assert.match(await first.locator(".out-meta").textContent() ?? "", /adapted: config\.probabilities dropped/);
     assert.match(await page.locator("#judge-method").textContent() ?? "", /pick only — this wire does not measure a distribution/);
 
-    // Fields on this wire: the page names the pin gap, the code leads with it, Run is off, nothing is sent.
+    // Fields on a chat wire (2026-09-19 D3): the object goes as JSON text; the code shows the data part; the hint names the field.
     await page.getByRole("button", { name: "Fields", exact: true }).click();
     assert.equal(await page.locator("#judge-rows tr").count(), 2, "the fields shape starts with its own example rows");
-    assert.match(await page.locator("#judge-gap").textContent() ?? "", /Fields on a chat wire: the SDKs at this pin do not carry a data part/);
-    assert.equal(await page.getByRole("button", { name: "Run all", exact: true }).isDisabled(), true);
-    assert.match(await page.locator("#code").textContent() ?? "", /^\/\/ Fields on a chat wire/);
+    assert.equal(await page.locator("#judge-gap").isHidden(), true);
+    assert.equal(await page.getByRole("button", { name: "Run all", exact: true }).isDisabled(), false);
     assert.match(await page.locator("#code").textContent() ?? "", /Message\.user\(\{ type: "data", value: input \}\)/);
-    assert.match(await page.locator("#judge-paths-hint").textContent() ?? "", /messages\[0\]\.content\[0\]\.note/);
-    assert.equal(sent.length, 3);
+    assert.match(await page.locator("#judge-paths-hint").textContent() ?? "", /`note`/);
+    const chatBodies: Array<{ input: Array<{ content: Array<{ text: string }> }> }> = [];
+    await page.route("https://api.openai.com/**", async (route) => { chatBodies.push(route.request().postDataJSON()); return route.fulfill({ json: { id: "r", model: "m", status: "completed", output: [{ type: "message", id: "msg", role: "assistant", content: [{ type: "output_text", text: '{"quality":2,"style":"oak","ageing":false}' }] }], usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 } }, headers: { "Access-Control-Allow-Origin": origin } }); });
+    await page.getByRole("button", { name: "Run all", exact: true }).click();
+    await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "2 of 2 judged");
+    assert.equal(chatBodies.length, 2);
+    assert.match(chatBodies[0]!.input[0]!.content[0]!.text, /^\{"note":"Ripe blackberry[^"]*","price_eur":48\}$/, "the object is compact JSON in the text slot");
     // Fields on TypeSafe: structured state; a field typed as a number is sent as one.
     await page.getByRole("button", { name: "Choose provider", exact: true }).click();
     await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
@@ -267,15 +272,19 @@ test("Judge: shapes keep their own inputs; Fields on a chat wire is named as a p
     await page.getByLabel("Input 1 price_eur").fill("52");
     const states: unknown[] = [];
     await page.route("https://api.typesafe.ai/**", async (route) => { states.push(route.request().postDataJSON().state); return route.fulfill({ json: JEV_ANSWER, headers: { "Access-Control-Allow-Origin": origin } }); });
-    await page.getByRole("button", { name: "Run all", exact: true }).click();
-    await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "2 of 2 judged");
-    // D6: with instructions the state is {system, messages}; the object rides as the message content, its number a number.
-    const state = states[0] as { system: string; messages: Array<{ role: string; content: Array<{ note: string; price_eur: number }> }> };
-    assert.equal(state.messages[0]!.role, "user");
-    assert.equal(state.messages[0]!.content[0]!.price_eur, 52);
-    assert.match(state.messages[0]!.content[0]!.note, /^Ripe blackberry/);
-    assert.match(await page.locator("#judge-paths-hint").textContent() ?? "", /`messages\[0\]\.content\[0\]\.note`/, "the hint names the real path under D6");
+    await page.getByRole("button", { name: "Run 1 new", exact: true }).click(); // the other row keeps its OpenAI verdict until run again
+    await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "2 of 2 judged" && document.getElementById("judge-run")?.textContent === "Run all");
+    assert.equal(states.length, 1);
+    // D1/D4: the state is the object verbatim, its number a number, with the instructions beside the fields as a key of their own.
+    const state = states[0] as { instructions: string; note: string; price_eur: number };
+    assert.equal(state.price_eur, 52);
+    assert.match(state.note, /^Ripe blackberry/);
+    assert.match(state.instructions, /^These are tasting notes/);
+    assert.deepEqual(Object.keys(state), ["instructions", "note", "price_eur"]);
+    assert.match(await page.locator("#judge-paths-hint").textContent() ?? "", /`note`.*`instructions`/, "the hint names the field and the instructions key");
+    assert.match(await page.locator("#judge-instructions-note").textContent() ?? "", /state as the key instructions/);
     assert.match(await page.locator("#code").textContent() ?? "", /price_eur: 52/);
+    assert.match(await page.locator("#code").textContent() ?? "", /value: \{ instructions: "These are tasting notes[^"]*", \.\.\.input \}/);
 
     // Conversation: the transcript is the input; a turn can be added; the request carries every message.
     await page.getByRole("button", { name: "Conversation", exact: true }).click();
@@ -284,10 +293,13 @@ test("Judge: shapes keep their own inputs; Fields on a chat wire is named as a p
     await page.getByLabel("Input 1, user turn 3").fill("Will it keep?");
     await page.getByRole("button", { name: "Run all", exact: true }).click();
     await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "1 of 1 judged");
-    const convo = states[states.length - 1] as { system: string; messages: Array<{ role: string; content: string }> };
+    // D4: the transcript is the state's own messages array; the instructions ride beside it.
+    const convo = states[states.length - 1] as { instructions: string; messages: Array<{ role: string; content: string }> };
     assert.deepEqual(convo.messages.map((m) => m.role), ["user", "assistant", "user"]);
     assert.equal(convo.messages[2]!.content, "Will it keep?");
-    assert.match(await page.locator("#code").textContent() ?? "", /Message\.user\("Will it keep\?"\)/);
+    assert.match(convo.instructions, /^These are tasting notes/);
+    assert.match(await page.locator("#code").textContent() ?? "", /content: "Will it keep\?"/);
+    assert.match(await page.locator("#code").textContent() ?? "", /value: \{ instructions: "These are tasting notes[^"]*", messages: input \}/);
     // Back to Text: its three inputs are still there, judged.
     await page.getByRole("button", { name: "Text", exact: true }).click();
     assert.equal(await page.locator("#judge-rows tr").count(), 3);

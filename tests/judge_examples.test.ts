@@ -15,10 +15,10 @@ import { test } from "node:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
-import { UnsupportedFeatureError, utf8Decode } from "lm15/browser";
+import { utf8Decode } from "lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
 import { EXAMPLE_API_KEY, RUST_NOT_YET, createClient, keyless, type Connection } from "../src/playground/experience.ts";
-import { EXAMPLE_INPUTS, EXAMPLE_SPEC, judgeJavascript, judgePython, judgeRequest, judgeRust, shapeGap, verdictOf, type InputValue, type JudgeSpec } from "../src/playground/judge.ts";
+import { EXAMPLE_INPUTS, EXAMPLE_SPEC, judgeJavascript, judgePython, judgeRequest, judgeRust, verdictOf, type InputValue, type JudgeSpec } from "../src/playground/judge.ts";
 import { judgeProgram, withKey } from "../src/playground/runtimes/python.ts";
 import { rustRuntime } from "../src/playground/runtimes/rust.ts";
 import "lm15/node";
@@ -29,7 +29,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SHAPES: Array<{ spec: JudgeSpec; inputs: InputValue[] }> = [
   { spec: EXAMPLE_SPEC, inputs: [EXAMPLE_INPUTS[0]!, 'Quotes " and a newline\n</script> are text, not executable code.'] },
   { spec: { ...EXAMPLE_SPEC, shape: "fields", fields: [{ name: "note", type: "text" }, { name: "price_eur", type: "number" }] }, inputs: [{ note: EXAMPLE_INPUTS[0]!, price_eur: 48 }, { note: "Thin.", price_eur: null }] },
-  { spec: { ...EXAMPLE_SPEC, shape: "conversation", instructions: "" }, inputs: [[{ role: "user", content: "Something for ten years?" }, { role: "assistant", content: `The 2019 Pauillac: ${EXAMPLE_INPUTS[0]}` }]] },
+  { spec: { ...EXAMPLE_SPEC, shape: "conversation" }, inputs: [[{ role: "user", content: "Something for ten years?" }, { role: "assistant", content: `The 2019 Pauillac: ${EXAMPLE_INPUTS[0]}` }]] },
+  { spec: { ...EXAMPLE_SPEC, instructions: "" }, inputs: ["A bare note, no instructions."] },
 ];
 const cases = CONNECTIONS.flatMap((choice) => SHAPES.map(({ spec, inputs }) => ({
   spec, inputs,
@@ -37,16 +38,6 @@ const cases = CONNECTIONS.flatMap((choice) => SHAPES.map(({ spec, inputs }) => (
   key: keyless(choice.id) ? "unused" : EXAMPLE_API_KEY,
 })));
 const wheel = ensureWheel();
-
-/** What the SDK does with a request the page names as a pin gap: refuses, or loses the input (an empty text goes out). Anything else means the gap is gone and the page must stop naming it. */
-async function gapIsReal(c: (typeof cases)[number], value: InputValue): Promise<void> {
-  const request = judgeRequest(c.connection, c.spec, value);
-  let body: string;
-  try { body = utf8Decode((await createClient(c.connection, c.key).buildRequest(request, false)).body); }
-  catch (e) { assert.ok(e instanceof UnsupportedFeatureError, `${c.connection.provider}: an unexpected failure, not the named gap`); return; }
-  const object = value as Record<string, unknown>;
-  assert.ok(!body.includes(String(object["note"])), `${c.connection.provider} ${c.spec.shape}: the SDK now carries the data part — the page's named gap is stale, delete shapeGap`);
-}
 
 /** The page's request for one input, and its bytes through the JavaScript runtime's client. */
 async function expected(c: (typeof cases)[number], value: InputValue) {
@@ -56,7 +47,7 @@ async function expected(c: (typeof cases)[number], value: InputValue) {
 }
 
 test(`JavaScript: all ${cases.length} judge variants type-check, execute one call per input, and each call is the page's request`, { timeout: 120_000 }, async (t) => {
-  assert.equal(cases.length, CONNECTIONS.length * 3);
+  assert.equal(cases.length, CONNECTIONS.length * 4);
   const sources = cases.map((c) => judgeJavascript(c.connection, c.spec, c.inputs));
   const files = new Map(sources.map((source, i) => [resolve(root, `src/playground/__judge_${i}.ts`), source]));
   const options: ts.CompilerOptions = { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, strict: true, noEmit: true, skipLibCheck: true, types: [], lib: ["lib.es2023.d.ts", "lib.dom.d.ts"] };
@@ -75,16 +66,9 @@ test(`JavaScript: all ${cases.length} judge variants type-check, execute one cal
   });
   t.mock.method(console, "log", () => {});
   const entry = import.meta.resolve("lm15/browser");
-  let namedGaps = 0;
   for (const [i, c] of cases.entries()) {
     calls = [];
     const url = `data:text/javascript,${encodeURIComponent(`// variant ${i}\n` + sources[i]!.replace('"lm15/browser"', JSON.stringify(entry)))}`;
-    if (shapeGap(c.connection, c.spec)) {
-      namedGaps++;
-      await gapIsReal(c, c.inputs[0]!);
-      assert.match(sources[i]!, /^\/\/ Fields on a chat wire: the SDKs at this pin do not carry a data part/, "the code panel leads with the gap");
-      continue; // the page never runs this program
-    }
     await import(url);
     assert.equal(calls.length, c.inputs.length, `${c.connection.provider} ${c.spec.shape}: one request per input`);
     for (const [k, value] of c.inputs.entries()) {
@@ -93,7 +77,6 @@ test(`JavaScript: all ${cases.length} judge variants type-check, execute one cal
       assert.equal(calls[k]!.body, want.body, `${c.connection.provider} ${c.spec.shape} input ${k}: the JavaScript text and the page build the same bytes`);
     }
   }
-  assert.equal(namedGaps, CONNECTIONS.length - 1, "the named pin gap: Fields on every chat wire (types.md §DataPart says JSON text; the ports refuse)");
 });
 
 test(`Python under Pyodide: all ${cases.length} judge variants execute the program the page runs and build the same bytes as JavaScript`, { timeout: 600_000 }, async () => {
@@ -109,12 +92,6 @@ test(`Python under Pyodide: all ${cases.length} judge variants execute the progr
     // The shown program, whole: it runs (every input, in a loop).
     const shown = withKey(judgePython(c.connection, c.spec, c.inputs), c.key, c.connection);
     calls = [];
-    if (shapeGap(c.connection, c.spec)) {
-      // The named gap, in Python too: the program refuses, or sends without the input. The page never runs it.
-      try { await py.runPythonAsync(shown); } catch (e) { assert.match(String((e as Error).message), /UnsupportedFeatureError/, c.connection.provider); continue; }
-      assert.ok(calls.every((call) => !call.body.includes(EXAMPLE_INPUTS[0]!)), `${c.connection.provider}: Python now carries the data part — the named gap is stale`);
-      continue;
-    }
     try { await py.runPythonAsync(shown); }
     catch (e) { assert.fail(`${c.connection.provider} ${c.spec.shape}: the Python text failed under Pyodide:\n${String((e as Error).message).split("\n").slice(-6).join("\n")}\n---\n${shown}`); }
     assert.equal(calls.length, c.inputs.length, `${c.connection.provider} ${c.spec.shape}: one request per input`);
@@ -127,7 +104,7 @@ test(`Python under Pyodide: all ${cases.length} judge variants execute the progr
     // The program the page executes for one input: the same bytes, and a Response the page can read.
     calls = [];
     const want = await expected(c, c.inputs[0]!);
-    const out = String(await py.runPythonAsync(withKey(judgeProgram(c.connection, want.request), c.key, c.connection)));
+    const out = String(await py.runPythonAsync(withKey(judgeProgram(c.connection, want.request, { spec: c.spec, value: c.inputs[0]! }), c.key, c.connection)));
     assert.equal(calls.length, 1);
     assert.equal(calls[0]!.body, want.body, `${c.connection.provider} ${c.spec.shape}: the executed program builds the page's bytes`);
     const { Response } = await import("lm15/browser");
@@ -137,6 +114,32 @@ test(`Python under Pyodide: all ${cases.length} judge variants execute the progr
     // A chat wire records what it could not take: the probabilities, or — Z.AI, whose wire has no json_schema — the response format itself, in which case the questions never reached the model.
     else assert.ok(verdict.adaptations.some((a) => (a.field === "config.probabilities" || a.field === "config.response_format") && a.action === "dropped"), `${c.connection.provider}: the dropped probabilities or format are recorded`);
   }
+});
+
+test("on Jev the wire is the docs' request: the state is the input verbatim, the instructions a named key, a transcript the caller's messages array; on a chat wire the same set is the system prompt and a data part as JSON text", async () => {
+  const typesafe: Connection = { provider: "typesafe", model: "jev-latest", endpoint: "" };
+  const state = async (spec: JudgeSpec, value: InputValue) => (JSON.parse(utf8Decode((await createClient(typesafe, "k").buildRequest(judgeRequest(typesafe, spec, value), false)).body)) as { state: unknown; questions: Record<string, unknown> });
+  assert.equal((await state({ ...EXAMPLE_SPEC, instructions: "" }, "A note.")).state, "A note.");
+  assert.deepEqual((await state(EXAMPLE_SPEC, "A note.")).state, { instructions: EXAMPLE_SPEC.instructions, text: "A note." });
+  const fields: JudgeSpec = { ...EXAMPLE_SPEC, shape: "fields", fields: [{ name: "note", type: "text" }, { name: "price_eur", type: "number" }] };
+  assert.deepEqual((await state({ ...fields, instructions: "" }, { note: "A note.", price_eur: 48 })).state, { note: "A note.", price_eur: 48 });
+  assert.deepEqual((await state(fields, { note: "A note.", price_eur: 48 })).state, { instructions: EXAMPLE_SPEC.instructions, note: "A note.", price_eur: 48 });
+  const turns: InputValue = [{ role: "user", content: "Red?" }, { role: "assistant", content: "This one." }];
+  assert.deepEqual((await state({ ...EXAMPLE_SPEC, shape: "conversation", instructions: "" }, turns)).state, { messages: [{ role: "user", content: "Red?" }, { role: "assistant", content: "This one." }] });
+  assert.deepEqual((await state({ ...EXAMPLE_SPEC, shape: "conversation" }, turns)).state, { instructions: EXAMPLE_SPEC.instructions, messages: [{ role: "user", content: "Red?" }, { role: "assistant", content: "This one." }] });
+  // A field named like the instructions key has nowhere to go: refused before any wire, named.
+  assert.throws(() => judgeRequest(typesafe, { ...fields, fields: [{ name: "instructions", type: "text" }] }, { instructions: "x" }), /already named instructions/);
+  // The code says the same: no system= on Jev, the state written out; a chat wire keeps system= and the data part.
+  assert.match(judgeJavascript(typesafe, EXAMPLE_SPEC, ["A note."]), /Message\.user\(\{ type: "data", value: \{ instructions: "These are tasting notes[^"]*", text: input \} \}\)/);
+  assert.doesNotMatch(judgeJavascript(typesafe, EXAMPLE_SPEC, ["A note."]), /system:/);
+  assert.match(judgePython(typesafe, fields, [{ note: "n", price_eur: 1 }]), /Message\.user\(data\(\{"instructions": "These are tasting notes[^"]*", \*\*x\}\)\)/);
+  assert.match(judgePython(typesafe, { ...EXAMPLE_SPEC, shape: "conversation" }, [turns]), /"role": "user",\n\s+"content": "Red\?"/, "a Jev transcript is plain objects, not Message.user calls");
+  assert.doesNotMatch(judgePython(typesafe, { ...EXAMPLE_SPEC, shape: "conversation" }, [turns]), /Message\.user\("Red/);
+  const openai: Connection = { provider: "openai", model: "gpt-4.1-mini", endpoint: "" };
+  assert.match(judgeJavascript(openai, EXAMPLE_SPEC, ["A note."]), /system: "These are tasting notes/);
+  assert.match(judgeJavascript(openai, { ...EXAMPLE_SPEC, shape: "conversation" }, [turns]), /\[Message\.user\("Red\?"\), Message\.assistant\("This one\."\)\]/);
+  const chatBody = JSON.parse(utf8Decode((await createClient(openai, "k").buildRequest(judgeRequest(openai, fields, { note: "A note.", price_eur: 48 }), false)).body)) as { input: Array<{ content: Array<{ text: string }> }> };
+  assert.equal(chatBody.input[0]!.content[0]!.text, '{"note":"A note.","price_eur":48}', "D3: a data part is its compact JSON on a text wire");
 });
 
 test("Rust: the tab names the pin gap and the runtime refuses to judge rather than translate", async () => {

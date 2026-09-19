@@ -5,6 +5,7 @@ import { Credentials } from "./credentials.ts";
 import { renderCode } from "./code-view.ts";
 import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyPage, keyless, rustPinGap, slashCommand, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
 import { JudgeView } from "./judge-ui.ts";
+import type { JudgeSource } from "./judge.ts";
 import { disableAllRelays, enableRelay, looksBrowserBlocked, relayAvailable, relayed, relayedProviders } from "./relay.ts";
 import { Picker, type PickOption, type PickResult } from "./picker.ts";
 import { javascriptRuntime } from "./runtimes/javascript.ts";
@@ -167,12 +168,12 @@ async function updateRequestView(version: number, settingsError: string, text: s
   const chosen = RUNTIMES[runtime];
   if (loadingRuntime || !chosen.loaded()) return show(`${chosen.label} is not loaded yet; the request is built by the runtime that would send it.`);
   if (mode === "judge" && runtime === "rust") return show("The Rust SDK at this pin has no judgments (MAP-14) and no typesafe provider; JavaScript and Python build this request.");
-  let request: Request, which: string;
+  let request: Request, which: string, source: JudgeSource | undefined;
   try {
     if (mode === "judge") {
       const current = judge.currentRequest();
       if (!current) return show("Add an input to see its request.");
-      request = current.request; which = current.label;
+      request = current.request; which = current.label; source = current.source;
     } else {
       if (settingsError) return show(settingsError);
       request = buildRequest(connection, settings, messages, text); which = "this turn";
@@ -181,7 +182,7 @@ async function updateRequestView(version: number, settingsError: string, text: s
   // Without a key, the example key stands in, as in the code; a real key is blanked, never shown.
   const key = credentials.get(connection.provider) ?? EXAMPLE_API_KEY;
   try {
-    const wire = await chosen.wire(connection, key, request);
+    const wire = await chosen.wire(connection, key, request, source);
     if (version !== codeVersion) return;
     const lines = [`${wire.method} ${wire.url}`, "", ...wire.headers.map(([k, v]) => `${k}: ${v}`), ""];
     let body = wire.body;

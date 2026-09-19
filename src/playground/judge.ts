@@ -20,7 +20,7 @@
  */
 
 import { Message, Request as RequestNs, choice, isJsonObject, judgments, judgmentsInSchema, lookup, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "lm15/browser";
-import { ANTHROPIC_BROWSER_HEADER, EXAMPLE_API_KEY, RUST_NOT_YET, baseUrlFor, keyless, type Connection } from "./experience.ts";
+import { ANTHROPIC_BROWSER_HEADER, EXAMPLE_API_KEY, RUST_NOT_YET, baseUrlFor, judgmentsOnly, keyless, type Connection } from "./experience.ts";
 
 export type Shape = "text" | "fields" | "conversation";
 export interface FieldDef { readonly name: string; readonly type: "text" | "number" | "json" }
@@ -205,38 +205,55 @@ function csvRows(text: string): string[][] {
 
 // ─── The request ─────────────────────────────────────────────────────
 
+/** The key under which the instructions ride in Jev's state, and the key a bare text takes beside them. */
+export const JEV_INSTRUCTIONS_KEY = "instructions";
+export const JEV_TEXT_KEY = "text";
+
 /**
- * Where the SDKs at this pin fall short of the contract for a shape, the
- * page says which rule and refuses to run, instead of translating around
- * it. Empty when the pins catch up. types.md §DataPart: in a user message
- * a data part is "a JSON object the provider reads as such (TypeSafe's
- * state) or as JSON text on wires that take only text". At this pin the
- * Responses dialect refuses it (UnsupportedFeatureError, MAP-10) and the
- * Chat, Anthropic and Gemini dialects send an empty text in its place —
- * the input is lost and the call still costs. Both ports, measured
- * 2026-09-18 (tests/judge_examples.test.ts pins it).
+ * Jev's state for an input (changes/2026-09-19-jev-state.md D1/D4): the
+ * one user part, verbatim. Jev has no system prompt and no conversation,
+ * so the page writes what a caller would: the instructions as a named key
+ * of the state, a transcript as the caller's own `messages` array. The
+ * shown code does exactly this; no adapter does anything.
  */
-export function shapeGap(connection: Connection, spec: JudgeSpec): string | undefined {
-  if (spec.shape === "fields" && connection.provider !== "typesafe") return "Fields on a chat wire: the SDKs at this pin do not carry a data part in a user message (the Responses wire refuses it; the Chat, Anthropic and Gemini wires send an empty text in its place), where the contract says it goes as JSON text. TypeSafe reads it as structured state. Until the ports catch up, judge fields with TypeSafe, or use the Text shape here.";
-  return undefined;
+export function jevState(spec: JudgeSpec, value: InputValue): JsonValue {
+  const instructions = spec.instructions.trim();
+  if (Array.isArray(value)) {
+    const messages = (value as readonly Turn[]).map((t) => ({ role: t.role, content: t.content }));
+    return instructions ? { [JEV_INSTRUCTIONS_KEY]: instructions, messages } : { messages };
+  }
+  if (typeof value === "string") return instructions ? { [JEV_INSTRUCTIONS_KEY]: instructions, [JEV_TEXT_KEY]: value } : value;
+  const object = value as Record<string, JsonValue>;
+  if (!instructions) return object;
+  if (JEV_INSTRUCTIONS_KEY in object) throw new Error(`A field is already named ${JEV_INSTRUCTIONS_KEY}: on Jev the instructions go into the state under that key. Rename the field, or clear the instructions.`);
+  return { [JEV_INSTRUCTIONS_KEY]: instructions, ...object };
 }
 
-export function judgeMessages(value: InputValue): Message[] {
+/** The messages an input makes: on Jev the one user part holding the state; on a chat wire the text, the data part, or the transcript, with the instructions as the system prompt. */
+export function judgeMessages(connection: Connection, spec: JudgeSpec, value: InputValue): Message[] {
+  if (judgmentsOnly(connection.provider)) {
+    const state = jevState(spec, value);
+    return [typeof state === "string" ? Message.user(state) : Message.user({ type: "data", value: state })];
+  }
   if (typeof value === "string") return [Message.user(value)];
   if (Array.isArray(value)) return (value as readonly Turn[]).map((t) => t.role === "user" ? Message.user(t.content) : Message.assistant(t.content));
   return [Message.user({ type: "data", value: value as Record<string, JsonValue> })];
 }
 
-/** The one Request an input makes: its messages, the instructions, the declared judgments, probabilities if the wire measures them. */
+/** The one Request an input makes: its messages, the instructions (a system prompt on a chat wire; part of the state on Jev), the declared judgments, probabilities if the wire measures them. */
 export function judgeRequest(connection: Connection, spec: JudgeSpec, value: InputValue): Request {
   const config: Config = { responseFormat: judgments(parseProperties(stringifyJson(spec.properties)) as Record<string, JsonObject>), probabilities: "if_available" };
+  const jev = judgmentsOnly(connection.provider);
   return RequestNs.create({
     model: connection.model.trim(),
-    ...(spec.instructions.trim() ? { system: spec.instructions.trim() } : {}),
-    messages: judgeMessages(value),
+    ...(spec.instructions.trim() && !jev ? { system: spec.instructions.trim() } : {}),
+    messages: judgeMessages(connection, spec, value),
     config,
   });
 }
+
+/** What the page executed a judge request from: the spec and the input. Runtimes that re-render the shown program take it beside the request. */
+export interface JudgeSource { readonly spec: JudgeSpec; readonly value: InputValue }
 
 /** A judge request: a json_schema response format declaring at least one judgment. It is sent with `complete`, never streamed. */
 export function isJudgeRequest(request: Request): boolean {
@@ -244,8 +261,13 @@ export function isJudgeRequest(request: Request): boolean {
   return format?.type === "json_schema" && judgmentsInSchema(format.schema).size > 0;
 }
 
-/** The spec and input a judge Request carries — what a runtime that re-renders its program needs (runtimes/python.ts). */
-export function specOfRequest(request: Request): { spec: JudgeSpec; value: InputValue } {
+/**
+ * The spec and input a chat-wire judge Request carries, read back off it —
+ * the fallback for a runtime that re-renders its program without a
+ * JudgeSource (runtimes/python.ts). A Jev request is not read back: its
+ * state is the caller's object and the page passes the source instead.
+ */
+export function specOfRequest(request: Request): JudgeSource {
   const format = request.config?.responseFormat;
   if (format?.type !== "json_schema" || !isJsonObject(format.schema["properties"])) throw new Error("Not a judge request: no judgments schema.");
   const properties = format.schema["properties"];
@@ -428,30 +450,42 @@ function questionsCode(spec: JudgeSpec, lang: "javascript" | "python"): { lines:
   return { lines, uses };
 }
 
-function jsInput(value: InputValue, level: number): string {
+function jsInput(value: InputValue, level: number, jev: boolean): string {
   if (typeof value === "string") return q(value);
-  if (Array.isArray(value)) return `[${(value as readonly Turn[]).map((t) => `Message.${t.role}(${q(t.content)})`).join(", ")}]`;
+  if (Array.isArray(value)) {
+    const turns = value as readonly Turn[];
+    return jev ? jsLiteral(turns.map((t) => ({ role: t.role, content: t.content })), level) : `[${turns.map((t) => `Message.${t.role}(${q(t.content)})`).join(", ")}]`;
+  }
   return jsLiteral(value as JsonValue, level);
 }
 
-function pyInput(value: InputValue, level: number): string {
+function pyInput(value: InputValue, level: number, jev: boolean): string {
   if (typeof value === "string") return q(value);
-  if (Array.isArray(value)) return `[${(value as readonly Turn[]).map((t) => `Message.${t.role}(${q(t.content)})`).join(", ")}]`;
+  if (Array.isArray(value)) {
+    const turns = value as readonly Turn[];
+    return jev ? pyLiteral(turns.map((t) => ({ role: t.role, content: t.content })), level) : `[${turns.map((t) => `Message.${t.role}(${q(t.content)})`).join(", ")}]`;
+  }
   return pyLiteral(value as JsonValue, level);
 }
 
 const SHAPE_NOTE: Record<Shape, string> = {
   text: "one text per call",
-  fields: "one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks",
-  conversation: "one transcript per call: Jev reads {system, messages} and a question can point at a turn (`messages[1].content`)",
+  fields: "one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text",
+  conversation: "one transcript per call",
+};
+/** On Jev the state is the one user part: the page writes the instructions and the transcript into it as a caller would (2026-09-19 D4). */
+const JEV_STATE_NOTE: Record<Shape, string> = {
+  text: `Jev has no system prompt: the instructions ride in the state as \`${JEV_INSTRUCTIONS_KEY}\`, the text as \`${JEV_TEXT_KEY}\``,
+  fields: `Jev has no system prompt: the instructions ride in the state as \`${JEV_INSTRUCTIONS_KEY}\` beside the fields`,
+  conversation: `Jev has no conversation: the transcript is the state's \`messages\` array, and a question can point at a turn (\`messages[1].content\`)`,
 };
 
 /** The JavaScript that judges every input in turn: this page's client, loaded as `lm15/browser`. */
 export function judgeJavascript(connection: Connection, spec: JudgeSpec, inputs: readonly InputValue[]): string {
   const { lines: questionLines, uses } = questionsCode(spec, "javascript");
   const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", ...(connection.provider === "anthropic" ? ["access"] : []), "Message", "Request", "judgments", ...[...uses].sort()];
-  const gap = shapeGap(connection, spec);
-  const lines = [...(gap ? [`// ${gap}`, "// The page does not run this; it is shown as the SDK would take it.", ""] : []), `import { ${imports.join(", ")} } from "lm15/browser";`, ""];
+  const jev = judgmentsOnly(connection.provider);
+  const lines = [`import { ${imports.join(", ")} } from "lm15/browser";`, ""];
   const relay = baseUrlFor(connection);
   if (connection.provider === "custom") lines.push("const lm = new OpenAIChatLM({", '  apiKey: "unused", // keyless custom server', `  baseUrl: ${q(connection.endpoint)},`, "});");
   else {
@@ -461,10 +495,19 @@ export function judgeJavascript(connection: Connection, spec: JudgeSpec, inputs:
     lines.push("});");
   }
   lines.push("", "// Declared keys in, a distribution out (MAP-14).", "const questions = judgments({", ...questionLines, "});", "");
-  lines.push(`// ${SHAPE_NOTE[spec.shape]}.`, "const inputs = [", ...inputs.map((v) => `  ${jsInput(v, 1)},`), "];", "");
-  const messages = spec.shape === "conversation" ? "input" : spec.shape === "fields" ? '[Message.user({ type: "data", value: input })]' : "[Message.user(input)]";
+  lines.push(`// ${SHAPE_NOTE[spec.shape]}.`, "const inputs = [", ...inputs.map((v) => `  ${jsInput(v, 1, jev)},`), "];", "");
+  const instructions = spec.instructions.trim();
+  let messages: string;
+  if (jev) {
+    // The state, as the caller writes it (D4): verbatim, with the instructions as a named key.
+    const state = spec.shape === "conversation" ? (instructions ? `{ ${JEV_INSTRUCTIONS_KEY}: ${q(instructions)}, messages: input }` : "{ messages: input }")
+      : spec.shape === "fields" ? (instructions ? `{ ${JEV_INSTRUCTIONS_KEY}: ${q(instructions)}, ...input }` : "input")
+      : instructions ? `{ ${JEV_INSTRUCTIONS_KEY}: ${q(instructions)}, ${JEV_TEXT_KEY}: input }` : "input";
+    messages = spec.shape === "text" && !instructions ? "[Message.user(input)]" : `[Message.user({ type: "data", value: ${state} })]`;
+    if (instructions || spec.shape === "conversation") lines.push(`// ${JEV_STATE_NOTE[spec.shape]}.`);
+  } else messages = spec.shape === "conversation" ? "input" : spec.shape === "fields" ? '[Message.user({ type: "data", value: input })]' : "[Message.user(input)]";
   lines.push("for (const input of inputs) {", "  const request = Request.create({", `    model: ${q(connection.model)},`);
-  if (spec.instructions.trim()) lines.push(`    system: ${q(spec.instructions.trim())},`);
+  if (instructions && !jev) lines.push(`    system: ${q(instructions)},`);
   lines.push(`    messages: ${messages},`, `    config: { responseFormat: questions, probabilities: "if_available" },`, "  });", "  const response = await lm.complete(request);", "  console.log(response.data); // the picked key per judgment", "  console.log(response.probabilities); // one distribution per judgment where the provider measures one; else absent and recorded", "  console.log(response.adaptations); // MAP-13: what this wire could not take as asked", "}");
   return lines.join("\n");
 }
@@ -476,9 +519,11 @@ export function judgePython(connection: Connection, spec: JudgeSpec, inputs: rea
   const definition = lookup(connection.provider);
   const cls = connection.provider === "custom" ? "AsyncOpenAIChatLM" : (PY_CLASS[definition?.dialect ?? "openai-chat"] ?? "AsyncOpenAIChatLM");
   const { lines: questionLines, uses } = questionsCode(spec, "python");
-  const names = [cls, "Config", "Message", "Request", "judgments", ...(spec.shape === "fields" ? ["data"] : []), ...uses].sort();
-  const gap = shapeGap(connection, spec);
-  const lines = [...(gap ? [`# ${gap}`, "# The page does not run this; it is shown as the SDK would take it.", ""] : []), `from lm15 import ${names.join(", ")}`];
+  const jev = judgmentsOnly(connection.provider);
+  const instructions = spec.instructions.trim();
+  const usesData = spec.shape === "fields" || (jev && (Boolean(instructions) || spec.shape === "conversation"));
+  const names = [cls, "Config", "Message", "Request", "judgments", ...(usesData ? ["data"] : []), ...uses].sort();
+  const lines = [`from lm15 import ${names.join(", ")}`];
   if (connection.provider === "anthropic") lines.push("from lm15.access import ANTHROPIC_API");
   lines.push("from lm15.transports import FetchTransport  # in a page (Pyodide); on CPython drop this and transport=", "", `lm = ${cls}(`, `    api_key=${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)},`);
   const relay = baseUrlFor(connection);
@@ -487,10 +532,17 @@ export function judgePython(connection: Connection, spec: JudgeSpec, inputs: rea
   if (connection.provider !== "custom" && definition?.bound) lines.push(`    compat=${q(connection.provider)},`);
   if (connection.provider === "anthropic") lines.push("    # A page must say it means to call Anthropic directly.", `    access=ANTHROPIC_API.with_headers({${q(ANTHROPIC_BROWSER_HEADER[0])}: ${q(ANTHROPIC_BROWSER_HEADER[1])}}),`);
   lines.push("    transport=FetchTransport(),", ")", "", "# Declared keys in, a distribution out (MAP-14).", "questions = judgments(", ...questionLines, ")", "");
-  lines.push(`# ${SHAPE_NOTE[spec.shape]}.`, "inputs = [", ...inputs.map((v) => `    ${pyInput(v, 1)},`), "]", "");
-  const messages = spec.shape === "conversation" ? "x" : spec.shape === "fields" ? "[Message.user(data(x))]" : "[Message.user(x)]";
+  lines.push(`# ${SHAPE_NOTE[spec.shape]}.`, "inputs = [", ...inputs.map((v) => `    ${pyInput(v, 1, jev)},`), "]", "");
+  let messages: string;
+  if (jev) {
+    const state = spec.shape === "conversation" ? (instructions ? `{${q(JEV_INSTRUCTIONS_KEY)}: ${q(instructions)}, "messages": x}` : `{"messages": x}`)
+      : spec.shape === "fields" ? (instructions ? `{${q(JEV_INSTRUCTIONS_KEY)}: ${q(instructions)}, **x}` : "x")
+      : instructions ? `{${q(JEV_INSTRUCTIONS_KEY)}: ${q(instructions)}, ${q(JEV_TEXT_KEY)}: x}` : "x";
+    messages = spec.shape === "text" && !instructions ? "[Message.user(x)]" : `[Message.user(data(${state}))]`;
+    if (instructions || spec.shape === "conversation") lines.push(`# ${JEV_STATE_NOTE[spec.shape]}.`);
+  } else messages = spec.shape === "conversation" ? "x" : spec.shape === "fields" ? "[Message.user(data(x))]" : "[Message.user(x)]";
   lines.push("for x in inputs:", "    request = Request(", `        model=${q(connection.model)},`);
-  if (spec.instructions.trim()) lines.push(`        system=${q(spec.instructions.trim())},`);
+  if (instructions && !jev) lines.push(`        system=${q(instructions)},`);
   lines.push(`        messages=${messages},`, `        config=Config(response_format=questions, probabilities="if_available"),`, "    )", "    response = await lm.complete(request)", "    print(response.data)  # the picked key per judgment", "    print(response.probabilities)  # one distribution per judgment where the provider measures one; else None and recorded", "    print(response.adaptations)  # MAP-13: what this wire could not take as asked");
   return lines.join("\n");
 }

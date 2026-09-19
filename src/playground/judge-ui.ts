@@ -10,7 +10,7 @@
 
 import { judgmentsInSchema, stringifyJson, type Judgment, type JsonObject, type JsonValue, type Request } from "lm15/browser";
 import { keyless, type Connection } from "./experience.ts";
-import { EXAMPLE_INPUTS, EXAMPLE_SPEC, EXAMPLE_FIELDS, shapeGap, distribution, emptyInput, expectedLevel, fieldText, fieldValue, freeName, inputIsBlank, inputSummary, judgeJavascript, judgePython, judgeRequest, judgeRust, parseCsv, parseInputs, parseProperties, pickLabel, readQuestions, toCsv, toJsonExport, verdictOf, withQuestion, withoutQuestion, type FieldDef, type InputValue, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type Turn, type Verdict } from "./judge.ts";
+import { JEV_INSTRUCTIONS_KEY, JEV_TEXT_KEY, jevState, EXAMPLE_INPUTS, EXAMPLE_SPEC, EXAMPLE_FIELDS, distribution, emptyInput, expectedLevel, fieldText, fieldValue, freeName, inputIsBlank, inputSummary, judgeJavascript, judgePython, judgeRequest, judgeRust, parseCsv, parseInputs, parseProperties, pickLabel, readQuestions, toCsv, toJsonExport, verdictOf, withQuestion, withoutQuestion, type FieldDef, type InputValue, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type Turn, type Verdict } from "./judge.ts";
 import { looksBrowserBlocked, relayed } from "./relay.ts";
 import type { Runtime, RuntimeId } from "./runtimes/index.ts";
 
@@ -65,6 +65,7 @@ export class JudgeView {
   private running: AbortController | undefined;
   private generation = 0;
   private readonly host: JudgeHost;
+  private lastProvider = "";
 
   constructor(host: JudgeHost) {
     this.host = host;
@@ -87,16 +88,18 @@ export class JudgeView {
 
   busy(): boolean { return this.running !== undefined; }
 
-  /** The request one input makes — the selected row, else the first — for the Request view; which one it is, in words. */
-  currentRequest(): { request: Request; label: string } | undefined {
+  /** The request one input makes — the selected row, else the first — for the Request view; which one it is, in words; and what it was built from. */
+  currentRequest(): { request: Request; source: JudgeSource; label: string } | undefined {
     const rows = this.rows.filter((r) => !inputIsBlank(r.value));
     const row = rows.find((r) => r.id === this.selected) ?? rows[0];
     if (!row) return undefined;
-    return { request: judgeRequest(this.host.connection, this.spec, row.value), label: `input ${this.rows.indexOf(row) + 1} of ${this.rows.length}` };
+    return { request: judgeRequest(this.host.connection, this.spec, row.value), source: { spec: this.spec, value: row.value }, label: `input ${this.rows.indexOf(row) + 1} of ${this.rows.length}` };
   }
 
   /** The provider, model, key or runtime changed. */
   refresh(): void {
+    const provider = this.host.connection.provider;
+    if (provider !== this.lastProvider) { this.lastProvider = provider; this.renderQuestions(); }
     $("judge-provider-name").textContent = this.host.providerLabel();
     $("judge-model-name").textContent = this.host.connection.model || "Choose model";
     $("judge-provider-button").title = this.host.providerLabel();
@@ -178,14 +181,16 @@ export class JudgeView {
     $("judge-questions-error").hidden = !error || this.rawMode;
     $("judge-questions-error").textContent = error ?? "";
     const hint = $("judge-paths-hint");
-    hint.hidden = this.spec.shape === "text";
+    const jev = this.host.connection.provider === "typesafe";
+    const instructions = Boolean(this.spec.instructions.trim());
+    hint.hidden = this.spec.shape === "text" && !(jev && instructions);
     const field = this.spec.fields.length ? this.spec.fields[0]!.name : "note";
-    // D6: alone, the object is Jev's whole state; with instructions, the state is {system, messages} and the object is the first message's content.
+    // The state is the input verbatim (2026-09-19 D1); on Jev the page writes the instructions into it as a named key (D4), so every path is the input's own.
     hint.replaceChildren(...(this.spec.shape === "fields"
-      ? this.spec.instructions.trim()
-        ? this.hintNodes("Inputs have fields. With instructions set, Jev's state is {system, messages} and the object is the first message's content: point a question at a field with ", `\`messages[0].content[0].${field}\``, ". Clear the instructions and the object is the whole state: `" + field + "`.")
-        : this.hintNodes("Inputs have fields. A question can point at one with backticks, e.g. ", `\`${field}\``, ". Without a path, Jev reads the whole object.")
-      : this.hintNodes("Inputs are conversations. A question can point at a turn with backticks, e.g. ", "`messages[-1].content`", " for the last message. Without a path, Jev reads the whole transcript.")));
+      ? this.hintNodes("Inputs have fields. A question can point at one with backticks, e.g. ", `\`${field}\``, jev && instructions ? `. On Jev the instructions ride beside them as \`${JEV_INSTRUCTIONS_KEY}\`. Without a path, Jev reads the whole object.` : ". Without a path, Jev reads the whole object; a chat model gets the object as JSON text.")
+      : this.spec.shape === "conversation"
+        ? this.hintNodes("Inputs are conversations. On Jev the transcript is the state's `messages` array: a question can point at a turn with backticks, e.g. ", "`messages[1].content`", instructions ? `; the instructions ride beside it as \`${JEV_INSTRUCTIONS_KEY}\`. A chat model gets the turns as its conversation.` : ". A chat model gets the turns as its conversation.")
+        : this.hintNodes("Jev has no system prompt: the instructions ride in the state as ", `\`${JEV_INSTRUCTIONS_KEY}\``, ` and the text as \`${JEV_TEXT_KEY}\`; a question can point at either.`)));
     document.body.dataset.judgeRaw = String(this.rawMode);
   }
 
@@ -572,10 +577,11 @@ export class JudgeView {
     // With some rows changed, the main button judges only those; a second, quieter one redoes the whole set.
     const again = $<HTMLButtonElement>("judge-run-again"); again.hidden = !partial || Boolean(this.running);
     const rustPinned = this.host.runtime() === "rust";
-    const gap = shapeGap(this.host.connection, this.spec);
+    const gap = this.stateError();
     run.disabled = Boolean(this.running) || !this.host.runtimeReady() || calls === 0 || Boolean(this.questionsError()) || rustPinned || Boolean(gap);
     run.title = rustPinned ? "The Rust SDK at this pin has no judgments (MAP-14). Judge with JavaScript or Python." : gap ?? "";
     const note = $("judge-gap"); note.hidden = !gap && !rustPinned; note.textContent = gap ?? (rustPinned ? run.title : "");
+    $("judge-instructions-note").textContent = this.host.connection.provider === "typesafe" ? `Jev takes no system text: sent in the state as the key ${JEV_INSTRUCTIONS_KEY}` : "sent as the system text";
     $<HTMLButtonElement>("judge-stop").disabled = !this.running;
     $<HTMLButtonElement>("judge-run-again").disabled = run.disabled;
     $("judge-in-count").textContent = `${n} · ${this.spec.shape === "text" ? "one text each" : this.spec.shape === "fields" ? "one object each" : "one transcript each"}`;
@@ -590,11 +596,18 @@ export class JudgeView {
     $<HTMLButtonElement>("judge-export-csv").disabled = !hasResults; $<HTMLButtonElement>("judge-export-json").disabled = !hasResults; $<HTMLButtonElement>("judge-clear-results").disabled = !hasResults;
   }
 
+  /** On Jev the instructions become a state key; a field of that name has nowhere to go (D4). */
+  private stateError(): string | undefined {
+    if (this.host.connection.provider !== "typesafe") return undefined;
+    for (const row of this.rows) { try { jevState(this.spec, row.value); } catch (e) { return (e as Error).message; } }
+    return undefined;
+  }
+
   private showAlert(text = ""): void { const el = $("judge-alert"); el.textContent = text; el.hidden = !text; }
 
   /** Judge the changed inputs, or — `all`, or when nothing changed — every input again. */
   async run(all = false): Promise<void> {
-    if (this.running || !this.host.runtimeReady() || this.host.runtime() === "rust" || shapeGap(this.host.connection, this.spec)) return;
+    if (this.running || !this.host.runtimeReady() || this.host.runtime() === "rust" || this.stateError()) return;
     const error = this.questionsError();
     if (error) { this.showAlert(error); return; }
     if (!this.host.requireKey()) return;
@@ -615,7 +628,7 @@ export class JudgeView {
         const request = judgeRequest(connection, this.spec, row.value);
         const started = performance.now();
         try {
-          const response = await runtime.judge(connection, this.host.key(), request, controller.signal);
+          const response = await runtime.judge(connection, this.host.key(), request, controller.signal, { spec: this.spec, value: row.value });
           if (generation !== this.generation) return;
           row.verdict = verdictOf(response, { ms: Math.round(performance.now() - started), provider: connection.provider, model: connection.model, runtime: runtime.label });
           row.stale = false; delete row.error;
@@ -684,7 +697,7 @@ export class JudgeView {
     });
     $("judge-raw-format").addEventListener("click", () => { try { this.rawText = stringifyJson(parseProperties(this.rawText), { indent: 2 }); raw.value = this.rawText; this.renderRawStatus(); } catch { /* status shows the error */ } });
     $<HTMLSelectElement>("judge-add-question").addEventListener("change", (e) => { const select = e.target as HTMLSelectElement; if (select.value) this.addQuestion(select.value as QuestionKind); select.value = ""; });
-    $<HTMLTextAreaElement>("judge-instructions").addEventListener("input", (e) => { this.spec = { ...this.spec, instructions: (e.target as HTMLTextAreaElement).value }; for (const r of this.rows) r.stale = true; this.changed(); if (this.spec.shape === "fields") this.renderQuestions(); });
+    $<HTMLTextAreaElement>("judge-instructions").addEventListener("input", (e) => { this.spec = { ...this.spec, instructions: (e.target as HTMLTextAreaElement).value }; for (const r of this.rows) r.stale = true; this.changed(); this.renderQuestions(); });
     $("judge-export-csv").addEventListener("click", () => this.download("judgments.csv", "text/csv", toCsv(this.spec, this.rows.map((r) => ({ value: r.value, ...(r.verdict && !r.stale ? { verdict: r.verdict } : {}) })))));
     $("judge-export-json").addEventListener("click", () => this.download("judgments.json", "application/json", toJsonExport(this.spec, this.rows.map((r) => ({ value: r.value, ...(r.verdict && !r.stale ? { verdict: r.verdict } : {}) })))));
     $("judge-clear-results").addEventListener("click", () => { for (const r of this.rows) { delete r.verdict; delete r.error; r.stale = true; } this.showAlert(); this.changed(); });

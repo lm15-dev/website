@@ -74,24 +74,29 @@ view over it, reading with the SDK's `judgmentsInSchema` and writing with its
 property the form cannot show is kept verbatim and named.
 
 Inputs have a shape: **Text** (one string each), **Fields** (one JSON object
-each, sent as a data part — Jev reads it as structured state) or
-**Conversation** (one transcript each). Each shape keeps its own inputs. A
-question can point at a piece of a structured input with backticks; the hint
-above the questions names the path under contract rule D6. The code panel is
-the whole set as one loop, in the SDK's own spelling; Python executes that
-program with one input, the loop body unchanged (`judgeProgram`).
+each, sent as a data part — Jev reads it as structured state; a chat wire
+gets it as JSON text) or **Conversation** (one transcript each). Each shape
+keeps its own inputs. A question can point at a piece of a structured input
+with backticks; the hint above the questions names the path. The code panel
+is the whole set as one loop, in the SDK's own spelling; Python executes that
+program with one input, the loop body unchanged (`judgeProgram`, given the
+spec and input it was built from).
+
+On Jev the state is the one user part, verbatim (contract
+2026-09-19-jev-state, D1): Jev has no system prompt and no conversation, so
+the page writes what a caller would — the instructions as the state key
+`instructions` (a bare text goes beside it as `text`), a transcript as the
+state's `messages` array — and the shown code does exactly that
+(`jevState`). A field named `instructions` is refused by name. On a chat
+wire the instructions are the system prompt and the turns are the
+conversation.
 
 Every provider judges: TypeSafe measures the probability of every declared
 key and the outputs draw the distribution (a sparkline per question; hover or
 tap for the numbers); a chat wire answers the pick and the row records
 `config.probabilities dropped`. Z.AI's wire takes no schema at all: the row
 says the questions never reached the model. Rust is pinned before MAP-14, so
-the tab says so and Run is off. Where the SDK pins fall short of the contract
-for a shape, the page names the rule and does not run
-(`shapeGap`: at this pin, Fields on a chat wire — the Responses dialect refuses
-a user data part and the Chat, Anthropic and Gemini dialects send an empty text
-in its place; `tests/judge_examples.test.ts` pins that until the ports catch
-up).
+the tab says so and Run is off.
 
 The run is sequential (the shown loop), stops at the first failure with the
 input named, offers the relay on a browser-blocked provider and resumes
@@ -120,8 +125,8 @@ teaching example. Plain text turns use short Message constructors in the code;
 messages with metadata or continuation state retain the full canonical replay.
 
 `npm test` checks 66 generated chat request variants per SDK, including the
-teaching conversation with no token cap, and 36 Judge variants (every provider
-in each shape) in JavaScript and Python. `npm run rust:snippets` updates the standalone
+teaching conversation with no token cap, and 48 Judge variants (every provider
+in each shape, with and without instructions) in JavaScript and Python. `npm run rust:snippets` updates the standalone
 Rust example project; from `examples/rust`, `rcargo check --locked` verifies its
 55 snippets without running provider requests.
 

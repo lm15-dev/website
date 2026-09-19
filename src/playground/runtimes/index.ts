@@ -10,6 +10,7 @@
 
 import type { Message, Request, Response } from "lm15/browser";
 import type { Connection, Wire } from "../experience.ts";
+import type { JudgeSource } from "../judge.ts";
 
 export type RuntimeId = "javascript" | "python" | "rust";
 
@@ -25,12 +26,12 @@ export interface Runtime {
   loaded(): boolean;
   /** Fetch and start the runtime (Pyodide: ~13 MB once; the Rust codec: 1 MB). Reports progress. */
   load(report: (status: string) => void): Promise<void>;
-  /** The exact request this runtime would send. No network. The key is used, never returned. */
-  wire(connection: Connection, key: string | undefined, request: Request): Promise<Wire>;
+  /** The exact request this runtime would send. No network. The key is used, never returned. A judge request comes with what it was built from. */
+  wire(connection: Connection, key: string | undefined, request: Request, source?: JudgeSource): Promise<Wire>;
   /** Send and stream. `onText` receives text as it arrives; the Response is the runtime's own, materialized. */
   stream(connection: Connection, key: string | undefined, request: Request, signal: AbortSignal, onText: (text: string) => void): Promise<Response>;
-  /** Judge one input (judge.ts): one `complete`, one piece back. The Response is the runtime's own. */
-  judge(connection: Connection, key: string | undefined, request: Request, signal: AbortSignal): Promise<Response>;
+  /** Judge one input (judge.ts): one `complete`, one piece back. The Response is the runtime's own. `source` is the spec and input the request was built from, for a runtime that re-renders the shown program. */
+  judge(connection: Connection, key: string | undefined, request: Request, signal: AbortSignal, source?: JudgeSource): Promise<Response>;
 }
 
 /** A canonical Message from a runtime that returned JSON. */

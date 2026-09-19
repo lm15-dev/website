@@ -112,11 +112,27 @@ df = pd.DataFrame([r.data | {"quality_expected": r.expected("quality")} for r in
 df["quality"] = pd.Categorical(df.quality, categories=range(5), ordered=True)
 ```
 
-## Structured input
+## Structured input, and what Jev takes
 
-`Message.user(data({...}))` sends a JSON object as the state. Jev reads it
-as such (so backticked paths like `` `ticket.text` `` in a question resolve);
-text-only wires get it as JSON.
+`Message.user(data({...}))` sends a JSON value as the state, verbatim. Jev
+reads it as such (so backticked paths like `` `ticket.text` `` in a question
+resolve); a text-only wire gets it as compact JSON in a text slot.
+
+Jev's state is **the one user message, one part, exactly as you wrote it**
+— a string, an object, or an array — and nothing else. Jev has no system
+prompt and no conversation, so the SDK never invents one:
+
+- Context that a system prompt would carry goes **in the state as a named
+  key** (`data({"policy": "...", "note": "..."})`) or in the question's own
+  description. A `system` on a Jev request is refused, with those two
+  places named.
+- A transcript goes in the state as your own object
+  (`data({"messages": [{"from": "customer", "text": "..."}]})`), where a
+  question can point at a turn. Several messages are refused.
+
+The same request, sent to a chat model, gets you the pick (the data part
+travels as JSON text). Contract:
+[2026-09-19 · Jev's state](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-19-jev-state.md).
 
 ## Read more
 

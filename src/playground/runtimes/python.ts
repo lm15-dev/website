@@ -11,7 +11,7 @@
 
 import { Message, Response, type Request } from "lm15/browser";
 import { EXAMPLE_API_KEY, examplePython, keyless, streams, type Connection, type Settings, type Wire } from "../experience.ts";
-import { isJudgeRequest, judgePython, specOfRequest } from "../judge.ts";
+import { isJudgeRequest, judgePython, specOfRequest, type JudgeSource } from "../judge.ts";
 import type { Runtime } from "./index.ts";
 
 interface Pyodide {
@@ -78,15 +78,16 @@ export const pythonRuntime: Runtime = {
   loaded: () => pyodide !== undefined,
   load: async (report) => void (await boot(report)),
 
-  async wire(connection, key, request): Promise<Wire> {
+  async wire(connection, key, request, source): Promise<Wire> {
     const py = await boot(() => {});
     // The same construction with the sync class (no transport needed) and its
     // build_request: the bytes, no network. Public API only. A judge request
     // is the shown loop's program with this one input; the request is built
     // in the loop body, so the head runs up to it and one iteration is unrolled.
     const judged = isJudgeRequest(request);
-    const source = judged ? judgePython(connection, specOfRequest(request).spec, [specOfRequest(request).value]) : examplePython(connection, settingsOf(request), ...splitArgs(request));
-    const head = (judged ? unrollOne(source) : source.split(/\n(?:result = AsyncResponseStream|response = await lm\.complete)/)[0]!)
+    const from = source ?? (judged ? specOfRequest(request) : undefined);
+    const shown = from ? judgePython(connection, from.spec, [from.value]) : examplePython(connection, settingsOf(request), ...splitArgs(request));
+    const head = (from ? unrollOne(shown) : shown.split(/\n(?:result = AsyncResponseStream|response = await lm\.complete)/)[0]!)
       .replace(/\bAsync(OpenAILM|OpenAIChatLM|AnthropicLM|GeminiLM|TypeSafeLM)\b/g, "$1")
       .replace(/^from lm15\.transports import FetchTransport.*\n/m, "")
       .replace(/^    transport=FetchTransport\(\),\n/m, "");
@@ -122,10 +123,10 @@ json.dumps(response_to_dict(response))
     }
   },
 
-  async judge(connection, key, request, signal): Promise<Response> {
+  async judge(connection, key, request, signal, source): Promise<Response> {
     const py = await boot(() => {});
     py.setStdout({ batched: () => {} });
-    const program = withKey(judgeProgram(connection, request), key, connection);
+    const program = withKey(judgeProgram(connection, request, source), key, connection);
     // Pyodide cannot interrupt a running coroutine from here; an abort is honoured between inputs by the caller, and the reply of a stopped call is dropped.
     try {
       const out = String(await py.runPythonAsync(program));
@@ -154,8 +155,8 @@ function settingsOf(request: Request): Settings {
  * runs unchanged (judge.ts pins that the displayed program and this one
  * differ only in the list).
  */
-export function judgeProgram(connection: Connection, request: Request): string {
-  const { spec, value } = specOfRequest(request);
+export function judgeProgram(connection: Connection, request: Request, source?: JudgeSource): string {
+  const { spec, value } = source ?? specOfRequest(request);
   return `${judgePython(connection, spec, [value])}
 import json
 from lm15.serde import response_to_dict
