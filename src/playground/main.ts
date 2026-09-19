@@ -9,6 +9,7 @@ import type { JudgeSource } from "./judge.ts";
 import { disableAllRelays, enableRelay, looksBrowserBlocked, relayAvailable, relayed, relayedProviders } from "./relay.ts";
 import { Picker, type PickOption, type PickResult } from "./picker.ts";
 import { javascriptRuntime } from "./runtimes/javascript.ts";
+import { displayError } from "./error-display.ts";
 import type { Runtime, RuntimeId } from "./runtimes/index.ts";
 import { pythonRuntime } from "./runtimes/python.ts";
 import { rustRuntime } from "./runtimes/rust.ts";
@@ -111,7 +112,7 @@ function redact(text: string): string {
   return text;
 }
 function errorMessage(error: unknown): string {
-  const named = error instanceof Error && error.name !== "Error" ? `${error.name}: ${error.message}` : error instanceof Error ? error.message : String(error);
+  const named = displayError(error);
   return redact(named) + (looksBrowserBlocked(error) ? (relayed(connection.provider) ? "\nThe relay could not be reached." : "\nThe provider may block browser access, or the network failed.") : "");
 }
 function currentChoice() { return CONNECTIONS.find((choice) => choice.id === connection.provider)!; }

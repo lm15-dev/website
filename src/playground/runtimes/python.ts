@@ -13,6 +13,7 @@ import { Message, Response, type Request } from "lm15/browser";
 import { EXAMPLE_API_KEY, examplePython, keyless, streams, type Connection, type Settings, type Wire } from "../experience.ts";
 import { isJudgeRequest, judgePython, specOfRequest, type JudgeSource } from "../judge.ts";
 import type { Runtime } from "./index.ts";
+import { translatePythonError as translate } from "../error-display.ts";
 
 interface Pyodide {
   runPythonAsync(code: string): Promise<unknown>;
@@ -162,17 +163,5 @@ import json
 from lm15.serde import response_to_dict
 json.dumps(response_to_dict(response))
 `;
-}
-
-/** A Python exception, as one line a person can read: the lm15 error class and its message. */
-function translate(error: unknown, signal: AbortSignal): Error {
-  const text = error instanceof Error ? error.message : String(error);
-  if (signal.aborted) return Object.assign(new Error("stopped"), { name: "TransportError" });
-  const lines = text.trim().split("\n");
-  const last = lines[lines.length - 1] ?? text;
-  const match = /^lm15\.[\w.]*?(\w+Error): (.*)$/.exec(last) ?? /^(\w+Error): (.*)$/.exec(last);
-  const out = new Error(match ? match[2]! : last);
-  out.name = match ? match[1]! : "PythonError";
-  return out;
 }
 

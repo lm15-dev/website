@@ -113,6 +113,27 @@ TypeSafe answers judgments only: choosing it from Chat opens Judge, and Chat
 is closed while it is selected. The former **Ask for judgments** switch in
 Chat is gone; judgments are Judge mode.
 
+## Error diagnostics
+
+The JavaScript runtime uses the SDK's error formatter, not just its message,
+so request IDs, retry advice and rate-limit headers remain visible. Python
+exception translation removes traceback frames but keeps the complete multiline
+error message. The page redacts remembered/in-memory credentials after formatting.
+A provider that does not expose diagnostic headers through CORS leaves them absent;
+the page does not switch endpoints or retry to obtain them. Rust remains at its
+existing pin and does not yet carry the new rate-limit diagnostics.
+
+`tests/error_diagnostics_page.test.ts` checks actual JavaScript and Python
+runtime errors in the page, for both HTTP 429 and an error inside HTTP 200 SSE.
+It uses dummy credentials and intercepted requests only; `SITE_URL` can select
+the live deployment for the same test without sending real inference requests.
+
+Node-hosted Pyodide leaves interpreter handles alive after assertions finish.
+The unit/integration commands use Node's `--test-force-exit` after test completion;
+it does not skip test failures. Browser tests exit normally. The full Rust
+integration comparison against the latest contract still reports the existing
+structured-data pin gap; upgrading Rust is separate from this runtime update.
+
 ## Teaching example
 
 The initial conversation asks what LM15 is, includes one short answer, and has
