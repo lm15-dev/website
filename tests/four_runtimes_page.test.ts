@@ -13,7 +13,8 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
   t.after(() => { demo.server.closeAllConnections(); return new Promise<void>((resolve) => demo.server.close(() => resolve())); });
   const browser = await chromium.launch({ executablePath: installed.bin }); t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-  const origin = new URL(demo.url).origin;
+  const target = process.env["SITE_URL"] ? new URL("/playground/", process.env["SITE_URL"]).href : demo.url;
+  const origin = new URL(target).origin;
   const calls: Array<{ url: string; body: Record<string, unknown>; raw: string }> = [];
   const assets: string[] = [];
   const errors: string[] = [];
@@ -42,7 +43,9 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
     return route.fulfill({ status: 200, contentType: "text/event-stream", body: streamFor(url.href, "Hello 🍷 from wasm") });
   });
   t.after(() => release?.());
-  await page.goto(demo.url); await disableDiscovery(page);
+  await page.goto(target);
+  if (process.env["SITE_URL"]) assert.equal(new URL(page.url()).protocol, "https:");
+  await disableDiscovery(page);
   assert.equal(await page.locator("[data-language]").count(), 4);
   assert.equal(assets.some((path) => path.includes("/vendor/go/") || path.includes("/vendor/rust/")), false);
   await page.getByLabel("API key", { exact: true }).fill("offline-dummy-key");
