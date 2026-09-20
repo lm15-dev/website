@@ -59,7 +59,7 @@ const wasm = ensureRustWasm();
 test("Python key injection changes only the credential field, never example text", () => {
   for (const provider of ["openai", "custom"]) {
     const connection: Connection = { provider, model: "test", endpoint: "http://localhost:1234/v1" };
-    const source = examplePython(connection, DEFAULT_SETTINGS, exampleConversation(), EXAMPLE_API_KEY);
+    const source = examplePython(connection, DEFAULT_SETTINGS, exampleConversation(), EXAMPLE_API_KEY).text;
     const program = withKey(source, "real-test-key", connection);
     assert.ok(program.includes(`Message.user(${JSON.stringify(EXAMPLE_API_KEY)})`));
     if (provider === "custom") assert.equal(program, source);
@@ -95,7 +95,7 @@ async function expected(c: (typeof cases)[number]) {
 
 test(`JavaScript: all ${cases.length} variants type-check, execute, and build the page's request`, { timeout: 120_000 }, async (t) => {
   assert.equal(cases.length, 66);
-  const sources = cases.map((c) => exampleJavascript(c.connection, c.settings, c.messages, prompt).replace("console.log(text)", "void text"));
+  const sources = cases.map((c) => exampleJavascript(c.connection, c.settings, c.messages, prompt).text.replace("console.log(text)", "void text"));
   const files = new Map(sources.map((source, i) => [resolve(root, `src/playground/__example_${i}.ts`), source]));
   const options: ts.CompilerOptions = { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, strict: true, noEmit: true, skipLibCheck: true, types: [], lib: ["lib.es2023.d.ts", "lib.dom.d.ts"] };
   const host = ts.createCompilerHost(options);
@@ -142,7 +142,7 @@ test(`Python under Pyodide: all ${cases.length} variants execute and build the s
   for (const c of cases) {
     calls = [];
     const want = await expected(c);
-    const source = examplePython(c.connection, c.settings, c.messages, prompt).replace(JSON.stringify(EXAMPLE_API_KEY), JSON.stringify(c.key));
+    const source = examplePython(c.connection, c.settings, c.messages, prompt).text.replace(JSON.stringify(EXAMPLE_API_KEY), JSON.stringify(c.key));
     let out: string;
     try {
       out = String(await py.runPythonAsync(`${source}\nimport json\nfrom lm15.serde import response_to_dict\njson.dumps(response_to_dict(response))`));
@@ -186,7 +186,7 @@ test("Rust: standalone examples match the generator and the pinned SDK imports",
   assert.ok(existsSync(rustExamplesPath), `${rustExamplesPath} is missing; run npm run rust:snippets`);
   assert.equal(readFileSync(rustExamplesPath, "utf-8"), rendered, "the Rust snippets drifted; run npm run rust:snippets and rcargo check --locked in examples/rust");
   for (const c of rustCases.filter((x) => (x.settings === FULL) === x.messages.length > 0)) {
-    assert.ok(rendered.includes(exampleRust(c.connection, c.settings, c.messages, prompt).split("\n")[1]!), c.connection.provider);
+    assert.ok(rendered.includes(exampleRust(c.connection, c.settings, c.messages, prompt).text.split("\n")[1]!), c.connection.provider);
   }
 });
 
@@ -197,7 +197,7 @@ test("a transcript parsed off the wire (RawNumber lexemes in an opaque payload) 
   const transcript = [Message.user("Earlier question"), fromWire];
   const connection: Connection = { provider: "openai", model: "gpt-4.1-mini", endpoint: "" };
   for (const render of [exampleJavascript, examplePython, exampleRust]) {
-    const text = render(connection, DEFAULT_SETTINGS, transcript, prompt);
+    const text = render(connection, DEFAULT_SETTINGS, transcript, prompt).text;
     assert.match(text, /12345678901234567890/, `${render.name}: the wire's lexeme survives, not a rounded Number`);
     assert.match(text, /1\.0/, `${render.name}: 1.0 stays 1.0`);
   }

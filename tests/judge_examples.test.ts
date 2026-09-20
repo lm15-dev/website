@@ -54,7 +54,7 @@ async function expected(c: (typeof cases)[number], value: InputValue) {
 
 test(`JavaScript: all ${cases.length} judge variants type-check, execute one call per input, and each call is the page's request`, { timeout: 120_000 }, async (t) => {
   assert.equal(cases.length, CONNECTIONS.length * 4);
-  const sources = cases.map((c) => judgeJavascript(c.connection, c.spec, c.inputs));
+  const sources = cases.map((c) => judgeJavascript(c.connection, c.spec, c.inputs).text);
   const files = new Map(sources.map((source, i) => [resolve(root, `src/playground/__judge_${i}.ts`), source]));
   const options: ts.CompilerOptions = { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, strict: true, noEmit: true, skipLibCheck: true, types: [], lib: ["lib.es2023.d.ts", "lib.dom.d.ts"] };
   const host = ts.createCompilerHost(options);
@@ -96,7 +96,7 @@ test(`Python under Pyodide: all ${cases.length} judge variants execute the progr
   await py.loadPackage(pathToFileURL((wheel as { path: string }).path).href, { messageCallback: () => {} });
   for (const c of cases) {
     // The shown program, whole: it runs (every input, in a loop).
-    const shown = withKey(judgePython(c.connection, c.spec, c.inputs), c.key, c.connection);
+    const shown = withKey(judgePython(c.connection, c.spec, c.inputs).text, c.key, c.connection);
     calls = [];
     try { await py.runPythonAsync(shown); }
     catch (e) { assert.fail(`${c.connection.provider} ${c.spec.shape}: the Python text failed under Pyodide:\n${String((e as Error).message).split("\n").slice(-6).join("\n")}\n---\n${shown}`); }
@@ -138,16 +138,16 @@ test("on Jev the wire is the docs' request: the state is the input verbatim, the
   assert.throws(() => judgeRequest(typesafe, { ...fields, instructions: EXAMPLE_INSTRUCTIONS, fields: [{ name: "instructions", type: "text" }] }, { instructions: "x" }), /already named instructions/);
   assert.doesNotThrow(() => judgeRequest(typesafe, { ...fields, fields: [{ name: "instructions", type: "text" }] }, { instructions: "x" }), "no instructions set: the field is the caller's own key");
   // The code says the same: no system= on Jev, the state written out; a chat wire keeps system= and the data part.
-  assert.match(judgeJavascript(typesafe, EXAMPLE_SPEC, ["A note."]), /messages: \[Message\.user\(input\)\],/, "the default code is the quick start: the text is the state");
-  assert.match(judgeJavascript(typesafe, WITH, ["A note."]), /Message\.user\(\{ type: "data", value: \{ instructions: "These are tasting notes[^"]*", text: input \} \}\)/);
-  assert.doesNotMatch(judgeJavascript(typesafe, WITH, ["A note."]), /system:/);
-  assert.match(judgePython(typesafe, { ...fields, instructions: EXAMPLE_INSTRUCTIONS }, [{ note: "n", price_eur: 1 }]), /Message\.user\(data\(\{"instructions": "These are tasting notes[^"]*", \*\*x\}\)\)/);
-  assert.match(judgePython(typesafe, { ...EXAMPLE_SPEC, shape: "conversation" }, [turns]), /"role": "user",\n\s+"content": "Red\?"/, "a Jev transcript is plain objects, not Message.user calls");
-  assert.doesNotMatch(judgePython(typesafe, { ...EXAMPLE_SPEC, shape: "conversation" }, [turns]), /Message\.user\("Red/);
+  assert.match(judgeJavascript(typesafe, EXAMPLE_SPEC, ["A note."]).text, /messages: \[Message\.user\(input\)\],/, "the default code is the quick start: the text is the state");
+  assert.match(judgeJavascript(typesafe, WITH, ["A note."]).text, /Message\.user\(\{ type: "data", value: \{ instructions: "These are tasting notes[^"]*", text: input \} \}\)/);
+  assert.doesNotMatch(judgeJavascript(typesafe, WITH, ["A note."]).text, /system:/);
+  assert.match(judgePython(typesafe, { ...fields, instructions: EXAMPLE_INSTRUCTIONS }, [{ note: "n", price_eur: 1 }]).text, /Message\.user\(data\(\{"instructions": "These are tasting notes[^"]*", \*\*x\}\)\)/);
+  assert.match(judgePython(typesafe, { ...EXAMPLE_SPEC, shape: "conversation" }, [turns]).text, /\{"role": "user", "content": "Red\?"\},\n\s+\{"role": "assistant", "content": "This one\."\},/, "a Jev transcript is plain objects, one turn per line, not Message.user calls");
+  assert.doesNotMatch(judgePython(typesafe, { ...EXAMPLE_SPEC, shape: "conversation" }, [turns]).text, /Message\.user\("Red/);
   const openai: Connection = { provider: "openai", model: "gpt-4.1-mini", endpoint: "" };
-  assert.match(judgeJavascript(openai, WITH, ["A note."]), /system: "These are tasting notes/);
-  assert.doesNotMatch(judgeJavascript(openai, EXAMPLE_SPEC, ["A note."]), /system:/);
-  assert.match(judgeJavascript(openai, { ...EXAMPLE_SPEC, shape: "conversation" }, [turns]), /\[Message\.user\("Red\?"\), Message\.assistant\("This one\."\)\]/);
+  assert.match(judgeJavascript(openai, WITH, ["A note."]).text, /system: "These are tasting notes/);
+  assert.doesNotMatch(judgeJavascript(openai, EXAMPLE_SPEC, ["A note."]).text, /system:/);
+  assert.match(judgeJavascript(openai, { ...EXAMPLE_SPEC, shape: "conversation" }, [turns]).text, /\[Message\.user\("Red\?"\), Message\.assistant\("This one\."\)\]/);
   const chatBody = JSON.parse(utf8Decode((await createClient(openai, "k").buildRequest(judgeRequest(openai, fields, { note: "A note.", price_eur: 48 }), false)).body)) as { input: Array<{ content: Array<{ text: string }> }> };
   assert.equal(chatBody.input[0]!.content[0]!.text, '{"note":"A note.","price_eur":48}', "D3: a data part is its compact JSON on a text wire");
 });
@@ -164,7 +164,7 @@ test("Rust: Judge builds and parses prepared replies for every provider and shap
     const parsed = rust.parseResponse(conn, canonical, reply.status, await reply.text(), [...reply.headers], true);
     const response = CanonicalResponse.fromJSON(parsed.canonical_response as Parameters<typeof CanonicalResponse.fromJSON>[0]);
     assert.deepEqual(verdictOf(response, { ms: 0, provider: c.connection.provider, model: c.connection.model, runtime: "Rust" }).data, JSON.parse(JUDGED_TEXT));
-    assert.ok(judgeRust(c.connection, c.spec, c.inputs).includes("lm.complete(&request).await?"));
-    assert.ok(judgeGo(c.connection, c.spec, c.inputs).includes("lm.Complete(ctx, request)"));
+    assert.ok(judgeRust(c.connection, c.spec, c.inputs).text.includes("lm.complete(&request).await?"));
+    assert.ok(judgeGo(c.connection, c.spec, c.inputs).text.includes("lm.Complete(ctx, request)"));
   }
 });

@@ -498,8 +498,9 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
     assert.equal(await page.locator("#key").getAttribute("aria-invalid"), "false");
     await page.getByLabel("System prompt").fill('<script>window.hacked=true</script> <img src=x onerror=alert(1)> dummy-design-key');
     assert.equal(await page.locator("#code script, #code img").count(), 0);
-    assert.ok(await page.locator("#code .token-string").count() > 0);
+    assert.ok(await page.locator("#code .tok-value").count() > 0, "the system prompt is shown as the person's value");
     assert.ok(!(await page.locator("#code").textContent())?.includes("dummy-design-key"));
+    assert.equal(await page.locator("#code .tok-value", { hasText: "[redacted]" }).count(), 1, "the redaction sits inside the value's own span");
     const code = await page.locator("#code").textContent();
     await page.getByRole("button", { name: "Copy code", exact: true }).click();
     assert.equal(await page.evaluate(() => navigator.clipboard.readText()), code, "Copied text has no line numbers or styling markup");

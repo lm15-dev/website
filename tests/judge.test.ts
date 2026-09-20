@@ -90,7 +90,7 @@ test("one request per input, in the input's shape: a text, a data part, or the t
 });
 
 test("the Python that executes is the Python shown, with one input: the loop body is unchanged", () => {
-  const shown = judgePython(openai, EXAMPLE_SPEC, EXAMPLE_INPUTS);
+  const shown = judgePython(openai, EXAMPLE_SPEC, EXAMPLE_INPUTS).text;
   const executed = judgeProgram(openai, judgeRequest(openai, EXAMPLE_SPEC, EXAMPLE_INPUTS[1]!));
   const withoutInputs = (text: string) => text.replace(/inputs = \[[\s\S]*?\n\]\n/, "inputs = […]\n");
   assert.equal(withoutInputs(executed.split("\nimport json\n")[0]!), withoutInputs(shown));
@@ -99,34 +99,34 @@ test("the Python that executes is the Python shown, with one input: the loop bod
 });
 
 test("the code spells the questions with the SDK's sugar when the sugar reproduces them, and verbatim otherwise", () => {
-  const js = judgeJavascript(typesafe, EXAMPLE_SPEC, EXAMPLE_INPUTS);
+  const js = judgeJavascript(typesafe, EXAMPLE_SPEC, EXAMPLE_INPUTS).text;
   assert.match(js, /import \{ adapterFor, Message, Request, judgments, choice, score, yesNo \} from "lm15\/browser";/);
   // Long option lists go one per line; short ones stay inline.
   assert.match(js, /quality: score\("How good is this wine, according to the note\?", \{\n    faulty: "Faulty or unpleasant",\n    simple: "Simple and sound",/);
   assert.match(js, /style: choice\("What is the dominant style described\?", \{\n    fruit: "Fruit-forward",\n    oak: "Oak-driven",\n    mineral: "Mineral, savoury",\n  \}\)/);
-  assert.match(judgeJavascript(openai, { ...EXAMPLE_SPEC, properties: { ok: choice("Ok?", ["yes", "no"]) } }, ["t"]), /ok: choice\("Ok\?", \["yes", "no"\]\)/);
+  assert.match(judgeJavascript(openai, { ...EXAMPLE_SPEC, properties: { ok: choice("Ok?", ["yes", "no"]) } }, ["t"]).text, /ok: choice\("Ok\?", \["yes", "no"\]\)/);
   assert.match(js, /ageing: yesNo\("Does the note say the wine will improve with age\?"\)/);
   assert.match(js, /messages: \[Message\.user\(input\)\]/, "the default Jev code is the quick start");
-  assert.match(judgeJavascript(typesafe, { ...EXAMPLE_SPEC, instructions: EXAMPLE_INSTRUCTIONS }, EXAMPLE_INPUTS), /messages: \[Message\.user\(\{ type: "data", value: \{ instructions: "These are tasting notes[^"]*", text: input \} \}\)\]/, "with instructions, they ride in the state");
-  assert.match(judgeJavascript(openai, EXAMPLE_SPEC, EXAMPLE_INPUTS), /messages: \[Message\.user\(input\)\]/);
-  const py = judgePython(typesafe, EXAMPLE_SPEC, EXAMPLE_INPUTS);
+  assert.match(judgeJavascript(typesafe, { ...EXAMPLE_SPEC, instructions: EXAMPLE_INSTRUCTIONS }, EXAMPLE_INPUTS).text, /messages: \[Message\.user\(\{ type: "data", value: \{ instructions: "These are tasting notes[^"]*", text: input \} \}\)\]/, "with instructions, they ride in the state");
+  assert.match(judgeJavascript(openai, EXAMPLE_SPEC, EXAMPLE_INPUTS).text, /messages: \[Message\.user\(input\)\]/);
+  const py = judgePython(typesafe, EXAMPLE_SPEC, EXAMPLE_INPUTS).text;
   assert.match(py, /^from lm15 import AsyncTypeSafeLM, Config, Message, Request, choice, judgments, score, yes_no$/m, "no data() in the default: the text is the state");
   assert.match(py, /style=choice\("What is the dominant style described\?", \{\n        "fruit": "Fruit-forward",\n        "oak": "Oak-driven",\n        "mineral": "Mineral, savoury",\n    \}\)/);
   assert.match(py, /ageing=yes_no\(/);
   // Fields: a data part, and `data` imported in Python.
   const fields: JudgeSpec = { ...EXAMPLE_SPEC, shape: "fields", fields: [{ name: "note", type: "text" }] };
-  assert.match(judgeJavascript(openai, fields, [{ note: "x" }]), /Message\.user\(\{ type: "data", value: input \}\)/);
-  assert.match(judgePython(openai, fields, [{ note: "x" }]), /^from lm15 import .*\bdata\b.*$/m);
-  assert.match(judgePython(openai, fields, [{ note: "x" }]), /Message\.user\(data\(x\)\)/);
+  assert.match(judgeJavascript(openai, fields, [{ note: "x" }]).text, /Message\.user\(\{ type: "data", value: input \}\)/);
+  assert.match(judgePython(openai, fields, [{ note: "x" }]).text, /^from lm15 import .*\bdata\b.*$/m);
+  assert.match(judgePython(openai, fields, [{ note: "x" }]).text, /Message\.user\(data\(x\)\)/);
   // Conversation: the input is the message list.
   const convo: JudgeSpec = { ...EXAMPLE_SPEC, shape: "conversation" };
-  assert.match(judgeJavascript(openai, convo, [[{ role: "user", content: "a" }, { role: "assistant", content: "b" }]]), /\[Message\.user\("a"\), Message\.assistant\("b"\)\],/);
-  assert.match(judgeJavascript(openai, convo, [[{ role: "user", content: "a" }]]), /messages: input,/);
+  assert.match(judgeJavascript(openai, convo, [[{ role: "user", content: "a" }, { role: "assistant", content: "b" }]]).text, /\[Message\.user\("a"\), Message\.assistant\("b"\)\],/);
+  assert.match(judgeJavascript(openai, convo, [[{ role: "user", content: "a" }]]).text, /messages: input,/);
   // A property outside the sugar is written as it is, in each language's literal.
   const raw: JudgeSpec = { ...EXAMPLE_SPEC, properties: { mood: { type: "string", enum: ["up", "down"], description: "Mood?", "x-note": true } } };
-  assert.match(judgeJavascript(openai, raw, ["t"]), /mood: \{\n    type: "string",\n    enum: \[\n      "up",\n      "down",\n    \],\n    description: "Mood\?",\n    "x-note": true,\n  \},/);
-  assert.match(judgePython(openai, raw, ["t"]), /mood=\{\n        "type": "string",[\s\S]*"x-note": True,\n    \},/);
-  assert.doesNotMatch(judgeJavascript(openai, raw, ["t"]), /, choice|, score|, yesNo/);
+  assert.match(judgeJavascript(openai, raw, ["t"]).text, /mood: \{\n    type: "string",\n    enum: \[\n      "up",\n      "down",\n    \],\n    description: "Mood\?",\n    "x-note": true,\n  \},/);
+  assert.match(judgePython(openai, raw, ["t"]).text, /mood=\{\n        "type": "string",[\s\S]*"x-note": True,\n    \},/);
+  assert.doesNotMatch(judgeJavascript(openai, raw, ["t"]).text, /, choice|, score|, yesNo/);
 });
 
 test("a verdict keeps the pick, the distribution where measured, the method and the adaptations; labels read as a person would", async () => {

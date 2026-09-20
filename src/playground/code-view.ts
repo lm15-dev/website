@@ -1,56 +1,61 @@
-/** Lightweight visual coloring only. Source text stays exact; nothing is parsed as HTML. */
-export type Token = { text: string; kind?: "string" | "comment" | "keyword" | "number" };
-export function tokens(source: string, language: string): Token[] {
-  const comments = language === "python" || language === "curl" ? "#[^\\n]*" : "//[^\\n]*|/\\*[\\s\\S]*?\\*/";
-  const pattern = new RegExp(`("(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|\x60(?:\\\\.|[^\x60\\\\])*\x60)|(${comments})|\\b(const|let|var|import|from|as|new|await|async|for|of|in|if|else|return|fn|use|pub|mut|true|false|null|None|True|False|Some|Ok|with|class|def|try|except|while|yield|package|func|range|defer|nil|break|continue|type|struct)\\b|\\b(\\d+(?:\\.\\d+)?)\\b`, "g");
-  const out: Token[] = [];
-  let offset = 0;
-  for (const match of source.matchAll(pattern)) {
-    if (match.index > offset) out.push({ text: source.slice(offset, match.index) });
-    out.push({ text: match[0], kind: match[1] ? "string" : match[2] ? "comment" : match[3] ? "keyword" : "number" });
-    offset = match.index + match[0].length;
-  }
-  if (offset < source.length) out.push({ text: source.slice(offset) });
-  return out;
-}
-
-/** Value positions in our generated examples, not every literal or matching word.
- * Imports, dictionary keys, transport headers and output formatting stay neutral.
+/**
+ * The code panel's rendering: the exact text, one block per line so a
+ * wrapped line continues under its own indent, and a span per marked run.
+ * Nothing here decides what means what; the generator did (marks.ts).
  */
-function controlledValue(prefix: string, token: Token): boolean {
-  if (token.kind === "number") {
-    return /\b(?:maxTokens|max_tokens|temperature)\s*[:=]\s*(?:Some\(\s*)?$/.test(prefix);
+
+import type { Code, MarkKind } from "./marks.ts";
+
+export interface Segment { readonly text: string; readonly kinds: readonly MarkKind[] }
+/** One source line: its text split into runs, and the columns of its indent (for the hanging indent when it wraps). */
+export interface Line { readonly indent: number; readonly segments: readonly Segment[] }
+
+/** How many columns further a wrapped continuation sits than the line's own indent. */
+export const CONTINUATION = 4;
+
+/** Lines and runs; every line ends with its newline except the last, so the text nodes concatenate to the exact source. */
+export function layout(code: Code): Line[] {
+  const lines: Line[] = [];
+  let lineStart = 0;
+  let next = 0; // the first mark that may reach this line
+  while (lineStart <= code.text.length) {
+    const newline = code.text.indexOf("\n", lineStart);
+    const lineEnd = newline === -1 ? code.text.length : newline + 1;
+    const segments: Segment[] = [];
+    let cursor = lineStart;
+    for (let i = next; i < code.marks.length; i++) {
+      const m = code.marks[i]!;
+      if (m.start >= lineEnd) break;
+      if (m.end <= lineStart) { next = i + 1; continue; }
+      const start = Math.max(m.start, lineStart), end = Math.min(m.end, lineEnd);
+      if (start > cursor) segments.push({ text: code.text.slice(cursor, start), kinds: [] });
+      segments.push({ text: code.text.slice(start, end), kinds: m.kinds });
+      cursor = end;
+    }
+    if (cursor < lineEnd) segments.push({ text: code.text.slice(cursor, lineEnd), kinds: [] });
+    const text = code.text.slice(lineStart, lineEnd);
+    const content = newline === -1 ? text : text.slice(0, -1);
+    if (text.length || lineStart === 0) lines.push({ indent: content.length - content.trimStart().length, segments });
+    if (newline === -1) break;
+    lineStart = lineEnd;
   }
-  if (token.kind !== "string") return false;
-  const apiKey = /\b(?:apiKey|api_key)\s*[:=]\s*$|\.api_key\(\s*"[^"\\]*"\s*,\s*$/.test(prefix);
-  if (apiKey) return token.text !== '"unused"' && token.text !== "'unused'";
-  return /(?:\b(?:model|system|baseUrl|base_url|compat|effort)|"(?:model|system|text|base_url|effort)")\s*[:=]\s*(?:Some\(\s*)?$/.test(prefix)
-    || /\bMessage(?:\.|::)(?:user|assistant)\(\s*$/.test(prefix)
-    || /\badapterFor\(\s*$|\.(?:api_key|base_url)\(\s*$|\.base_url\(\s*"[^"\\]*"\s*,\s*$|\bReasoning::new\(\s*$/.test(prefix);
+  return lines;
 }
 
-export function renderCode(element: HTMLElement, source: string, language: string): void {
+export function renderCode(element: HTMLElement, code: Code): void {
   const fragment = document.createDocumentFragment();
-  let offset = 0;
-  for (const token of tokens(source, language)) {
-    const highlighted = controlledValue(source.slice(Math.max(0, offset - 256), offset), token);
-    offset += token.text.length;
-    if (!token.kind) fragment.append(document.createTextNode(token.text));
-    else {
+  for (const line of layout(code)) {
+    const block = document.createElement("span");
+    block.className = "line";
+    block.style.setProperty("--indent", String(line.indent + CONTINUATION));
+    for (const segment of line.segments) {
+      if (!segment.kinds.length) { block.append(document.createTextNode(segment.text)); continue; }
       const span = document.createElement("span");
-      span.className = `token-${token.kind}`;
-      if (highlighted && token.kind === "string") {
-        // Quotes are syntax, not input. Keep copying identical to the source.
-        const value = document.createElement("span");
-        value.className = "token-value";
-        value.textContent = token.text.slice(1, -1);
-        span.append(document.createTextNode(token.text[0]!), value, document.createTextNode(token.text.at(-1)!));
-      } else {
-        if (highlighted) span.classList.add("token-value");
-        span.textContent = token.text;
-      }
-      fragment.append(span);
+      span.className = segment.kinds.map((k) => `tok-${k}`).join(" ");
+      span.textContent = segment.text;
+      block.append(span);
     }
+    fragment.append(block);
   }
   element.replaceChildren(fragment);
 }

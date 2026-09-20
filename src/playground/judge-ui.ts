@@ -10,6 +10,7 @@
 
 import { judgmentsInSchema, stringifyJson, type Judgment, type JsonObject, type JsonValue, type Request } from "lm15/browser";
 import { keyless, type Connection } from "./experience.ts";
+import { comment, finish, type Code } from "./marks.ts";
 import { JEV_INSTRUCTIONS_KEY, JEV_TEXT_KEY, jevState, EXAMPLE_INPUTS, EXAMPLE_SPEC, EXAMPLE_FIELDS, distribution, emptyInput, expectedLevel, fieldText, fieldValue, freeName, inputIsBlank, inputSummary, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, parseCsv, parseInputs, parseProperties, pickLabel, readQuestions, toCsv, toJsonExport, verdictOf, withQuestion, withoutQuestion, type FieldDef, type InputValue, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type Turn, type Verdict } from "./judge.ts";
 import { looksBrowserBlocked, relayed } from "./relay.ts";
 import type { Runtime, RuntimeId } from "./runtimes/index.ts";
@@ -77,9 +78,9 @@ export class JudgeView {
   // ─── What the host asks ──────────────────────────────────────────
 
   /** The code panel's text for the current language: the whole set, one loop. */
-  code(runtime: RuntimeId): string {
+  code(runtime: RuntimeId): Code {
     const error = this.questionsError();
-    if (error) return `// ${error}`;
+    if (error) return finish(comment(`// ${error}`));
     const inputs = this.rows.map((r) => r.value);
     if (runtime === "javascript") return judgeJavascript(this.host.connection, this.spec, inputs);
     if (runtime === "python") return judgePython(this.host.connection, this.spec, inputs);

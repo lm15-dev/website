@@ -3120,10 +3120,7 @@ mod typesafe_judge_conversation {
         // one transcript per call.
         let inputs = [
             json!([
-                {
-                    "role": "user",
-                    "content": "Quotes \" and a newline\n</script> are text, not executable code.",
-                },
+                { "role": "user", "content": "Quotes \" and a newline\n</script> are text, not executable code." },
             ]),
         ];
 

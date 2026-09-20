@@ -87,7 +87,7 @@ export const pythonRuntime: Runtime = {
     // in the loop body, so the head runs up to it and one iteration is unrolled.
     const judged = isJudgeRequest(request);
     const from = source ?? (judged ? specOfRequest(request) : undefined);
-    const shown = from ? judgePython(connection, from.spec, [from.value]) : examplePython(connection, settingsOf(request), ...splitArgs(request));
+    const shown = (from ? judgePython(connection, from.spec, [from.value]) : examplePython(connection, settingsOf(request), ...splitArgs(request))).text;
     const head = (from ? unrollOne(shown) : shown.split(/\n(?:result = AsyncResponseStream|response = await lm\.complete)/)[0]!)
       .replace(/\bAsync(OpenAILM|OpenAIChatLM|AnthropicLM|GeminiLM|TypeSafeLM)\b/g, "$1")
       .replace(/^from lm15\.transports import FetchTransport.*\n/m, "")
@@ -103,7 +103,7 @@ json.dumps({"method": _built.method, "url": _built.url, "headers": list(_built.h
   async stream(connection, key, request, signal, onText): Promise<Response> {
     const py = await boot(() => {});
     const { messages, prompt } = split(request);
-    const source = examplePython(connection, settingsOf(request), messages, prompt);
+    const source = examplePython(connection, settingsOf(request), messages, prompt).text;
     const decoder = new TextDecoder();
     py.setStdout({ write: (bytes) => (onText(decoder.decode(bytes, { stream: true })), bytes.length) });
     const program = `${withKey(source, key, connection)}
@@ -158,7 +158,7 @@ function settingsOf(request: Request): Settings {
  */
 export function judgeProgram(connection: Connection, request: Request, source?: JudgeSource): string {
   const { spec, value } = source ?? specOfRequest(request);
-  return `${judgePython(connection, spec, [value])}
+  return `${judgePython(connection, spec, [value]).text}
 import json
 from lm15.serde import response_to_dict
 json.dumps(response_to_dict(response))

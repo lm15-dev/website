@@ -38,14 +38,14 @@ export function renderRustExamples(): string {
     const connection: Connection = { provider: choice.id, model: choice.model || "custom-model", endpoint: "http://localhost:1234/v1" };
     for (const shape of ["text", "fields", "conversation"] as const) {
       const input = shape === "text" ? prompt : shape === "fields" ? { note: prompt, price: 1 } : [{ role: "user" as const, content: prompt }];
-      const body = judgeRust(connection, { ...EXAMPLE_SPEC, shape }, [input]);
+      const body = judgeRust(connection, { ...EXAMPLE_SPEC, shape }, [input]).text;
       const [uses, code] = splitUses(body);
       parts.push(`mod ${choice.id.replace(/-/g, "_")}_judge_${shape} {`, ...uses.map((u) => `    ${u}`), "    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {", ...code.split("\n").map((line) => line ? `        ${line}` : ""), "        Ok(())", "    }", "}", "");
     }
     if (judgmentsOnly(choice.id)) continue;
     for (const [suffix, messages, settings] of [["first_turn", [], DEFAULT_SETTINGS], ["with_history", history, FULL], ["teaching_example", exampleConversation(), DEFAULT_SETTINGS], ["teaching_with_settings", exampleConversation(), FULL], ["zero_temperature", exampleConversation(), { ...DEFAULT_SETTINGS, temperature: 0 }]] as const) {
       const connection: Connection = { provider: choice.id, model: choice.model || "custom-model", endpoint: "http://localhost:1234/v1" };
-      const body = exampleRust(connection, settings, messages, prompt);
+      const body = exampleRust(connection, settings, messages, prompt).text;
       const [uses, code] = splitUses(body);
       parts.push(`mod ${choice.id.replace(/-/g, "_")}_${suffix} {`, ...uses.map((u) => `    ${u}`), "", "    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {", ...code.split("\n").map((line) => (line ? `        ${line}` : "")), "        Ok(())", "    }", "}", "");
     }

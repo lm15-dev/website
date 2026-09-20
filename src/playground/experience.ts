@@ -12,6 +12,7 @@
  */
 
 import { Message, OpenAIChatLM, RawNumber, Request as RequestNs, adapterFor, access, lookup, stringifyJson, type Config, type ProviderLM, type ReasoningEffort, type Request } from "lm15/browser";
+import { api, comment, dim, finish, quotedValue, val, type Code } from "./marks.ts";
 import { relayBaseUrl, relayed } from "./relay.ts";
 
 export interface Connection { provider: string; model: string; endpoint: string }
@@ -95,8 +96,16 @@ export function buildRequest(connection: Connection, settings: Settings, message
 }
 
 // ─── Rendering ────────────────────────────────────────────────────────
+//
+// Each program is written with its meaning marked as it goes (marks.ts):
+// `qv` a value the person typed, `api` a call into LM15, `comment`, `dim`
+// for what the language demands. The panel colours those; nothing parses.
 
 const q = JSON.stringify;
+/** A JSON string literal whose contents are the person's. */
+const qv = (text: string): string => quotedValue(q(text));
+/** A number the person set. */
+const nv = (n: number): string => val(String(n));
 const indent = (text: string, level: number) => text.split("\n").map((line) => (line ? "  ".repeat(level) + line : line)).join("\n");
 
 /** Python spelling of a JSON value (True/False/None), for the replayed transcript. */
@@ -127,87 +136,102 @@ function plainText(message: Message): { role: "user" | "assistant"; text: string
 function configLines(settings: Settings, lang: Language): string[] {
   const entries: Array<[string, string]> = [];
   if (lang === "javascript") {
-    if (settings.maxTokens !== null) entries.push(["maxTokens", String(settings.maxTokens)]);
-    if (settings.temperature !== null) entries.push(["temperature", String(settings.temperature)]);
-    if (settings.reasoning) entries.push(["reasoning", `{ effort: ${q(settings.reasoning)} }`]);
+    if (settings.maxTokens !== null) entries.push(["maxTokens", nv(settings.maxTokens)]);
+    if (settings.temperature !== null) entries.push(["temperature", nv(settings.temperature)]);
+    if (settings.reasoning) entries.push(["reasoning", `{ effort: ${qv(settings.reasoning)} }`]);
     return entries.length ? [`  config: { ${entries.map(([k, v]) => `${k}: ${v}`).join(", ")} },`] : [];
   }
   if (lang === "python") {
-    if (settings.maxTokens !== null) entries.push(["max_tokens", String(settings.maxTokens)]);
-    if (settings.temperature !== null) entries.push(["temperature", String(settings.temperature)]);
-    if (settings.reasoning) entries.push(["reasoning", `Reasoning(effort=${q(settings.reasoning)})`]);
-    return entries.length ? [`    config=Config(${entries.map(([k, v]) => `${k}=${v}`).join(", ")}),`] : [];
+    if (settings.maxTokens !== null) entries.push(["max_tokens", nv(settings.maxTokens)]);
+    if (settings.temperature !== null) entries.push(["temperature", nv(settings.temperature)]);
+    if (settings.reasoning) entries.push(["reasoning", `${api("Reasoning")}(effort=${qv(settings.reasoning)})`]);
+    return entries.length ? [`    config=${api("Config")}(${entries.map(([k, v]) => `${k}=${v}`).join(", ")}),`] : [];
   }
-  if (settings.maxTokens !== null) entries.push(["max_tokens", `Some(${settings.maxTokens})`]);
-  if (settings.temperature !== null) entries.push(["temperature", `Some(${Number.isInteger(settings.temperature) ? `${settings.temperature}.0` : settings.temperature})`]);
-  if (settings.reasoning) entries.push(["reasoning", `Some(Reasoning::new(${q(settings.reasoning)}.parse()?))`]);
-  return entries.length ? [`    config: Config { ${entries.map(([k, v]) => `${k}: ${v}`).join(", ")}, ..Default::default() },`] : [];
+  if (settings.maxTokens !== null) entries.push(["max_tokens", `Some(${nv(settings.maxTokens)})`]);
+  if (settings.temperature !== null) entries.push(["temperature", `Some(${val(Number.isInteger(settings.temperature) ? `${settings.temperature}.0` : String(settings.temperature))})`]);
+  if (settings.reasoning) entries.push(["reasoning", `Some(${api("Reasoning::new")}(${quotedValue(rustString(settings.reasoning))}.parse()?))`]);
+  return entries.length ? [`    config: ${api("Config")} { ${entries.map(([k, v]) => `${k}: ${v}`).join(", ")}, ${dim("..Default::default()")} },`] : [];
 }
 
-export function exampleJavascript(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {
+/** The lines that make the client, JavaScript: the adapter, and what a page must add (relay, Anthropic's header). */
+export function jsClient(connection: Connection): string[] {
+  const relay = baseUrlFor(connection);
+  if (connection.provider === "custom") return [`const lm = new ${api("OpenAIChatLM")}({`, `  apiKey: "unused", ${comment("// keyless custom server")}`, `  baseUrl: ${qv(connection.endpoint)},`, "});"];
+  const lines = [`const lm = ${api("adapterFor")}(${qv(connection.provider)}, {`, `  apiKey: ${keyless(connection.provider) ? '"unused"' : qv(EXAMPLE_API_KEY)},`];
+  if (relay !== undefined) lines.push(`  ${comment("// This API refuses browser origins; the page relays it (see the Relay note). Drop this line outside a browser.")}`, `  baseUrl: ${qv(relay)},`);
+  if (connection.provider === "anthropic") lines.push(`  ${comment("// A page must say it means to call Anthropic directly.")}`, `  access: ${api("access.withHeaders")}(${api("access.ANTHROPIC_API")}, {`, `    ${q(ANTHROPIC_BROWSER_HEADER[0])}: ${q(ANTHROPIC_BROWSER_HEADER[1])},`, "  }),");
+  lines.push("});");
+  return lines;
+}
+
+export function exampleJavascript(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): Code {
   const streamed = streams(connection);
   const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", "Message", "Request", ...(streamed ? ["ResponseStream"] : [])];
   if (connection.provider === "anthropic") imports.splice(1, 0, "access");
-  const lines = [`import { ${imports.join(", ")} } from "lm15/browser";`, ""];
-  const relay = baseUrlFor(connection);
-  if (connection.provider === "custom") {
-    lines.push("const lm = new OpenAIChatLM({", '  apiKey: "unused", // keyless custom server', `  baseUrl: ${q(connection.endpoint)},`, "});");
-  } else {
-    lines.push(`const lm = adapterFor(${q(connection.provider)}, {`, `  apiKey: ${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)},`);
-    if (relay !== undefined) lines.push("  // This API refuses browser origins; the page relays it (see the Relay note). Drop this line outside a browser.", `  baseUrl: ${q(relay)},`);
-    if (connection.provider === "anthropic") lines.push("  // A page must say it means to call Anthropic directly.", "  access: access.withHeaders(access.ANTHROPIC_API, {", `    ${q(ANTHROPIC_BROWSER_HEADER[0])}: ${q(ANTHROPIC_BROWSER_HEADER[1])},`, "  }),");
-    lines.push("});");
-  }
-  lines.push("", "const request = Request.create({", `  model: ${q(connection.model)},`);
-  if (settings.system.trim()) lines.push(`  system: ${q(settings.system.trim())},`);
+  const lines = [dim(`import { ${imports.join(", ")} } from "lm15/browser";`), "", ...jsClient(connection)];
+  lines.push("", `const request = ${api("Request.create")}({`, `  model: ${qv(connection.model)},`);
+  if (settings.system.trim()) lines.push(`  system: ${qv(settings.system.trim())},`);
   if (messages.length) {
     lines.push("  messages: [", ...indent(messages.map((m) => {
       const simple = plainText(m);
-      return simple ? `Message.${simple.role}(${q(simple.text)}),` : `Message.fromJSON(${stringifyJson(Message.toJSON(m), { indent: 2 })}),`;
-    }).join("\n"), 2).split("\n"), `    Message.user(${q(prompt)}),`, "  ],");
-  } else lines.push(`  messages: [Message.user(${q(prompt)})],`);
+      return simple ? `${api(`Message.${simple.role}`)}(${qv(simple.text)}),` : `${api("Message.fromJSON")}(${stringifyJson(Message.toJSON(m), { indent: 2 })}),`;
+    }).join("\n"), 2).split("\n"), `    ${api("Message.user")}(${qv(prompt)}),`, "  ],");
+  } else lines.push(`  messages: [${api("Message.user")}(${qv(prompt)})],`);
   lines.push(...configLines(settings, "javascript"), "});", "");
   if (streamed) {
-    lines.push("const controller = new AbortController(); // Stop calls controller.abort()", "const result = new ResponseStream(lm.stream(request, { signal: controller.signal }), request);", "for await (const text of result) console.log(text);", "", "// Keep the reply for the next turn.", "const response = await result.response();");
+    lines.push(`const controller = new AbortController(); ${comment("// Stop calls controller.abort()")}`, `const result = new ${api("ResponseStream")}(${api("lm.stream")}(request, { signal: controller.signal }), request);`, "for await (const text of result) console.log(text);", "", comment("// Keep the reply for the next turn."), `const response = await ${api("result.response")}();`);
   } else {
-    lines.push("const controller = new AbortController(); // Stop calls controller.abort()", "const response = await lm.complete(request, { signal: controller.signal }); // one piece: this API has no stream");
+    lines.push(`const controller = new AbortController(); ${comment("// Stop calls controller.abort()")}`, `const response = await ${api("lm.complete")}(request, { signal: controller.signal }); ${comment("// one piece: this API has no stream")}`);
   }
   lines.push("const messages = [...request.messages, response.message];");
-  return lines.join("\n");
+  return finish(lines.join("\n"));
 }
 
 const PY_CLASS: Record<string, string> = { "openai-responses": "AsyncOpenAILM", "openai-chat": "AsyncOpenAIChatLM", anthropic: "AsyncAnthropicLM", gemini: "AsyncGeminiLM", typesafe: "AsyncTypeSafeLM" };
 
-/** The Python that runs under Pyodide in this page, and on CPython without the transport line. */
-export function examplePython(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {
+/** The Python client's class for a connection, and the lines that make it (the transport line is the page's; CPython drops it). */
+export function pyClient(connection: Connection): { cls: string; lines: string[] } {
   const definition = lookup(connection.provider);
   const cls = connection.provider === "custom" ? "AsyncOpenAIChatLM" : (PY_CLASS[definition?.dialect ?? "openai-chat"] ?? "AsyncOpenAIChatLM");
+  const lines = [`lm = ${api(cls)}(`, `    api_key=${keyless(connection.provider) ? '"unused"' : qv(EXAMPLE_API_KEY)},`];
+  const relay = baseUrlFor(connection);
+  if (connection.provider === "custom") lines.push(`    base_url=${qv(connection.endpoint)},`);
+  else if (relay !== undefined) lines.push(`    ${comment("# This API refuses browser origins; the page relays it (see the Relay note). Drop this line outside a browser.")}`, `    base_url=${qv(relay)},`);
+  if (connection.provider !== "custom" && definition?.bound) lines.push(`    compat=${qv(connection.provider)},`);
+  if (connection.provider === "anthropic") lines.push(`    ${comment("# A page must say it means to call Anthropic directly.")}`, `    access=${api("ANTHROPIC_API.with_headers")}({${q(ANTHROPIC_BROWSER_HEADER[0])}: ${q(ANTHROPIC_BROWSER_HEADER[1])}}),`);
+  lines.push(dim("    transport=FetchTransport(),"), ")");
+  return { cls, lines };
+}
+
+/** The Python import lines: the SDK names used, in one `from lm15 import`. */
+export function pyImports(names: readonly string[], connection: Connection, extra: readonly string[] = []): string[] {
+  const lines = [dim(`from lm15 import ${[...names].sort().join(", ")}`)];
+  if (connection.provider === "anthropic") lines.push(dim("from lm15.access import ANTHROPIC_API"));
+  lines.push(...extra.map(dim), dim(`from lm15.transports import FetchTransport  ${comment("# in a page (Pyodide); on CPython drop this and transport=")}`));
+  return lines;
+}
+
+/** The Python that runs under Pyodide in this page, and on CPython without the transport line. */
+export function examplePython(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): Code {
+  const client = pyClient(connection);
   const streamed = streams(connection);
-  const names = [cls, ...(streamed ? ["AsyncResponseStream"] : []), "Message", "Request"];
+  const names = [client.cls, ...(streamed ? ["AsyncResponseStream"] : []), "Message", "Request"];
   if (configLines(settings, "python").length) names.push("Config");
   if (settings.reasoning) names.push("Reasoning");
-  const lines = [`from lm15 import ${names.sort().join(", ")}`];
-  if (connection.provider === "anthropic") lines.push("from lm15.access import ANTHROPIC_API");
-  if (messages.some((message) => !plainText(message))) lines.push("from lm15.serde import message_from_dict");
-  lines.push("from lm15.transports import FetchTransport  # in a page (Pyodide); on CPython drop this and transport=", "", `lm = ${cls}(`, `    api_key=${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)},`);
-  const relay = baseUrlFor(connection);
-  if (connection.provider === "custom") lines.push(`    base_url=${q(connection.endpoint)},`);
-  else if (relay !== undefined) lines.push("    # This API refuses browser origins; the page relays it (see the Relay note). Drop this line outside a browser.", `    base_url=${q(relay)},`);
-  if (connection.provider !== "custom" && definition?.bound) lines.push(`    compat=${q(connection.provider)},`);
-  if (connection.provider === "anthropic") lines.push("    # A page must say it means to call Anthropic directly.", `    access=ANTHROPIC_API.with_headers({${q(ANTHROPIC_BROWSER_HEADER[0])}: ${q(ANTHROPIC_BROWSER_HEADER[1])}}),`);
-  lines.push("    transport=FetchTransport(),", ")", "", "request = Request(", `    model=${q(connection.model)},`);
-  if (settings.system.trim()) lines.push(`    system=${q(settings.system.trim())},`);
+  const lines = pyImports(names, connection, messages.some((message) => !plainText(message)) ? ["from lm15.serde import message_from_dict"] : []);
+  lines.push("", ...client.lines, "", `request = ${api("Request")}(`, `    model=${qv(connection.model)},`);
+  if (settings.system.trim()) lines.push(`    system=${qv(settings.system.trim())},`);
   if (messages.length) {
     lines.push("    messages=(", ...messages.map((m) => {
       const simple = plainText(m);
-      return simple ? `        Message.${simple.role}(${q(simple.text)}),` : `        message_from_dict(${pyLiteral(Message.toJSON(m), 2)}),`;
-    }), `        Message.user(${q(prompt)}),`, "    ),");
-  } else lines.push(`    messages=(Message.user(${q(prompt)}),),`);
+      return simple ? `        ${api(`Message.${simple.role}`)}(${qv(simple.text)}),` : `        ${api("message_from_dict")}(${pyLiteral(Message.toJSON(m), 2)}),`;
+    }), `        ${api("Message.user")}(${qv(prompt)}),`, "    ),");
+  } else lines.push(`    messages=(${api("Message.user")}(${qv(prompt)}),),`);
   lines.push(...configLines(settings, "python"), ")", "");
-  if (streamed) lines.push("result = AsyncResponseStream(lm.stream(request), request)  # Stop closes the stream", "async for text in result:", '    print(text, end="", flush=True)', "", "# Keep the reply for the next turn.", "response = await result.response()");
-  else lines.push("response = await lm.complete(request)  # one piece: this API has no stream");
+  if (streamed) lines.push(`result = ${api("AsyncResponseStream")}(${api("lm.stream")}(request), request)  ${comment("# Stop closes the stream")}`, "async for text in result:", '    print(text, end="", flush=True)', "", comment("# Keep the reply for the next turn."), `response = await ${api("result.response")}()`);
+  else lines.push(`response = await ${api("lm.complete")}(request)  ${comment("# one piece: this API has no stream")}`);
   lines.push("messages = (*request.messages, response.message)");
-  return lines.join("\n");
+  return finish(lines.join("\n"));
 }
 
 /** Rust string literal (JSON's control escapes are not all Rust escapes). */
@@ -224,6 +248,16 @@ export function rustString(text: string): string {
   }).join("") + '"';
 }
 
+/** A Rust string literal whose contents are the person's. */
+export const rv = (text: string): string => quotedValue(rustString(text));
+
+/** The Rust adapter: `adapter_for` with the credential and, in a page, the relay. */
+export function rustClient(connection: Connection): string[] {
+  const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
+  const relay = baseUrlFor(connection);
+  return [`let lm = ${api("adapter_for")}(`, `    ${rv(provider)}, ${api("Credential::api_key")}(${keyless(connection.provider) ? '"unused"' : rv(EXAMPLE_API_KEY)})?,`, `    ${relay === undefined ? "None" : `Some(${rv(relay)})`}, None, None,`, ")?;"];
+}
+
 /** A Go string literal holding JSON text: raw (backticks) when the text allows it, so the JSON reads as JSON. */
 export function goJsonText(text: string): string {
   return text.includes("`") ? q(text) : "`" + text + "`";
@@ -235,72 +269,72 @@ export function goJsonText(text: string): string {
  * `body` is the indented statements of `run`; `imports` its standard-library
  * imports beside the SDK.
  */
-export function goProgram(connection: Connection, imports: readonly string[], body: readonly string[]): string {
+export function goProgram(connection: Connection, imports: readonly string[], body: readonly string[]): Code {
   const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
   const std = [...new Set(["context", ...imports])].sort().map((name) => `    ${q(name)}`);
-  const lines = ["package main", "", "import (", ...std, "", '    lm15 "github.com/lm15-dev/lm15-go"', ")", "", "func main() {", "    if err := run(); err != nil { panic(err) }", "}", "", "func run() error {", "    ctx, cancel := context.WithCancel(context.Background()) // call cancel to stop", "    defer cancel()"];
+  const lines = [dim("package main"), "", dim("import ("), ...std.map(dim), "", dim('    lm15 "github.com/lm15-dev/lm15-go"'), dim(")"), "", dim("func main() {"), dim("    if err := run(); err != nil { panic(err) }"), dim("}"), "", dim("func run() error {"), `    ctx, cancel := context.WithCancel(context.Background()) ${comment("// call cancel to stop")}`, "    defer cancel()"];
   const relay = baseUrlFor(connection);
-  if (connection.provider !== "custom" && relay !== undefined) lines.push("    // This API refuses browser origins; the page relays it (see the Relay note). Outside a browser pass \"\" instead.");
-  lines.push(`    lm, err := lm15.AdapterForProvider(${q(provider)}, ${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)}, ${q(relay ?? "")}, nil, nil)`, "    if err != nil { return err }", "", ...body, "    return nil", "}");
-  return lines.join("\n");
+  if (connection.provider !== "custom" && relay !== undefined) lines.push(`    ${comment('// This API refuses browser origins; the page relays it (see the Relay note). Outside a browser pass "" instead.')}`);
+  lines.push(`    lm, err := ${api("lm15.AdapterForProvider")}(${qv(provider)}, ${keyless(connection.provider) ? '"unused"' : qv(EXAMPLE_API_KEY)}, ${relay === undefined ? '""' : qv(relay)}, nil, nil)`, GO_ERR, "", ...body, dim("    return nil"), dim("}"));
+  return finish(lines.join("\n"));
 }
+
+/** Go's error check, as plumbing. */
+export const GO_ERR = dim("    if err != nil { return err }");
+export const GO_ERR_IN_LOOP = dim("        if err != nil { return err }");
 
 /** The Go spelling of one transcript message: the SDK's constructor for plain text; the canonical JSON replayed for anything else (reasoning with continuation state). */
 function goMessage(message: Message): { expression: string; replay?: string[] } {
   const simple = plainText(message);
-  if (simple) return { expression: `lm15.${simple.role === "user" ? "UserMessage" : "AssistantText"}(${q(simple.text)})` };
-  return { expression: "earlier", replay: ["    // A reply replayed as the wire gave it (its reasoning and continuation state stay verbatim).", "    var earlier lm15.Message", `    if err := json.Unmarshal([]byte(${goJsonText(stringifyJson(Message.toJSON(message)))}), &earlier); err != nil { return err }`] };
+  if (simple) return { expression: `${api(simple.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(simple.text)})` };
+  return { expression: "earlier", replay: [`    ${comment("// A reply replayed as the wire gave it (its reasoning and continuation state stay verbatim).")}`, `    var earlier ${api("lm15.Message")}`, `    if err := json.Unmarshal([]byte(${goJsonText(stringifyJson(Message.toJSON(message)))}), &earlier); err != nil { return err }`] };
 }
 
 function goConfig(settings: Settings): string | undefined {
   const entries: string[] = [];
-  if (settings.maxTokens !== null) entries.push(`MaxTokens: lm15.I(${settings.maxTokens})`);
-  if (settings.temperature !== null) entries.push(`Temperature: lm15.F(${settings.temperature})`);
-  if (settings.reasoning) entries.push(`Reasoning: &lm15.Reasoning{Effort: ${q(settings.reasoning)}}`);
-  return entries.length ? `lm15.Config{${entries.join(", ")}}` : undefined;
+  if (settings.maxTokens !== null) entries.push(`MaxTokens: lm15.I(${nv(settings.maxTokens)})`);
+  if (settings.temperature !== null) entries.push(`Temperature: lm15.F(${nv(settings.temperature)})`);
+  if (settings.reasoning) entries.push(`Reasoning: &${api("lm15.Reasoning")}{Effort: ${qv(settings.reasoning)}}`);
+  return entries.length ? `${api("lm15.Config")}{${entries.join(", ")}}` : undefined;
 }
 
 /** The Go of the chat turn: the SDK's own constructors, streamed where the API streams. */
-export function exampleGo(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {
-  if (judgmentsOnly(connection.provider)) return "// TypeSafe is judgments-only. Open Judge to declare the questions.";
+export function exampleGo(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): Code {
+  if (judgmentsOnly(connection.provider)) return finish(comment("// TypeSafe is judgments-only. Open Judge to declare the questions."));
   const streamed = streams(connection);
   const rendered = messages.map(goMessage);
   const body: string[] = [];
   const replays = rendered.flatMap((m) => m.replay ?? []);
   if (replays.length) body.push(...replays, "");
-  const turns = [...rendered.map((m) => m.expression), `lm15.UserMessage(${q(prompt)})`];
+  const turns = [...rendered.map((m) => m.expression), `${api("lm15.UserMessage")}(${qv(prompt)})`];
   const config = goConfig(settings);
-  const options = [...(settings.system.trim() ? [`lm15.WithSystem(${q(settings.system.trim())})`] : []), ...(config ? [`lm15.WithConfig(${config})`] : [])];
-  body.push("    request, err := lm15.NewRequest(", `        ${q(connection.model)},`);
+  const options = [...(settings.system.trim() ? [`${api("lm15.WithSystem")}(${qv(settings.system.trim())})`] : []), ...(config ? [`${api("lm15.WithConfig")}(${config})`] : [])];
+  body.push(`    request, err := ${api("lm15.NewRequest")}(`, `        ${qv(connection.model)},`);
   if (turns.length === 1) body.push(`        []lm15.Message{${turns[0]}},`);
   else body.push("        []lm15.Message{", ...turns.map((t) => `            ${t},`), "        },");
-  body.push(...options.map((o) => `        ${o},`), "    )", "    if err != nil { return err }", "");
-  if (streamed) body.push("    result := lm15.NewResponseStream(lm.Stream(ctx, request), request)", "    for text, err := range result.Text() {", "        if err != nil { return err }", "        fmt.Print(text)", "    }", "    response, err := result.Response()");
-  else body.push("    response, err := lm.Complete(ctx, request) // one piece: this API has no stream");
-  body.push("    if err != nil { return err }", ...(streamed ? [] : ['    fmt.Println(response.TextOr(""))']), "", "    // Keep the reply for the next turn.", "    request.Messages = append(request.Messages, response.Message)");
+  body.push(...options.map((o) => `        ${o},`), "    )", GO_ERR, "");
+  if (streamed) body.push(`    result := ${api("lm15.NewResponseStream")}(${api("lm.Stream")}(ctx, request), request)`, `    for text, err := range ${api("result.Text")}() {`, GO_ERR_IN_LOOP, "        fmt.Print(text)", "    }", `    response, err := ${api("result.Response")}()`);
+  else body.push(`    response, err := ${api("lm.Complete")}(ctx, request) ${comment("// one piece: this API has no stream")}`);
+  body.push(GO_ERR, ...(streamed ? [] : [`    fmt.Println(${api("response.TextOr")}(""))`]), "", `    ${comment("// Keep the reply for the next turn.")}`, "    request.Messages = append(request.Messages, response.Message)");
   return goProgram(connection, replays.length ? ["encoding/json", "fmt"] : ["fmt"], body);
 }
 
-export function exampleRust(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {
-  if (judgmentsOnly(connection.provider)) return "// TypeSafe is judgments-only. Open Judge to declare the questions.";
-  const q = rustString;
+export function exampleRust(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): Code {
+  if (judgmentsOnly(connection.provider)) return finish(comment("// TypeSafe is judgments-only. Open Judge to declare the questions."));
   const imports = ["Message", "Request", "ResponseStream"];
   if (configLines(settings, "rust").length) imports.push("Config");
   if (settings.reasoning) imports.push("Reasoning");
   if (messages.some((message) => !plainText(message))) imports.push("Canonical");
-  const lines = ["use futures_util::StreamExt;", "use lm15::{auth::Credential, registry::adapter_for};", `use lm15::{${imports.sort().join(", ")}};`, ""];
-  const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
-  const relay = baseUrlFor(connection);
-  lines.push("let lm = adapter_for(", `    ${q(provider)}, Credential::api_key(${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)})?,`, `    ${relay === undefined ? "None" : `Some(${q(relay)})`}, None, None,`, ")?;", "", "let request = Request {", `    model: ${q(connection.model)}.into(),`);
-  if (settings.system.trim()) lines.push(`    system: Some(${q(settings.system.trim())}.into()),`);
+  const lines = [dim("use futures_util::StreamExt;"), dim("use lm15::{auth::Credential, registry::adapter_for};"), dim(`use lm15::{${imports.sort().join(", ")}};`), "", ...rustClient(connection), "", `let request = ${api("Request")} {`, `    model: ${rv(connection.model)}.into(),`];
+  if (settings.system.trim()) lines.push(`    system: Some(${rv(settings.system.trim())}.into()),`);
   if (messages.length) {
     lines.push("    messages: vec![", ...messages.map((m) => {
       const simple = plainText(m);
-      return simple ? `        Message::${simple.role}(${q(simple.text)})?,` : `        Message::from_json(&serde_json::from_str(${q(stringifyJson(Message.toJSON(m)))})?)?,`;
-    }), `        Message::user(${q(prompt)})?,`, "    ],");
-  } else lines.push(`    messages: vec![Message::user(${q(prompt)})?],`);
-  lines.push(...configLines(settings, "rust"), "    ..Default::default()", "};", "", "let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop", "while let Some(text) = result.text_chunks().next().await {", '    print!("{}", text?);', "}", "", "// Keep the reply for the next turn.", "let response = result.response().await?;", "let mut messages = request.messages.clone();", "messages.push(response.message.clone());");
-  return lines.join("\n");
+      return simple ? `        ${api(`Message::${simple.role}`)}(${rv(simple.text)})?,` : `        ${api("Message::from_json")}(&serde_json::from_str(${rustString(stringifyJson(Message.toJSON(m)))})?)?,`;
+    }), `        ${api("Message::user")}(${rv(prompt)})?,`, "    ],");
+  } else lines.push(`    messages: vec![${api("Message::user")}(${rv(prompt)})?],`);
+  lines.push(...configLines(settings, "rust"), dim("    ..Default::default()"), "};", "", `let mut result = ${api("ResponseStream::new")}(${api("lm.stream")}(&request), &request); ${comment("// drop it to stop")}`, `while let Some(text) = ${api("result.text_chunks")}().next().await {`, '    print!("{}", text?);', "}", "", comment("// Keep the reply for the next turn."), `let response = ${api("result.response")}().await?;`, "let mut messages = request.messages.clone();", "messages.push(response.message.clone());");
+  return finish(lines.join("\n"));
 }
 
 export interface Wire { method: string; url: string; headers: Array<[string, string]>; body: string }

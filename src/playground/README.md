@@ -17,6 +17,12 @@ https://lm15.dev/playground/ after the build and link checks pass.
 - `index.html`, `app.css`: the standalone interface.
 - `../styles/theme.css`: shared brand colors for the whole website.
 - `main.ts`, `picker.ts`, `code-view.ts`: interaction and code display.
+- `marks.ts`: how the code panel knows what to colour. A generator marks the
+  person's values, LM15's calls, comments and plumbing as it writes; `finish`
+  yields a `Code` (exact text plus ranges). Nothing re-parses the text, so Go
+  and Judge get the same colouring as JavaScript. `code-view.ts` renders one
+  block per line with a hanging indent, keeping `textContent` byte-exact for
+  Copy.
 - `experience.ts`, `connections.ts`: provider choices, requests, and examples.
 - `judge.ts`, `judge-ui.ts`: Judge mode — the question set, the inputs, one
   request per input, the four languages, the results table.

@@ -3,6 +3,7 @@ import { Message, parseJson, stringifyJson, type Request } from "lm15/browser";
 import { CONNECTIONS } from "./connections.ts";
 import { Credentials } from "./credentials.ts";
 import { renderCode } from "./code-view.ts";
+import { comment, dim, finish, replaceAll, unmarked, type Code } from "./marks.ts";
 import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleGo, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyPage, keyless, slashCommand, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
 import { JudgeView } from "./judge-ui.ts";
 import type { JudgeSource } from "./judge.ts";
@@ -128,6 +129,17 @@ function redact(text: string): string {
   for (const key of credentials.providers().map((p) => credentials.get(p)!)) if (key.length > 3) text = text.split(key).join("[redacted]");
   return text;
 }
+function redactCode(code: Code): Code {
+  for (const key of credentials.providers().map((p) => credentials.get(p)!)) if (key.length > 3) code = replaceAll(code, key, "[redacted]");
+  return code;
+}
+/** The wire as text: the request line, the headers dimmed, the body as the SDK wrote it. */
+function wireCode(text: string, headerCount: number): Code {
+  // A raw control character in a body (never in JSON, which escapes them) shows as U+FFFD rather than passing for a mark.
+  const lines = text.replace(/[\u0001-\u0005]/g, "\uFFFD").split("\n");
+  // Lines 2 .. 1+headerCount are the headers (line 1 is blank after the request line).
+  return finish(lines.map((line, i) => (i >= 2 && i < 2 + headerCount ? dim(line) : line)).join("\n"));
+}
 function errorMessage(error: unknown): string {
   const named = displayError(error);
   return redact(named) + (looksBrowserBlocked(error) ? (relayed(connection.provider) ? "\nThe relay could not be reached." : "\nThe provider may block browser access, or the network failed.") : "");
@@ -145,7 +157,7 @@ async function updateCode(): Promise<void> {
   const version = ++codeVersion;
   for (const tab of document.querySelectorAll<HTMLButtonElement>("[data-language]")) tab.setAttribute("aria-pressed", String(tab.dataset.language === runtime));
   const text = redact(draft());
-  let code = "";
+  let code: Code = unmarked("");
   const invalidMax = !maxTokensInput.validity.valid;
   const invalidTemperature = !temperatureInput.validity.valid;
   maxTokensInput.setAttribute("aria-invalid", String(invalidMax));
@@ -163,14 +175,14 @@ async function updateCode(): Promise<void> {
       else code = exampleRust(connection, settings, messages, text);
     }
   } catch (error) {
-    code = `// ${redact(error instanceof Error ? error.message : String(error))}`;
+    code = finish(comment(`// ${redact(error instanceof Error ? error.message : String(error))}`));
   }
   if (version !== codeVersion) return;
   $("copy-status").textContent = "";
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-code-view]")) button.setAttribute("aria-pressed", String(button.dataset.codeView === codeView));
   $("code-scroll").dataset.view = codeView;
   if (codeView === "code") {
-    renderCode($("code"), redact(code), runtime);
+    renderCode($("code"), redactCode(code));
     $("copy-code").textContent = "Copy code";
     $("request-note").hidden = true;
     return;
@@ -182,8 +194,7 @@ async function updateCode(): Promise<void> {
 /** The wire: what the selected runtime's SDK builds for the current turn or input, with the key blanked. Nothing is sent. */
 async function updateRequestView(version: number, settingsError: string, text: string): Promise<void> {
   const note = $("request-note");
-  // "curl" colouring: strings and numbers, `#` comments — a URL's `//` is not a comment here.
-  const show = (message: string, body = "") => { if (version !== codeVersion) return; note.textContent = message; note.hidden = false; renderCode($("code"), body, "curl"); };
+  const show = (message: string, body = "") => { if (version !== codeVersion) return; note.textContent = message; note.hidden = false; renderCode($("code"), unmarked(body)); };
   const chosen = RUNTIMES[runtime];
   if (loadingRuntime || !chosen.loaded()) return show(`${chosen.label} is not loaded yet; the request is built by the runtime that would send it.`);
   let request: Request, which: string, source: JudgeSource | undefined;
@@ -208,7 +219,7 @@ async function updateRequestView(version: number, settingsError: string, text: s
     lines.push(body);
     note.textContent = `Built by ${chosen.label} for ${which}, not sent.${credentials.get(connection.provider) ? " Your key is blanked here." : " The example key stands in for yours."}`;
     note.hidden = false;
-    renderCode($("code"), redact(lines.join("\n").split(key).join("[your key]")), "curl");
+    renderCode($("code"), wireCode(redact(lines.join("\n").split(key).join("[your key]")), wire.headers.length));
   } catch (e) {
     show(`${chosen.label} cannot build this request: ${errorMessage(e)}`);
   }
