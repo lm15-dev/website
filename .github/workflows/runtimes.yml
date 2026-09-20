@@ -25,10 +25,12 @@ jobs:
           node --input-type=module <<'JS'
           import { readFileSync, appendFileSync } from 'node:fs';
           const pins = JSON.parse(readFileSync('sources.json', 'utf8'));
-          for (const key of ['typescript', 'python', 'rust', 'contract']) {
+          for (const key of ['typescript', 'python', 'rust', 'go', 'contract']) {
             if (!/^[a-f0-9]{40}$/.test(pins[key])) throw new Error(`Invalid ${key} pin`);
           }
-          if (!/^\d+\.\d+\.\d+$/.test(pins.rustToolchain)) throw new Error('Invalid toolchain');
+          for (const key of ['rustToolchain', 'goToolchain']) {
+            if (!/^\d+\.\d+\.\d+$/.test(pins[key])) throw new Error(`Invalid ${key}`);
+          }
           for (const [key, value] of Object.entries(pins)) appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
           JS
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -48,6 +50,12 @@ jobs:
           repository: lm15-dev/lm15-rs
           ref: ${{ steps.pins.outputs.rust }}
           path: .runtime-build/lm15-rs
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: lm15-dev/lm15-go
+          ref: ${{ steps.pins.outputs.go }}
+          path: .runtime-build/lm15-go
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -82,6 +90,17 @@ jobs:
           mkdir -p ../lm15-ts/vendor/rust
           cp target/wasm32-unknown-unknown/wasm/lm15.wasm ../lm15-ts/vendor/rust/lm15.wasm
           python ../../scripts/rust-licenses.py . > ../lm15-ts/vendor/rust/THIRD_PARTY_LICENSES.txt
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: ${{ steps.pins.outputs.goToolchain }}
+          cache: false
+      - name: Build the Go browser runtime
+        run: |
+          cd .runtime-build/lm15-go
+          mkdir -p ../lm15-ts/vendor/go
+          GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o ../lm15-ts/vendor/go/lm15-go.wasm ./cmd/lm15-wasm
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" ../lm15-ts/vendor/go/wasm_exec.js
+          cp "$(go env GOROOT)/LICENSE" ../lm15-ts/vendor/go/LICENSE.txt
       - name: Package pinned runtimes
         run: |
           node scripts/package-runtime.mjs

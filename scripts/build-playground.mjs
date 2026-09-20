@@ -43,6 +43,8 @@ export function buildPlayground() {
   if (wheels.length !== 1) throw new Error('Expected one Python wheel');
   copy(join(sdk, 'runtime', wheels[0]), 'vendor/python/lm15.whl');
   copy(join(sdk, 'runtime/lm15.wasm'), 'vendor/rust/lm15.wasm');
+  copy(join(sdk, 'runtime/go/lm15-go.wasm'), 'vendor/go/lm15-go.wasm');
+  copy(join(sdk, 'runtime/go/wasm_exec.js'), 'vendor/go/wasm_exec.js');
   for (const name of ['pyodide.mjs', 'pyodide.asm.js', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json']) {
     copy(join(root, 'node_modules/pyodide', name), `vendor/pyodide/${name}`);
   }
@@ -67,13 +69,13 @@ export function buildPlayground() {
   if (!html.includes(hash(oldMap))) throw new Error('Import map is not covered by the page CSP');
   const newMap = JSON.stringify({ imports: { 'lm15/browser': `${prefix}/dist/browser.js` } });
   const escapeAttribute = value => String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-  const shareTags = socialHead('LM15 Playground', 'Try LM15 in JavaScript, Python and Rust, directly in your browser.', 'https://lm15.dev/playground/')
+  const shareTags = socialHead('LM15 Playground', 'Try LM15 in JavaScript, Python, Rust and Go, directly in your browser.', 'https://lm15.dev/playground/')
     .map(({ attrs }) => `<meta ${Object.entries(attrs).map(([key, value]) => `${key}="${escapeAttribute(value)}"`).join(' ')}>`).join('\n');
   html = html.replace(oldMap, newMap).replace(hash(oldMap), hash(newMap))
     .replace('href="./app.css"', `href="${prefix}/playground/app.css"`)
     .replace('src="./build/main.js"', `src="${prefix}/playground/main.js"`)
     .replace("connect-src 'self' https: http://localhost:* http://127.0.0.1:*", "connect-src 'self' https:")
-    .replace('</head>', '<meta name="description" content="Try LM15 in JavaScript, Python and Rust, directly in your browser.">\n<link rel="canonical" href="https://lm15.dev/playground/">\n' + shareTags + '\n</head>');
+    .replace('</head>', '<meta name="description" content="Try LM15 in JavaScript, Python, Rust and Go, directly in your browser.">\n<link rel="canonical" href="https://lm15.dev/playground/">\n' + shareTags + '\n</head>');
   mkdirSync(join(generatedDir, 'playground/about'), { recursive: true });
   writeFileSync(join(generatedDir, 'playground/index.html'), html);
   writeFileSync(join(generatedDir, 'playground/about/index.html'), readFileSync(join(root, 'src/playground/about.html'), 'utf8').replaceAll('__ASSETS__', prefix));

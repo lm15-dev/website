@@ -1,7 +1,9 @@
 {
-  "typescript": "fa3d23f2bb5f0655d66db044b2f6e69ff2baa9ca",
-  "python": "bbef28f27f76c00cb2ea11cb2009c66ffdbc96d1",
-  "rust": "62dcbff9afa2688f68fd2c22f7e7f93dcba14377",
-  "contract": "7e2a3403880aff7dc9dc455565c4fda98dbcd46e",
-  "rustToolchain": "1.97.1"
+  "typescript": "430f1cd9f27aaa892a3991aeb11aeca2ac24eca0",
+  "python": "55fce2e61a04ed3193acfeb8797b7c58d1b55398",
+  "rust": "a742b1cfa5a379f59227bb001bc0a9947ab35e4a",
+  "go": "0fe1dc5f83770eeb69cfae03a5ea6854fb51fbd9",
+  "contract": "b721ce4f03877d72a91431b3a5ce653ffc0b3e38",
+  "rustToolchain": "1.97.1",
+  "goToolchain": "1.26.7"
 }

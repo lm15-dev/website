@@ -45,16 +45,25 @@ is not a security boundary between the documentation and playground.
 
 `package.json` and `package-lock.json` select a runtime package from this
 repository's GitHub Releases. It contains the built TypeScript SDK, Python
-wheel, and Rust browser module. `sources.json` records their source revisions.
+wheel, Rust browser module, and Go browser module with its matching Go support
+script. `sources.json` records all four source revisions and compiler versions.
 The build refuses a runtime package that does not match those revisions.
 
-To update SDKs, edit `sources.json`, run the **Build SDK runtime package**
-GitHub workflow with a new release name, and install that release's package
+To update SDKs, push the SDK source revisions, edit `sources.json`, run the
+**Build SDK runtime package** GitHub workflow with a new release name, and install that release's package
 with `npm install --save-exact <release-package-url>`. Update the Rust example
 crate's pinned revision when Rust changes. Review the examples and run the
 checks before publishing a runtime update. Never replace an existing release.
 
-Writing a guide or changing the playground does not rebuild the SDKs.
+Writing a guide or changing the playground does not rebuild the SDKs. The Go
+module is built with `GOOS=js GOARCH=wasm`; its `wasm_exec.js` must come from the
+exact pinned Go toolchain. All heavy runtimes load only when selected.
+
+Prepare runtime upgrades on a branch: dispatch the runtime workflow on that
+branch, install the immutable release, and check the actual built playground
+before merging to `main`. This keeps the current public deployment intact while
+the new package is being built. Go may use different JSON key order; the page
+compares request content without claiming that differently ordered bytes match.
 
 ## Local provider keys
 
