@@ -6,8 +6,8 @@
  *   sends one request per input, and each is the page's own request;
  * - the Python text runs under Pyodide and builds the same bytes as
  *   JavaScript for the input the page would execute it with;
- * - the Rust tab says the pin has no judgments, and the Rust runtime
- *   refuses to judge rather than translate.
+ * - Rust builds each canonical request and parses the actual prepared reply;
+ *   Rust and Go displayed source use their real SDK complete methods.
  */
 
 import assert from "node:assert/strict";
@@ -17,12 +17,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 import { utf8Decode } from "lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
-import { EXAMPLE_API_KEY, RUST_NOT_YET, createClient, keyless, type Connection } from "../src/playground/experience.ts";
-import { EXAMPLE_INPUTS, EXAMPLE_INSTRUCTIONS, EXAMPLE_SPEC, judgeJavascript, judgePython, judgeRequest, judgeRust, verdictOf, type InputValue, type JudgeSpec } from "../src/playground/judge.ts";
+import { EXAMPLE_API_KEY, createClient, keyless, type Connection } from "../src/playground/experience.ts";
+import { EXAMPLE_INPUTS, EXAMPLE_INSTRUCTIONS, EXAMPLE_SPEC, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, verdictOf, type InputValue, type JudgeSpec } from "../src/playground/judge.ts";
 import { judgeProgram, withKey } from "../src/playground/runtimes/python.ts";
-import { rustRuntime } from "../src/playground/runtimes/rust.ts";
-import "lm15/node";
-import { ensureWheel } from "./support/runtimes.ts";
+import { RustCodec } from "../src/playground/runtimes/rust.ts";
+import { readFileSync } from "node:fs";
+import { Request as RequestNs, Response as CanonicalResponse } from "lm15/browser";
+// Browser examples must use FetchTransport: lm15/node installs a native transport
+// that bypasses mocked global fetch. Fail closed before constructing any clients.
+globalThis.fetch = async () => { throw new Error("Unintercepted network in Judge example test"); };
+import { ensureWheel, ensureRustWasm } from "./support/runtimes.ts";
 import { JUDGED_TEXT, judgeReplyFor } from "./support/replies.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -101,7 +105,7 @@ test(`Python under Pyodide: all ${cases.length} judge variants execute the progr
       const want = await expected(c, value);
       assert.equal(calls[k]!.url, want.url, c.connection.provider);
       assert.equal(calls[k]!.body, want.body, `${c.connection.provider} ${c.spec.shape} input ${k}: Python and JavaScript build the same bytes`);
-      assert.deepEqual(calls[k]!.headers, want.headers, `${c.connection.provider}: the same headers`);
+      assert.deepEqual(Object.fromEntries(Object.entries(calls[k]!.headers).filter(([key]) => key !== "accept-encoding")), want.headers, `${c.connection.provider}: the same provider headers (Python transport adds Accept-Encoding: identity)`);
     }
     // The program the page executes for one input: the same bytes, and a Response the page can read.
     calls = [];
@@ -148,7 +152,19 @@ test("on Jev the wire is the docs' request: the state is the input verbatim, the
   assert.equal(chatBody.input[0]!.content[0]!.text, '{"note":"A note.","price_eur":48}', "D3: a data part is its compact JSON on a text wire");
 });
 
-test("Rust: the tab names the pin gap and the runtime refuses to judge rather than translate", async () => {
-  assert.equal(judgeRust(), RUST_NOT_YET);
-  await assert.rejects(rustRuntime.judge(cases[0]!.connection, "k", judgeRequest(cases[0]!.connection, EXAMPLE_SPEC, "x"), new AbortController().signal), (e: unknown) => e instanceof Error && e.name === "UnsupportedFeatureError" && /Rust SDK at this pin/.test(e.message));
+test("Rust: Judge builds and parses prepared replies for every provider and shape", async () => {
+  const rust = await RustCodec.load(readFileSync(ensureRustWasm().path));
+  for (const c of cases) {
+    const want = await expected(c, c.inputs[0]!);
+    const conn = { provider: c.connection.provider === "custom" ? "openai-chat" : c.connection.provider, apiKey: c.key, ...(c.connection.provider === "custom" ? { baseUrl: c.connection.endpoint } : {}) };
+    const canonical = RequestNs.toJSON(want.request);
+    const built = rust.buildRequest(conn, canonical, false);
+    assert.deepEqual(built.body, JSON.parse(want.body), `${c.connection.provider} ${c.spec.shape}`);
+    const reply = judgeReplyFor(want.url);
+    const parsed = rust.parseResponse(conn, canonical, reply.status, await reply.text(), [...reply.headers], true);
+    const response = CanonicalResponse.fromJSON(parsed.canonical_response as Parameters<typeof CanonicalResponse.fromJSON>[0]);
+    assert.deepEqual(verdictOf(response, { ms: 0, provider: c.connection.provider, model: c.connection.model, runtime: "Rust" }).data, JSON.parse(JUDGED_TEXT));
+    assert.ok(judgeRust(c.connection, c.spec, c.inputs).includes("lm.complete(&request).await?"));
+    assert.ok(judgeGo(c.connection, c.spec, c.inputs).includes("lm.Complete(ctx, &request)"));
+  }
 });

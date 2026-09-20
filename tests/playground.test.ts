@@ -365,7 +365,7 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
     await page.getByRole("button", { name: "Use key for this provider" }).click();
     await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
     await focusSettings(page);
-    for (const tab of ["JavaScript", "Python", "Rust"]) {
+    for (const tab of ["JavaScript", "Python", "Go", "Rust"]) {
       await page.getByRole("button", { name: tab, exact: true }).click();
       await waitRuntimeReady(page, tab);
       const text = `Changed in ${tab}`;
@@ -453,7 +453,7 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
     assert.equal(await page.getByLabel("API key", { exact: true }).inputValue(), "", "The joke key is not a credential");
     assert.deepEqual(await page.locator("#transcript article p").allTextContents(), [EXAMPLE_QUESTION, EXAMPLE_ANSWER]);
     assert.equal(await page.locator('#transcript article[data-example="true"]').count(), 2);
-    assert.deepEqual(await page.locator("[data-language]").allTextContents(), ["JavaScript", "Python", "Rust"]);
+    assert.deepEqual(await page.locator("[data-language]").allTextContents(), ["JavaScript", "Python", "Rust", "Go"]);
     assert.equal(await page.locator('#composer .composer-actions #provider-button').count(), 1);
     assert.equal(await page.locator('#composer .composer-actions #model-button').count(), 1);
     for (const selector of ["#empty", "[data-starter]", "#reset-settings", "#temperature-reset", "#wrap-code", "#jump-request", "#code-file", "#code-note", "#turn-count", ".brand-mark", ".status-dot", ".composer-hint", ".picker-help", ".site-footer", "#settings-button", "#connection-button", "[data-line]", "#clear", "#runtime-controls", 'input[name="runtime"]', '[data-language="json"]', '[data-language="curl"]', "#preview-state"]) {
@@ -599,7 +599,7 @@ test("runtime loading can be retried, never silently switches language, and does
     assert.equal(await page.locator("#runtime-status").textContent(), "", "Successful loading does not leave technical status text");
     assert.equal(attempts, 2, "Retry actually refetches, rather than reusing a rejected promise");
     await page.getByRole("button", { name: "Send", exact: true }).click();
-    for (const name of ["JavaScript", "Python", "Rust"]) assert.equal(await page.getByRole("button", { name, exact: true }).isDisabled(), true, "The executing language cannot change mid-turn");
+    for (const name of ["JavaScript", "Python", "Rust", "Go"]) assert.equal(await page.getByRole("button", { name, exact: true }).isDisabled(), true, "The executing language cannot change mid-turn");
     releaseReply();
     await page.waitForFunction(() => document.getElementById("usage")?.textContent?.endsWith("Rust"));
     assert.equal(posts, 1);
@@ -663,7 +663,7 @@ test("the playground runs the same turn through Python (Pyodide) and Rust (wasm)
       assert.equal(await page.locator("#transcript article").last().locator("p").textContent(), "Hello there.", runtime);
       assert.equal(await page.locator("#transcript article").last().locator("b").textContent(), `OpenAI · ${runtime}`);
     }
-    await page.waitForFunction(() => document.getElementById("fidelity")?.textContent?.includes("Same request bytes from JavaScript, Python, Rust"));
+    await page.waitForFunction(() => document.getElementById("fidelity")?.textContent?.includes("Same request body bytes from JavaScript, Python, Rust"));
     assert.equal(sent.length, 3);
     for (const call of sent) {
       assert.equal(call.url, "https://api.openai.com/v1/responses");

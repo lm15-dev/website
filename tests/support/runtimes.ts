@@ -11,7 +11,7 @@ export function ensureWheel(): { path: string } {
   return { path: resolve(runtime, wheels[0]!) };
 }
 export function ensureRustWasm(): { path: string } {
-  const path = resolve(runtime, 'lm15.wasm');
+  const path = process.env['LM15_TEST_RUST_WASM'] ? resolve(process.env['LM15_TEST_RUST_WASM']) : resolve(runtime, 'lm15.wasm');
   if (!existsSync(path)) throw new Error('Install the pinned runtime package with npm ci');
   return { path };
 }

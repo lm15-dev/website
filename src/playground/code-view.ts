@@ -2,7 +2,7 @@
 export type Token = { text: string; kind?: "string" | "comment" | "keyword" | "number" };
 export function tokens(source: string, language: string): Token[] {
   const comments = language === "python" || language === "curl" ? "#[^\\n]*" : "//[^\\n]*|/\\*[\\s\\S]*?\\*/";
-  const pattern = new RegExp(`("(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|\x60(?:\\\\.|[^\x60\\\\])*\x60)|(${comments})|\\b(const|let|var|import|from|as|new|await|async|for|of|in|if|else|return|fn|use|pub|mut|true|false|null|None|True|False|Some|Ok|with|class|def|try|except|while|yield)\\b|\\b(\\d+(?:\\.\\d+)?)\\b`, "g");
+  const pattern = new RegExp(`("(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|\x60(?:\\\\.|[^\x60\\\\])*\x60)|(${comments})|\\b(const|let|var|import|from|as|new|await|async|for|of|in|if|else|return|fn|use|pub|mut|true|false|null|None|True|False|Some|Ok|with|class|def|try|except|while|yield|package|func|range|defer|nil|break|continue|type|struct)\\b|\\b(\\d+(?:\\.\\d+)?)\\b`, "g");
   const out: Token[] = [];
   let offset = 0;
   for (const match of source.matchAll(pattern)) {

@@ -10,7 +10,7 @@
 
 import { judgmentsInSchema, stringifyJson, type Judgment, type JsonObject, type JsonValue, type Request } from "lm15/browser";
 import { keyless, type Connection } from "./experience.ts";
-import { JEV_INSTRUCTIONS_KEY, JEV_TEXT_KEY, jevState, EXAMPLE_INPUTS, EXAMPLE_SPEC, EXAMPLE_FIELDS, distribution, emptyInput, expectedLevel, fieldText, fieldValue, freeName, inputIsBlank, inputSummary, judgeJavascript, judgePython, judgeRequest, judgeRust, parseCsv, parseInputs, parseProperties, pickLabel, readQuestions, toCsv, toJsonExport, verdictOf, withQuestion, withoutQuestion, type FieldDef, type InputValue, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type Turn, type Verdict } from "./judge.ts";
+import { JEV_INSTRUCTIONS_KEY, JEV_TEXT_KEY, jevState, EXAMPLE_INPUTS, EXAMPLE_SPEC, EXAMPLE_FIELDS, distribution, emptyInput, expectedLevel, fieldText, fieldValue, freeName, inputIsBlank, inputSummary, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, parseCsv, parseInputs, parseProperties, pickLabel, readQuestions, toCsv, toJsonExport, verdictOf, withQuestion, withoutQuestion, type FieldDef, type InputValue, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type Turn, type Verdict } from "./judge.ts";
 import { looksBrowserBlocked, relayed } from "./relay.ts";
 import type { Runtime, RuntimeId } from "./runtimes/index.ts";
 
@@ -83,7 +83,8 @@ export class JudgeView {
     const inputs = this.rows.map((r) => r.value);
     if (runtime === "javascript") return judgeJavascript(this.host.connection, this.spec, inputs);
     if (runtime === "python") return judgePython(this.host.connection, this.spec, inputs);
-    return judgeRust();
+    if (runtime === "go") return judgeGo(this.host.connection, this.spec, inputs);
+    return judgeRust(this.host.connection, this.spec, inputs);
   }
 
   busy(): boolean { return this.running !== undefined; }
@@ -576,11 +577,10 @@ export class JudgeView {
     run.textContent = this.running ? "Running…" : partial ? `Run ${pending} new` : "Run all";
     // With some rows changed, the main button judges only those; a second, quieter one redoes the whole set.
     const again = $<HTMLButtonElement>("judge-run-again"); again.hidden = !partial || Boolean(this.running);
-    const rustPinned = this.host.runtime() === "rust";
     const gap = this.stateError();
-    run.disabled = Boolean(this.running) || !this.host.runtimeReady() || calls === 0 || Boolean(this.questionsError()) || rustPinned || Boolean(gap);
-    run.title = rustPinned ? "The Rust SDK at this pin has no judgments (MAP-14). Judge with JavaScript or Python." : gap ?? "";
-    const note = $("judge-gap"); note.hidden = !gap && !rustPinned; note.textContent = gap ?? (rustPinned ? run.title : "");
+    run.disabled = Boolean(this.running) || !this.host.runtimeReady() || calls === 0 || Boolean(this.questionsError()) || Boolean(gap);
+    run.title = gap ?? "";
+    const note = $("judge-gap"); note.hidden = !gap; note.textContent = gap ?? "";
     $("judge-instructions-note").textContent = this.host.connection.provider === "typesafe" ? `Jev takes no system text: sent in the state as the key ${JEV_INSTRUCTIONS_KEY}` : "sent as the system text";
     $<HTMLButtonElement>("judge-stop").disabled = !this.running;
     $<HTMLButtonElement>("judge-run-again").disabled = run.disabled;
@@ -607,7 +607,7 @@ export class JudgeView {
 
   /** Judge the changed inputs, or — `all`, or when nothing changed — every input again. */
   async run(all = false): Promise<void> {
-    if (this.running || !this.host.runtimeReady() || this.host.runtime() === "rust" || this.stateError()) return;
+    if (this.running || !this.host.runtimeReady() || this.stateError()) return;
     const error = this.questionsError();
     if (error) { this.showAlert(error); return; }
     if (!this.host.requireKey()) return;

@@ -1,7 +1,7 @@
 /**
  * A runtime executes the playground's request with one language's real
- * SDK. Three exist: JavaScript (this page's own `lm15/browser`), Python
- * (lm15-python under Pyodide), Rust (the lm15-rs codec compiled to wasm).
+ * SDK. Four exist: JavaScript (this page's own `lm15/browser`), Python
+ * (lm15-python under Pyodide), Rust and Go (their real SDKs compiled to wasm).
  * Each answers two questions with no network — what would go on the wire
  * — and one with: stream the reply. The chat keeps its transcript in the
  * TypeScript types; the other runtimes speak canonical JSON, which is the
@@ -12,7 +12,7 @@ import type { Message, Request, Response } from "lm15/browser";
 import type { Connection, Wire } from "../experience.ts";
 import type { JudgeSource } from "../judge.ts";
 
-export type RuntimeId = "javascript" | "python" | "rust";
+export type RuntimeId = "javascript" | "python" | "rust" | "go";
 
 export interface StreamOutcome {
   readonly response: Response;

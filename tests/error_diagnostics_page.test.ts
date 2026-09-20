@@ -6,7 +6,7 @@ import { startDemo } from "../scripts/serve-playground.ts";
 import { findBrowsers } from "./support/browser.ts";
 import { disableDiscovery, waitRuntimeReady } from "./support/playground.ts";
 
-test("playground shows rate-limit diagnostics in JavaScript and Python, including HTTP-200 stream failures", { timeout: 240_000 }, async (t) => {
+test("playground shows rate-limit diagnostics in all four runtimes, including HTTP-200 stream failures", { timeout: 240_000 }, async (t) => {
   const installed = findBrowsers().find(b => b.name === "chromium");
   assert.ok(installed, "Chromium is required");
   const demo = await startDemo();
@@ -42,7 +42,7 @@ test("playground shows rate-limit diagnostics in JavaScript and Python, includin
     await disableDiscovery(page);
     await page.getByLabel("API key", { exact: true }).fill(key);
     await page.getByRole("button", { name: "Use key for this provider" }).click();
-    for (const language of ["JavaScript", "Python"]) {
+    for (const language of ["JavaScript", "Python", "Rust", "Go"]) {
       await page.getByRole("button", { name: language, exact: true }).click();
       await waitRuntimeReady(page, language);
       for (const stream of [false, true]) {
@@ -56,14 +56,14 @@ test("playground shows rate-limit diagnostics in JavaScript and Python, includin
         }
         const shown = await page.locator("#alert").textContent() ?? "";
         assert.match(shown, /RateLimitError/);
-        assert.match(shown, /Retry advice: 39/);
+        assert.match(shown, /Retry advice: 39|retry_after=39s/, `${language}: its SDK's retry advice remains visible`);
         assert.match(shown, /x-ratelimit-remaining-requests/);
         assert.match(shown, /105/);
         assert.ok(!shown.includes(key), "Saved credentials are redacted after formatting");
         assert.ok(!shown.includes("Traceback"), "Python stack frames are not shown");
       }
     }
-    assert.equal(calls, 4, "Exactly one call per submission; no automatic retries");
+    assert.equal(calls, 8, "Exactly one call per submission; no automatic retries");
   } finally {
     await browser.close();
   }

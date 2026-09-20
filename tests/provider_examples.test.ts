@@ -25,10 +25,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 import { Message, Request as RequestNs, UnsupportedFeatureError, continuationState, thinking, utf8Decode } from "lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
-import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, rustPinGap, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyless, slashCommand, streams, type Connection, type Settings } from "../src/playground/experience.ts";
+import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyless, slashCommand, streams, type Connection, type Settings } from "../src/playground/experience.ts";
 import { RustCodec } from "../src/playground/runtimes/rust.ts";
 import { withKey } from "../src/playground/runtimes/python.ts";
-import "lm15/node";
+// Never install lm15/node here: its native transport bypasses fetch mocks.
+globalThis.fetch = async () => { throw new Error("Unintercepted network in provider example test"); };
 import { ensureWheel, ensureRustWasm } from "./support/runtimes.ts";
 import { replyFor } from "./support/replies.ts";
 import { renderRustExamples, rustExamplesPath } from "../scripts/rust-snippets.ts";
@@ -158,26 +159,16 @@ test(`Python under Pyodide: all ${cases.length} variants execute and build the s
     assert.equal(calls.length, 1, `${c.connection.provider}: one request`);
     assert.equal(calls[0]!.url, want.url, c.connection.provider);
     assert.equal(calls[0]!.body, want.body, `${c.connection.provider}: Python and JavaScript build the same bytes`);
-    assert.deepEqual(calls[0]!.headers, want.headers, `${c.connection.provider}: the same headers`);
+    assert.deepEqual(Object.fromEntries(Object.entries(calls[0]!.headers).filter(([key]) => key !== "accept-encoding")), want.headers, `${c.connection.provider}: the same provider headers (Python transport adds Accept-Encoding: identity)`);
     assert.equal((JSON.parse(out) as { finish_reason: string }).finish_reason, "stop");
   }
 });
 
 test(`Rust under wasm: all ${rustCases.length} chat variants build the same bytes as JavaScript`, { timeout: 120_000 }, async () => {
   const rust = await RustCodec.load(readFileSync((wasm as { path: string }).path));
-  let namedGaps = 0;
   for (const c of rustCases) {
     const want = await expected(c);
     const codecConnection = c.connection.provider === "custom" ? { provider: "openai-chat", apiKey: c.key, baseUrl: c.connection.endpoint } : { provider: c.connection.provider, apiKey: c.key };
-    const gap = rustPinGap(c.connection, want.request);
-    if (gap) {
-      // The Rust pin predates MAP-13: the page names the difference instead of calling it a bug, and this test pins that it is the only kind of difference.
-      namedGaps++;
-      let rustBody: unknown;
-      try { rustBody = rust.buildRequest(codecConnection, RequestNs.toJSON(want.request), true).body; } catch (e) { rustBody = `refused: ${(e as Error).name}`; }
-      assert.notDeepEqual(rustBody, want.body ? JSON.parse(want.body) : undefined, `${c.connection.provider}: the named gap is real (${gap})`);
-      continue;
-    }
     if (want.refused) {
       assert.throws(() => rust.buildRequest(codecConnection, RequestNs.toJSON(want.request), true), (e: unknown) => e instanceof Error && e.name === "UnsupportedFeatureError", `${c.connection.provider}: Rust refuses as JavaScript does`);
       continue;
@@ -188,7 +179,6 @@ test(`Rust under wasm: all ${rustCases.length} chat variants build the same byte
     assert.equal(url.href, want.url, c.connection.provider);
     assert.deepEqual(built.body, JSON.parse(want.body), `${c.connection.provider}: Rust and JavaScript build the same body`);
   }
-  assert.equal(namedGaps, 6, "the named Rust-pin gaps: Anthropic without max_tokens (3 transcripts × default settings), Ollama with reasoning (3 transcripts × FULL)");
 });
 
 test("Rust: standalone examples match the generator and the pinned SDK imports", () => {

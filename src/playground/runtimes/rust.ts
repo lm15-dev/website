@@ -14,6 +14,9 @@ export interface RustFailure {
   readonly name: string;
   readonly code: string;
   readonly message: string;
+  readonly status?: number;
+  readonly provider_code?: string;
+  readonly http_response?: unknown;
 }
 
 export class RustCodecError extends Error {
@@ -23,6 +26,10 @@ export class RustCodecError extends Error {
     super(failure.message);
     this.name = failure.name;
     this.code = failure.code;
+    Object.assign(this, failure);
+    if (this.message.startsWith(`${this.name}: `)) this.message = this.message.slice(this.name.length + 2);
+    // Keep the public SDK diagnostic spellings as well as the ABI evidence.
+    Object.assign(this, { providerCode: failure.provider_code, httpResponse: failure.http_response });
   }
 }
 
@@ -40,6 +47,7 @@ export interface WireRequest {
   readonly headers: Record<string, string>;
   readonly body: unknown;
   readonly body_b64?: string;
+  readonly requires_stream?: boolean;
 }
 
 export interface CodecConnection {
@@ -85,7 +93,7 @@ export class RustCodec {
     this.#exports.lm15_free(out, len + 4);
     this.#exports.lm15_free(opPtr, opLen);
     this.#exports.lm15_free(inPtr, inLen);
-    const reply = JSON.parse(text) as { error?: RustFailure };
+    const reply = parseJson(text) as unknown as { error?: RustFailure };
     if (reply.error) throw new RustCodecError(reply.error);
     return reply as T;
   }
@@ -98,13 +106,13 @@ export class RustCodec {
     return this.call("build_request", { provider: connection.provider, api_key: connection.apiKey, base_url: connection.baseUrl, settings: connection.settings, canonical_request: canonicalRequest, stream });
   }
 
-  parseResponse(connection: CodecConnection, canonicalRequest: unknown, status: number, body: string): { canonical_response: unknown } {
-    return this.call("parse_response", { provider: connection.provider, base_url: connection.baseUrl, settings: connection.settings, canonical_request: canonicalRequest, status, body });
+  parseResponse(connection: CodecConnection, canonicalRequest: unknown, status: number, body: string, headers: Array<[string, string]> = [], applyRequest = false): { canonical_response: unknown } {
+    return this.call("parse_response", { provider: connection.provider, base_url: connection.baseUrl, settings: connection.settings, canonical_request: canonicalRequest, status, body, headers, apply_request: applyRequest });
   }
 
   /** An incremental decoder: feed SSE bytes as they arrive, take canonical events; close for the materialized response. */
-  openStream(connection: CodecConnection, canonicalRequest: unknown): RustStream {
-    const { handle } = this.call<{ handle: number }>("stream_open", { provider: connection.provider, base_url: connection.baseUrl, settings: connection.settings, canonical_request: canonicalRequest });
+  openStream(connection: CodecConnection, canonicalRequest: unknown, headers: Array<[string, string]> = []): RustStream {
+    const { handle } = this.call<{ handle: number }>("stream_open", { provider: connection.provider, base_url: connection.baseUrl, settings: connection.settings, canonical_request: canonicalRequest, headers });
     return new RustStream(this, handle);
   }
 }
@@ -123,8 +131,11 @@ export class RustStream {
     this.#handle = handle;
   }
 
+  closeSource = false;
   feed(chunk: Uint8Array): CanonicalEvent[] {
-    return this.#codec.call<{ events: CanonicalEvent[] }>("stream_feed", { handle: this.#handle, body_b64: base64(chunk) }).events;
+    const reply = this.#codec.call<{ events: CanonicalEvent[]; close_source?: boolean }>("stream_feed", { handle: this.#handle, body_b64: base64(chunk) });
+    this.closeSource = reply.close_source ?? false;
+    return reply.events;
   }
 
   close(): { events: CanonicalEvent[]; canonical_response: unknown } {
@@ -148,8 +159,8 @@ function base64(bytes: Uint8Array): string {
 
 // ─── The runtime ──────────────────────────────────────────────────────
 
-import { Request as RequestNs, Response as CanonicalResponse, stringifyJson, type Request } from "lm15/browser";
-import { ANTHROPIC_BROWSER_HEADER, keyless, type Connection, type Wire } from "../experience.ts";
+import { Request as RequestNs, Response as CanonicalResponse, parseJson, stringifyJson, type Request } from "lm15/browser";
+import { ANTHROPIC_BROWSER_HEADER, baseUrlFor, keyless, type Connection, type Wire } from "../experience.ts";
 import { isJudgeRequest } from "../judge.ts";
 import type { Runtime } from "./index.ts";
 
@@ -169,16 +180,16 @@ async function boot(report: (status: string) => void): Promise<RustCodec> {
   return loading;
 }
 
-function connectionOf(connection: Connection, key: string | undefined): CodecConnection {
+export function connectionOf(connection: Connection, key: string | undefined): CodecConnection {
   const apiKey = keyless(connection.provider) ? "unused" : key;
   if (!apiKey) throw new Error("Add this provider's API key in Settings first.");
-  return connection.provider === "custom" ? { provider: "openai-chat", apiKey, baseUrl: connection.endpoint } : { provider: connection.provider, apiKey };
+  return { provider: connection.provider === "custom" ? "openai-chat" : connection.provider, apiKey, baseUrl: baseUrlFor(connection) };
 }
 
-function wireOf(built: WireRequest): Wire {
+export function wireOf(built: WireRequest): Wire {
   const url = new URL(built.url);
   for (const [k, v] of Object.entries(built.params)) url.searchParams.set(k, v);
-  const body = built.body_b64 !== undefined ? atob(built.body_b64) : built.body === null ? "" : stringifyJson(built.body);
+  const body = built.body_b64 !== undefined ? new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(atob(built.body_b64), (c) => c.charCodeAt(0))) : built.body === null ? "" : stringifyJson(built.body);
   return { method: built.method, url: url.href, headers: Object.entries(built.headers), body };
 }
 
@@ -199,35 +210,64 @@ export const rustRuntime: Runtime = {
     const codecConnection = connectionOf(connection, key);
     const canonical = RequestNs.toJSON(request);
     const wire = wireOf(rust.buildRequest(codecConnection, canonical, true));
+    signal.throwIfAborted();
     const headers = new Headers(wire.headers);
     // The codec built a native client's headers; a page adds the one Anthropic asks of a browser.
     if (connection.provider === "anthropic") headers.set(ANTHROPIC_BROWSER_HEADER[0], ANTHROPIC_BROWSER_HEADER[1]);
     const response = await fetch(wire.url, { method: wire.method, headers, body: wire.body, signal });
     if (!response.ok) {
       const text = await response.text();
-      rust.parseResponse(codecConnection, canonical, response.status, text); // throws the typed error for this status
+      rust.parseResponse(codecConnection, canonical, response.status, text, [...response.headers], true); // throws the typed error for this status
       throw new Error(`HTTP ${response.status}`);
     }
-    const stream = rust.openStream(codecConnection, canonical);
-    const reader = response.body!.getReader();
+    if (!response.body) throw new Error("The provider returned no stream body.");
+    const reader = response.body.getReader();
+    let stream: RustStream | undefined;
+    const emit = (events: CanonicalEvent[]) => {
+      for (const event of events) {
+        const delta = event["delta"] as { type?: string; text?: string } | undefined;
+        if (event.type === "delta" && delta?.type === "text" && delta.text) onText(delta.text);
+      }
+    };
+    const abort = () => { void reader.cancel(signal.reason).catch(() => {}); };
+    signal.addEventListener("abort", abort, { once: true });
     try {
+      signal.throwIfAborted();
+      stream = rust.openStream(codecConnection, canonical, [...response.headers]);
       for (;;) {
         const { done, value } = await reader.read();
+        signal.throwIfAborted();
         if (done) break;
-        for (const event of stream.feed(value)) {
-          const delta = event["delta"] as { type?: string; text?: string } | undefined;
-          if (event.type === "delta" && delta?.type === "text" && delta.text) onText(delta.text);
-        }
+        emit(stream.feed(value));
+        if (stream.closeSource) { await reader.cancel(); break; }
       }
-      return CanonicalResponse.fromJSON(stream.close().canonical_response as Parameters<typeof CanonicalResponse.fromJSON>[0]);
+      const result = stream.close();
+      emit(result.events);
+      return CanonicalResponse.fromJSON(result.canonical_response as Parameters<typeof CanonicalResponse.fromJSON>[0]);
     } catch (error) {
-      stream.abort();
+      stream?.abort();
       throw error;
+    } finally {
+      signal.removeEventListener("abort", abort);
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
     }
   },
 
-  async judge(): Promise<CanonicalResponse> {
-    // The Rust pin predates MAP-14: no judgments schema, no typesafe dialect (experience.ts RUST_NOT_YET). The page disables Run rather than translate.
-    throw Object.assign(new Error("The Rust SDK at this pin has no judgments (MAP-14). Judge with JavaScript or Python."), { name: "UnsupportedFeatureError" });
+  async judge(connection, key, request, signal): Promise<CanonicalResponse> {
+    const rust = await boot(() => {});
+    const conn = connectionOf(connection, key);
+    const canonical = RequestNs.toJSON(request);
+    const built = rust.buildRequest(conn, canonical, false);
+    if (built.requires_stream) return rustRuntime.stream(connection, key, request, signal, () => {});
+    const wire = wireOf(built);
+    signal.throwIfAborted();
+    const headers = new Headers(wire.headers);
+    if (connection.provider === "anthropic") headers.set(...ANTHROPIC_BROWSER_HEADER);
+    const reply = await fetch(wire.url, { method: wire.method, headers, body: wire.body, signal });
+    const body = await reply.text();
+    signal.throwIfAborted();
+    const parsed = rust.parseResponse(conn, canonical, reply.status, body, [...reply.headers], true);
+    return CanonicalResponse.fromJSON(parsed.canonical_response as Parameters<typeof CanonicalResponse.fromJSON>[0]);
   },
 };

@@ -20,7 +20,7 @@
  */
 
 import { Message, Request as RequestNs, choice, isJsonObject, judgments, judgmentsInSchema, lookup, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "lm15/browser";
-import { ANTHROPIC_BROWSER_HEADER, EXAMPLE_API_KEY, RUST_NOT_YET, baseUrlFor, judgmentsOnly, keyless, type Connection } from "./experience.ts";
+import { ANTHROPIC_BROWSER_HEADER, EXAMPLE_API_KEY, goProgram, rustString, baseUrlFor, judgmentsOnly, keyless, type Connection } from "./experience.ts";
 
 export type Shape = "text" | "fields" | "conversation";
 export interface FieldDef { readonly name: string; readonly type: "text" | "number" | "json" }
@@ -377,6 +377,7 @@ export function toJsonExport(spec: JudgeSpec, rows: ReadonlyArray<{ value: Input
       row["adaptations"] = verdict.adaptations.map((a) => ({ ...a }));
       row["provider"] = verdict.provider;
       row["model"] = verdict.model;
+      row["runtime"] = verdict.runtime;
     }
     return row;
   });
@@ -547,8 +548,32 @@ export function judgePython(connection: Connection, spec: JudgeSpec, inputs: rea
   return lines.join("\n");
 }
 
-export function judgeRust(): string {
-  return RUST_NOT_YET;
+export function judgeGo(connection: Connection, spec: JudgeSpec, inputs: readonly InputValue[]): string {
+  return goProgram(connection, inputs.map((value) => judgeRequest(connection, spec, value)), false);
+}
+
+/** Native Rust construction of precisely the canonical requests passed to the wasm codec. */
+export function judgeRust(connection: Connection, spec: JudgeSpec, inputs: readonly InputValue[]): string {
+  const q = rustString;
+  const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
+  const base = baseUrlFor(connection);
+  const requests = inputs.map((input) => judgeRequest(connection, spec, input));
+  const lines = ["use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};", "", "let lm = adapter_for(", `    ${q(provider)}, Credential::api_key(${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)})?,`, `    ${base === undefined ? "None" : `Some(${q(base)})`}, None, None,`, ")?;", "", "let requests: Vec<Request> = vec!["];
+  for (const request of requests) {
+    const canonical = RequestNs.toJSON(request);
+    lines.push("    Request {", `        model: ${q(request.model)}.into(),`);
+    if (typeof request.system === "string") lines.push(`        system: Some(${q(request.system)}.into()),`);
+    lines.push("        messages: vec![");
+    for (const message of request.messages) {
+      const part = message.parts[0];
+      if (message.role === "user" && message.parts.length === 1 && part?.type === "data") {
+        lines.push(`            Message::user(Part::Data(DataPart::new(serde_json::from_str(${q(stringifyJson(part.value))})?)))?,`);
+      } else lines.push(`            Message::from_json(&serde_json::from_str(${q(stringifyJson(Message.toJSON(message)))})?)?,`);
+    }
+    lines.push("        ],", `        config: Config::from_json(&serde_json::from_str(${q(stringifyJson(canonical.config))})?)?, // response_format: canonical JSON Schema`, "        ..Default::default()", "    },");
+  }
+  lines.push("];", "for request in requests {", "    let response = lm.complete(&request).await?;", '    println!("{}", response.to_json()); // data, probabilities and adaptations', "}");
+  return lines.join("\n");
 }
 
 // ─── The example set ─────────────────────────────────────────────────

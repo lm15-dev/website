@@ -11,7 +11,9 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Message, continuationState, thinking } from "lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
-import { DEFAULT_SETTINGS, RUST_NOT_YET, exampleConversation, exampleRust, type Connection, type Settings } from "../src/playground/experience.ts";
+import { DEFAULT_SETTINGS, judgmentsOnly, exampleConversation, exampleRust, type Connection, type Settings } from "../src/playground/experience.ts";
+
+import { EXAMPLE_SPEC, judgeRust } from "../src/playground/judge.ts";
 
 export const rustExamplesPath = resolve(fileURLToPath(new URL("..", import.meta.url)), "examples", "rust", "src", "main.rs");
 
@@ -33,10 +35,17 @@ export function renderRustExamples(): string {
     "",
   ];
   for (const choice of CONNECTIONS) {
+    const connection: Connection = { provider: choice.id, model: choice.model || "custom-model", endpoint: "http://localhost:1234/v1" };
+    for (const shape of ["text", "fields", "conversation"] as const) {
+      const input = shape === "text" ? prompt : shape === "fields" ? { note: prompt, price: 1 } : [{ role: "user" as const, content: prompt }];
+      const body = judgeRust(connection, { ...EXAMPLE_SPEC, shape }, [input]);
+      const [uses, code] = splitUses(body);
+      parts.push(`mod ${choice.id.replace(/-/g, "_")}_judge_${shape} {`, ...uses.map((u) => `    ${u}`), "    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {", ...code.split("\n").map((line) => line ? `        ${line}` : ""), "        Ok(())", "    }", "}", "");
+    }
+    if (judgmentsOnly(choice.id)) continue;
     for (const [suffix, messages, settings] of [["first_turn", [], DEFAULT_SETTINGS], ["with_history", history, FULL], ["teaching_example", exampleConversation(), DEFAULT_SETTINGS], ["teaching_with_settings", exampleConversation(), FULL], ["zero_temperature", exampleConversation(), { ...DEFAULT_SETTINGS, temperature: 0 }]] as const) {
       const connection: Connection = { provider: choice.id, model: choice.model || "custom-model", endpoint: "http://localhost:1234/v1" };
       const body = exampleRust(connection, settings, messages, prompt);
-      if (body === RUST_NOT_YET) continue; // typesafe / judgments: named in the page as not yet in the Rust SDK; nothing to compile
       const [uses, code] = splitUses(body);
       parts.push(`mod ${choice.id.replace(/-/g, "_")}_${suffix} {`, ...uses.map((u) => `    ${u}`), "", "    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {", ...code.split("\n").map((line) => (line ? `        ${line}` : "")), "        Ok(())", "    }", "}", "");
     }

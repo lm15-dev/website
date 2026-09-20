@@ -5,24 +5,103 @@
 //! runs: `main` never calls these (they would need keys and a network).
 #![allow(dead_code, unused_variables, unused_mut, clippy::all)]
 
+mod openai_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "openai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "gpt-4.1-mini".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod openai_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "openai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "gpt-4.1-mini".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod openai_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "openai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "gpt-4.1-mini".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod openai_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openai", "sk-just-kidding")
+        let lm = adapter_for(
+            "openai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "openai:gpt-4.1-mini".into(),
+            model: "gpt-4.1-mini".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -37,27 +116,28 @@ mod openai_first_turn {
 
 mod openai_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openai", "sk-just-kidding")
+        let lm = adapter_for(
+            "openai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "openai:gpt-4.1-mini".into(),
+            model: "gpt-4.1-mini".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -72,16 +152,17 @@ mod openai_with_history {
 
 mod openai_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openai", "sk-just-kidding")
+        let lm = adapter_for(
+            "openai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "openai:gpt-4.1-mini".into(),
+            model: "gpt-4.1-mini".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -91,7 +172,7 @@ mod openai_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -106,16 +187,17 @@ mod openai_teaching_example {
 
 mod openai_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openai", "sk-just-kidding")
+        let lm = adapter_for(
+            "openai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "openai:gpt-4.1-mini".into(),
+            model: "gpt-4.1-mini".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -126,7 +208,7 @@ mod openai_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -141,16 +223,17 @@ mod openai_teaching_with_settings {
 
 mod openai_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openai", "sk-just-kidding")
+        let lm = adapter_for(
+            "openai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "openai:gpt-4.1-mini".into(),
+            model: "gpt-4.1-mini".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -161,7 +244,7 @@ mod openai_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -174,24 +257,103 @@ mod openai_zero_temperature {
     }
 }
 
+mod anthropic_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "anthropic", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "claude-haiku-4-5".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod anthropic_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "anthropic", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "claude-haiku-4-5".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod anthropic_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "anthropic", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "claude-haiku-4-5".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod anthropic_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("anthropic", "sk-just-kidding")
+        let lm = adapter_for(
+            "anthropic", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "anthropic:claude-haiku-4-5".into(),
+            model: "claude-haiku-4-5".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -206,27 +368,28 @@ mod anthropic_first_turn {
 
 mod anthropic_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("anthropic", "sk-just-kidding")
+        let lm = adapter_for(
+            "anthropic", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "anthropic:claude-haiku-4-5".into(),
+            model: "claude-haiku-4-5".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -241,16 +404,17 @@ mod anthropic_with_history {
 
 mod anthropic_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("anthropic", "sk-just-kidding")
+        let lm = adapter_for(
+            "anthropic", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "anthropic:claude-haiku-4-5".into(),
+            model: "claude-haiku-4-5".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -260,7 +424,7 @@ mod anthropic_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -275,16 +439,17 @@ mod anthropic_teaching_example {
 
 mod anthropic_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("anthropic", "sk-just-kidding")
+        let lm = adapter_for(
+            "anthropic", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "anthropic:claude-haiku-4-5".into(),
+            model: "claude-haiku-4-5".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -295,7 +460,7 @@ mod anthropic_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -310,16 +475,17 @@ mod anthropic_teaching_with_settings {
 
 mod anthropic_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("anthropic", "sk-just-kidding")
+        let lm = adapter_for(
+            "anthropic", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "anthropic:claude-haiku-4-5".into(),
+            model: "claude-haiku-4-5".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -330,7 +496,7 @@ mod anthropic_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -343,24 +509,103 @@ mod anthropic_zero_temperature {
     }
 }
 
+mod gemini_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "gemini", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "gemini-2.5-flash".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod gemini_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "gemini", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "gemini-2.5-flash".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod gemini_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "gemini", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "gemini-2.5-flash".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod gemini_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("gemini", "sk-just-kidding")
+        let lm = adapter_for(
+            "gemini", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "gemini:gemini-2.5-flash".into(),
+            model: "gemini-2.5-flash".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -375,27 +620,28 @@ mod gemini_first_turn {
 
 mod gemini_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("gemini", "sk-just-kidding")
+        let lm = adapter_for(
+            "gemini", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "gemini:gemini-2.5-flash".into(),
+            model: "gemini-2.5-flash".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -410,16 +656,17 @@ mod gemini_with_history {
 
 mod gemini_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("gemini", "sk-just-kidding")
+        let lm = adapter_for(
+            "gemini", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "gemini:gemini-2.5-flash".into(),
+            model: "gemini-2.5-flash".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -429,7 +676,7 @@ mod gemini_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -444,16 +691,17 @@ mod gemini_teaching_example {
 
 mod gemini_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("gemini", "sk-just-kidding")
+        let lm = adapter_for(
+            "gemini", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "gemini:gemini-2.5-flash".into(),
+            model: "gemini-2.5-flash".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -464,7 +712,7 @@ mod gemini_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -479,16 +727,17 @@ mod gemini_teaching_with_settings {
 
 mod gemini_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("gemini", "sk-just-kidding")
+        let lm = adapter_for(
+            "gemini", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "gemini:gemini-2.5-flash".into(),
+            model: "gemini-2.5-flash".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -499,7 +748,7 @@ mod gemini_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -512,24 +761,103 @@ mod gemini_zero_temperature {
     }
 }
 
+mod groq_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "groq", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "llama-3.3-70b-versatile".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod groq_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "groq", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "llama-3.3-70b-versatile".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod groq_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "groq", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "llama-3.3-70b-versatile".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod groq_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("groq", "sk-just-kidding")
+        let lm = adapter_for(
+            "groq", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "groq:llama-3.3-70b-versatile".into(),
+            model: "llama-3.3-70b-versatile".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -544,27 +872,28 @@ mod groq_first_turn {
 
 mod groq_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("groq", "sk-just-kidding")
+        let lm = adapter_for(
+            "groq", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "groq:llama-3.3-70b-versatile".into(),
+            model: "llama-3.3-70b-versatile".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -579,16 +908,17 @@ mod groq_with_history {
 
 mod groq_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("groq", "sk-just-kidding")
+        let lm = adapter_for(
+            "groq", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "groq:llama-3.3-70b-versatile".into(),
+            model: "llama-3.3-70b-versatile".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -598,7 +928,7 @@ mod groq_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -613,16 +943,17 @@ mod groq_teaching_example {
 
 mod groq_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("groq", "sk-just-kidding")
+        let lm = adapter_for(
+            "groq", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "groq:llama-3.3-70b-versatile".into(),
+            model: "llama-3.3-70b-versatile".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -633,7 +964,7 @@ mod groq_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -648,16 +979,17 @@ mod groq_teaching_with_settings {
 
 mod groq_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("groq", "sk-just-kidding")
+        let lm = adapter_for(
+            "groq", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "groq:llama-3.3-70b-versatile".into(),
+            model: "llama-3.3-70b-versatile".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -668,7 +1000,7 @@ mod groq_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -681,24 +1013,103 @@ mod groq_zero_temperature {
     }
 }
 
+mod openrouter_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "openrouter", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "openai/gpt-4.1-mini".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod openrouter_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "openrouter", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "openai/gpt-4.1-mini".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod openrouter_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "openrouter", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "openai/gpt-4.1-mini".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod openrouter_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openrouter", "sk-just-kidding")
+        let lm = adapter_for(
+            "openrouter", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "openrouter:openai/gpt-4.1-mini".into(),
+            model: "openai/gpt-4.1-mini".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -713,27 +1124,28 @@ mod openrouter_first_turn {
 
 mod openrouter_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openrouter", "sk-just-kidding")
+        let lm = adapter_for(
+            "openrouter", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "openrouter:openai/gpt-4.1-mini".into(),
+            model: "openai/gpt-4.1-mini".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -748,16 +1160,17 @@ mod openrouter_with_history {
 
 mod openrouter_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openrouter", "sk-just-kidding")
+        let lm = adapter_for(
+            "openrouter", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "openrouter:openai/gpt-4.1-mini".into(),
+            model: "openai/gpt-4.1-mini".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -767,7 +1180,7 @@ mod openrouter_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -782,16 +1195,17 @@ mod openrouter_teaching_example {
 
 mod openrouter_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openrouter", "sk-just-kidding")
+        let lm = adapter_for(
+            "openrouter", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "openrouter:openai/gpt-4.1-mini".into(),
+            model: "openai/gpt-4.1-mini".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -802,7 +1216,7 @@ mod openrouter_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -817,16 +1231,17 @@ mod openrouter_teaching_with_settings {
 
 mod openrouter_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openrouter", "sk-just-kidding")
+        let lm = adapter_for(
+            "openrouter", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "openrouter:openai/gpt-4.1-mini".into(),
+            model: "openai/gpt-4.1-mini".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -837,7 +1252,7 @@ mod openrouter_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -850,24 +1265,103 @@ mod openrouter_zero_temperature {
     }
 }
 
+mod deepseek_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepseek", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "deepseek-chat".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod deepseek_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepseek", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "deepseek-chat".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod deepseek_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepseek", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "deepseek-chat".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod deepseek_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("deepseek", "sk-just-kidding")
+        let lm = adapter_for(
+            "deepseek", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "deepseek:deepseek-chat".into(),
+            model: "deepseek-chat".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -882,27 +1376,28 @@ mod deepseek_first_turn {
 
 mod deepseek_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("deepseek", "sk-just-kidding")
+        let lm = adapter_for(
+            "deepseek", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "deepseek:deepseek-chat".into(),
+            model: "deepseek-chat".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -917,16 +1412,17 @@ mod deepseek_with_history {
 
 mod deepseek_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("deepseek", "sk-just-kidding")
+        let lm = adapter_for(
+            "deepseek", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "deepseek:deepseek-chat".into(),
+            model: "deepseek-chat".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -936,7 +1432,7 @@ mod deepseek_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -951,16 +1447,17 @@ mod deepseek_teaching_example {
 
 mod deepseek_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("deepseek", "sk-just-kidding")
+        let lm = adapter_for(
+            "deepseek", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "deepseek:deepseek-chat".into(),
+            model: "deepseek-chat".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -971,7 +1468,7 @@ mod deepseek_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -986,16 +1483,17 @@ mod deepseek_teaching_with_settings {
 
 mod deepseek_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("deepseek", "sk-just-kidding")
+        let lm = adapter_for(
+            "deepseek", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "deepseek:deepseek-chat".into(),
+            model: "deepseek-chat".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1006,7 +1504,7 @@ mod deepseek_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1019,24 +1517,103 @@ mod deepseek_zero_temperature {
     }
 }
 
+mod zai_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "zai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "glm-4.5".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod zai_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "zai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "glm-4.5".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod zai_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "zai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "glm-4.5".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod zai_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("zai", "sk-just-kidding")
+        let lm = adapter_for(
+            "zai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "zai:glm-4.5".into(),
+            model: "glm-4.5".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1051,27 +1628,28 @@ mod zai_first_turn {
 
 mod zai_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("zai", "sk-just-kidding")
+        let lm = adapter_for(
+            "zai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "zai:glm-4.5".into(),
+            model: "glm-4.5".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1086,16 +1664,17 @@ mod zai_with_history {
 
 mod zai_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("zai", "sk-just-kidding")
+        let lm = adapter_for(
+            "zai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "zai:glm-4.5".into(),
+            model: "glm-4.5".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1105,7 +1684,7 @@ mod zai_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1120,16 +1699,17 @@ mod zai_teaching_example {
 
 mod zai_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("zai", "sk-just-kidding")
+        let lm = adapter_for(
+            "zai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "zai:glm-4.5".into(),
+            model: "glm-4.5".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1140,7 +1720,7 @@ mod zai_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1155,16 +1735,17 @@ mod zai_teaching_with_settings {
 
 mod zai_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("zai", "sk-just-kidding")
+        let lm = adapter_for(
+            "zai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "zai:glm-4.5".into(),
+            model: "glm-4.5".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1175,7 +1756,7 @@ mod zai_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1188,24 +1769,103 @@ mod zai_zero_temperature {
     }
 }
 
+mod meta_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "meta", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "muse-spark-1.3".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod meta_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "meta", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "muse-spark-1.3".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod meta_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "meta", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "muse-spark-1.3".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod meta_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("meta", "sk-just-kidding")
+        let lm = adapter_for(
+            "meta", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "meta:muse-spark-1.3".into(),
+            model: "muse-spark-1.3".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1220,27 +1880,28 @@ mod meta_first_turn {
 
 mod meta_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("meta", "sk-just-kidding")
+        let lm = adapter_for(
+            "meta", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "meta:muse-spark-1.3".into(),
+            model: "muse-spark-1.3".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1255,16 +1916,17 @@ mod meta_with_history {
 
 mod meta_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("meta", "sk-just-kidding")
+        let lm = adapter_for(
+            "meta", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "meta:muse-spark-1.3".into(),
+            model: "muse-spark-1.3".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1274,7 +1936,7 @@ mod meta_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1289,16 +1951,17 @@ mod meta_teaching_example {
 
 mod meta_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("meta", "sk-just-kidding")
+        let lm = adapter_for(
+            "meta", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "meta:muse-spark-1.3".into(),
+            model: "muse-spark-1.3".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1309,7 +1972,7 @@ mod meta_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1324,16 +1987,17 @@ mod meta_teaching_with_settings {
 
 mod meta_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("meta", "sk-just-kidding")
+        let lm = adapter_for(
+            "meta", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "meta:muse-spark-1.3".into(),
+            model: "muse-spark-1.3".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1344,7 +2008,7 @@ mod meta_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1357,24 +2021,103 @@ mod meta_zero_temperature {
     }
 }
 
+mod moonshotai_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "moonshotai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "kimi-k2.5".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod moonshotai_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "moonshotai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "kimi-k2.5".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod moonshotai_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "moonshotai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "kimi-k2.5".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod moonshotai_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("moonshotai", "sk-just-kidding")
+        let lm = adapter_for(
+            "moonshotai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "moonshotai:kimi-k2.5".into(),
+            model: "kimi-k2.5".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1389,27 +2132,28 @@ mod moonshotai_first_turn {
 
 mod moonshotai_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("moonshotai", "sk-just-kidding")
+        let lm = adapter_for(
+            "moonshotai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "moonshotai:kimi-k2.5".into(),
+            model: "kimi-k2.5".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1424,16 +2168,17 @@ mod moonshotai_with_history {
 
 mod moonshotai_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("moonshotai", "sk-just-kidding")
+        let lm = adapter_for(
+            "moonshotai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "moonshotai:kimi-k2.5".into(),
+            model: "kimi-k2.5".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1443,7 +2188,7 @@ mod moonshotai_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1458,16 +2203,17 @@ mod moonshotai_teaching_example {
 
 mod moonshotai_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("moonshotai", "sk-just-kidding")
+        let lm = adapter_for(
+            "moonshotai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "moonshotai:kimi-k2.5".into(),
+            model: "kimi-k2.5".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1478,7 +2224,7 @@ mod moonshotai_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1493,16 +2239,17 @@ mod moonshotai_teaching_with_settings {
 
 mod moonshotai_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("moonshotai", "sk-just-kidding")
+        let lm = adapter_for(
+            "moonshotai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "moonshotai:kimi-k2.5".into(),
+            model: "kimi-k2.5".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1513,7 +2260,7 @@ mod moonshotai_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1526,24 +2273,181 @@ mod moonshotai_zero_temperature {
     }
 }
 
+mod typesafe_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "typesafe", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "jev-latest".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod typesafe_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "typesafe", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "jev-latest".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod typesafe_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "typesafe", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "jev-latest".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"messages\":[{\"role\":\"user\",\"content\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod ollama_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "ollama", Credential::api_key("unused")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "qwen3.5:0.8b".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod ollama_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "ollama", Credential::api_key("unused")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "qwen3.5:0.8b".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod ollama_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "ollama", Credential::api_key("unused")?,
+            None, None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "qwen3.5:0.8b".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod ollama_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("ollama", "unused")
+        let lm = adapter_for(
+            "ollama", Credential::api_key("unused")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "ollama:qwen3.5:0.8b".into(),
+            model: "qwen3.5:0.8b".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1558,27 +2462,28 @@ mod ollama_first_turn {
 
 mod ollama_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("ollama", "unused")
+        let lm = adapter_for(
+            "ollama", Credential::api_key("unused")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "ollama:qwen3.5:0.8b".into(),
+            model: "qwen3.5:0.8b".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1593,16 +2498,17 @@ mod ollama_with_history {
 
 mod ollama_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("ollama", "unused")
+        let lm = adapter_for(
+            "ollama", Credential::api_key("unused")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "ollama:qwen3.5:0.8b".into(),
+            model: "qwen3.5:0.8b".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1612,7 +2518,7 @@ mod ollama_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1627,16 +2533,17 @@ mod ollama_teaching_example {
 
 mod ollama_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("ollama", "unused")
+        let lm = adapter_for(
+            "ollama", Credential::api_key("unused")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "ollama:qwen3.5:0.8b".into(),
+            model: "qwen3.5:0.8b".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1647,7 +2554,7 @@ mod ollama_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1662,16 +2569,17 @@ mod ollama_teaching_with_settings {
 
 mod ollama_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("ollama", "unused")
+        let lm = adapter_for(
+            "ollama", Credential::api_key("unused")?,
+            None, None, None,
         )?;
 
         let request = Request {
-            model: "ollama:qwen3.5:0.8b".into(),
+            model: "qwen3.5:0.8b".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1682,7 +2590,7 @@ mod ollama_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1695,25 +2603,103 @@ mod ollama_zero_temperature {
     }
 }
 
+mod custom_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "openai-chat", Credential::api_key("unused")?,
+            Some("http://localhost:1234/v1"), None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "custom-model".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod custom_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "openai-chat", Credential::api_key("unused")?,
+            Some("http://localhost:1234/v1"), None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "custom-model".into(),
+                messages: vec![
+                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
+mod custom_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "openai-chat", Credential::api_key("unused")?,
+            Some("http://localhost:1234/v1"), None, None,
+        )?;
+
+        let requests: Vec<Request> = vec![
+            Request {
+                model: "custom-model".into(),
+                messages: vec![
+                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
+                ],
+                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
+                ..Default::default()
+            },
+        ];
+        for request in requests {
+            let response = lm.complete(&request).await?;
+            println!("{}", response.to_json()); // data, probabilities and adaptations
+        }
+        Ok(())
+    }
+}
+
 mod custom_first_turn {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openai-chat", "unused")
-                .base_url("openai-chat", "http://localhost:1234/v1")
+        let lm = adapter_for(
+            "openai-chat", Credential::api_key("unused")?,
+            Some("http://localhost:1234/v1"), None, None,
         )?;
 
         let request = Request {
-            model: "openai-chat:custom-model".into(),
+            model: "custom-model".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1728,28 +2714,28 @@ mod custom_first_turn {
 
 mod custom_with_history {
     use futures_util::StreamExt;
-    use lm15::{Canonical, Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openai-chat", "unused")
-                .base_url("openai-chat", "http://localhost:1234/v1")
+        let lm = adapter_for(
+            "openai-chat", Credential::api_key("unused")?,
+            Some("http://localhost:1234/v1"), None, None,
         )?;
 
         let request = Request {
-            model: "openai-chat:custom-model".into(),
+            model: "custom-model".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::json!({"role":"assistant","parts":[{"type":"thinking","text":"Earlier hidden reasoning","continuation":[{"provider":"anthropic","kind":"thinking_signature","data":{"signature":"opaque-replay-signature"}}]},{"type":"text","text":"Earlier answer"}]}))?,
+                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1764,17 +2750,17 @@ mod custom_with_history {
 
 mod custom_teaching_example {
     use futures_util::StreamExt;
-    use lm15::{LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openai-chat", "unused")
-                .base_url("openai-chat", "http://localhost:1234/v1")
+        let lm = adapter_for(
+            "openai-chat", Credential::api_key("unused")?,
+            Some("http://localhost:1234/v1"), None, None,
         )?;
 
         let request = Request {
-            model: "openai-chat:custom-model".into(),
+            model: "custom-model".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1784,7 +2770,7 @@ mod custom_teaching_example {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1799,17 +2785,17 @@ mod custom_teaching_example {
 
 mod custom_teaching_with_settings {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Reasoning, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openai-chat", "unused")
-                .base_url("openai-chat", "http://localhost:1234/v1")
+        let lm = adapter_for(
+            "openai-chat", Credential::api_key("unused")?,
+            Some("http://localhost:1234/v1"), None, None,
         )?;
 
         let request = Request {
-            model: "openai-chat:custom-model".into(),
+            model: "custom-model".into(),
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1820,7 +2806,7 @@ mod custom_teaching_with_settings {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }
@@ -1835,17 +2821,17 @@ mod custom_teaching_with_settings {
 
 mod custom_zero_temperature {
     use futures_util::StreamExt;
-    use lm15::{Config, LMRouter, Message, Request, ResponseStream, RouterConfig};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let router = LMRouter::with_config(
-            RouterConfig::new()
-                .api_key("openai-chat", "unused")
-                .base_url("openai-chat", "http://localhost:1234/v1")
+        let lm = adapter_for(
+            "openai-chat", Credential::api_key("unused")?,
+            Some("http://localhost:1234/v1"), None, None,
         )?;
 
         let request = Request {
-            model: "openai-chat:custom-model".into(),
+            model: "custom-model".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,
@@ -1856,7 +2842,7 @@ mod custom_zero_temperature {
             ..Default::default()
         };
 
-        let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
         while let Some(text) = result.text_chunks().next().await {
             print!("{}", text?);
         }

@@ -1,9 +1,9 @@
-/** The playground: a chat or a judge set, its settings, and the same request in three languages that actually run. */
-import { Message, type Request } from "lm15/browser";
+/** The playground: a chat or a judge set, its settings, and the same request in four languages that actually run. */
+import { Message, parseJson, stringifyJson, type Request } from "lm15/browser";
 import { CONNECTIONS } from "./connections.ts";
 import { Credentials } from "./credentials.ts";
 import { renderCode } from "./code-view.ts";
-import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyPage, keyless, rustPinGap, slashCommand, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
+import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleGo, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyPage, keyless, slashCommand, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
 import { JudgeView } from "./judge-ui.ts";
 import type { JudgeSource } from "./judge.ts";
 import { disableAllRelays, enableRelay, looksBrowserBlocked, relayAvailable, relayed, relayedProviders } from "./relay.ts";
@@ -13,6 +13,8 @@ import { displayError } from "./error-display.ts";
 import type { Runtime, RuntimeId } from "./runtimes/index.ts";
 import { pythonRuntime } from "./runtimes/python.ts";
 import { rustRuntime } from "./runtimes/rust.ts";
+import { goRuntime } from "./runtimes/go.ts";
+import { compareWires } from "./wire.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const prompt = $<HTMLTextAreaElement>("prompt");
@@ -29,7 +31,7 @@ const maxTokensInput = $<HTMLInputElement>("max-tokens");
 const reasoningInput = $<HTMLSelectElement>("reasoning");
 const relayDialog = $<HTMLDialogElement>("relay-dialog");
 
-const RUNTIMES: Record<RuntimeId, Runtime> = { javascript: javascriptRuntime, python: pythonRuntime, rust: rustRuntime };
+const RUNTIMES: Record<RuntimeId, Runtime> = { javascript: javascriptRuntime, python: pythonRuntime, rust: rustRuntime, go: goRuntime };
 const connection: Connection = { provider: "openai", model: "gpt-4.1-mini", endpoint: "http://localhost:1234/v1" };
 const settings: Settings = { ...DEFAULT_SETTINGS };
 const credentials = new Credentials();
@@ -157,6 +159,7 @@ async function updateCode(): Promise<void> {
       if (error) throw new Error(error);
       if (runtime === "javascript") code = exampleJavascript(connection, settings, messages, text);
       else if (runtime === "python") code = examplePython(connection, settings, messages, text);
+      else if (runtime === "go") code = exampleGo(connection, settings, messages, text);
       else code = exampleRust(connection, settings, messages, text);
     }
   } catch (error) {
@@ -183,7 +186,6 @@ async function updateRequestView(version: number, settingsError: string, text: s
   const show = (message: string, body = "") => { if (version !== codeVersion) return; note.textContent = message; note.hidden = false; renderCode($("code"), body, "curl"); };
   const chosen = RUNTIMES[runtime];
   if (loadingRuntime || !chosen.loaded()) return show(`${chosen.label} is not loaded yet; the request is built by the runtime that would send it.`);
-  if (mode === "judge" && runtime === "rust") return show("The Rust SDK at this pin has no judgments (MAP-14) and no typesafe provider; JavaScript and Python build this request.");
   let request: Request, which: string, source: JudgeSource | undefined;
   try {
     if (mode === "judge") {
@@ -202,7 +204,7 @@ async function updateRequestView(version: number, settingsError: string, text: s
     if (version !== codeVersion) return;
     const lines = [`${wire.method} ${wire.url}`, "", ...wire.headers.map(([k, v]) => `${k}: ${v}`), ""];
     let body = wire.body;
-    try { body = JSON.stringify(JSON.parse(wire.body), null, 2); } catch { /* not JSON: as is */ }
+    try { body = stringifyJson(parseJson(wire.body), { indent: 2 }); } catch { /* not JSON: as is */ }
     lines.push(body);
     note.textContent = `Built by ${chosen.label} for ${which}, not sent.${credentials.get(connection.provider) ? " Your key is blanked here." : " The example key stands in for yours."}`;
     note.hidden = false;
@@ -336,6 +338,7 @@ async function selectRuntime(id: RuntimeId): Promise<void> {
   if (active) return;
   const version = ++runtimeVersion;
   runtime = id;
+  try { localStorage.setItem("lm15.playground.runtime", id); } catch { /* storage is optional */ }
   const chosen = RUNTIMES[id];
   loadingRuntime = !chosen.loaded();
   $("runtime-status").textContent = "";
@@ -368,17 +371,8 @@ async function fidelity(request: Request): Promise<void> {
     try { wires.push([rt.label, await rt.wire(connection, key, request)]); } catch { /* an unloaded or refused runtime says nothing */ }
   }
   if (wires.length < 2) { $("fidelity").textContent = wires.length === 1 ? `Request built by ${wires[0]![0]}. Load another runtime to compare bytes.` : ""; return; }
-  const norm = (w: Wire) => JSON.stringify({ m: w.method, u: w.url, h: Object.fromEntries(w.headers.map(([k, v]) => [k.toLowerCase(), v]).filter(([k]) => k !== "user-agent" && k !== "anthropic-dangerous-direct-browser-access")), b: tryJson(w.body) });
-  const first = norm(wires[0]![1]);
-  const differing = wires.filter(([, w]) => norm(w) !== first).map(([name]) => name);
-  const gap = rustPinGap(connection, request);
-  $("fidelity").textContent = differing.length === 0
-    ? `Same request bytes from ${wires.map(([n]) => n).join(", ")} ✓ — three SDKs, one wire.`
-    : differing.length === 1 && differing[0] === "Rust" && gap
-      ? `Rust builds different bytes here, and the reason is known: ${gap} The Rust SDK is pinned before MAP-13.`
-      : `Request bytes differ in ${differing.join(", ")} — that is a bug in lm15; the JSON tab shows JavaScript's.`;
+  $("fidelity").textContent = compareWires(wires);
 }
-function tryJson(text: string): unknown { try { return JSON.parse(text); } catch { return text; } }
 
 // ─── Chat ─────────────────────────────────────────────────────────────
 
@@ -541,6 +535,14 @@ stop.addEventListener("click", () => active?.abort());
 for (const { id, label } of LANGUAGES) {
   const tab = document.createElement("button"); tab.type = "button"; tab.dataset.language = id; tab.textContent = label; tab.setAttribute("aria-pressed", "false");
   tab.addEventListener("click", () => void selectRuntime(id));
+  tab.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const index = LANGUAGES.findIndex((item) => item.id === id);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? LANGUAGES.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + LANGUAGES.length) % LANGUAGES.length;
+    const button = document.querySelector<HTMLButtonElement>(`[data-language="${LANGUAGES[next]!.id}"]`);
+    if (button && !button.disabled) { button.focus(); button.click(); }
+  });
   $("code-tabs").append(tab);
 }
 systemInput.value = DEFAULT_SETTINGS.system;
@@ -569,6 +571,11 @@ for (const button of document.querySelectorAll<HTMLButtonElement>(".mode-switch 
 let remembered: string | null = null;
 try { remembered = localStorage.getItem("lm15.playground.mode"); } catch { remembered = null; }
 setMode(remembered === "judge" ? "judge" : "chat");
+try {
+  const savedRuntime = localStorage.getItem("lm15.playground.runtime");
+  const selected = LANGUAGES.find((item) => item.id === savedRuntime);
+  if (selected) void selectRuntime(selected.id);
+} catch { /* storage is optional */ }
 $("remember-note").hidden = Credentials.available();
 void credentials.load().then(() => { refreshStatus(); if (automatic.checked) void discover(); });
 refreshStatus();

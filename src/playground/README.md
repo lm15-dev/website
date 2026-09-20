@@ -19,14 +19,14 @@ https://lm15.dev/playground/ after the build and link checks pass.
 - `main.ts`, `picker.ts`, `code-view.ts`: interaction and code display.
 - `experience.ts`, `connections.ts`: provider choices, requests, and examples.
 - `judge.ts`, `judge-ui.ts`: Judge mode — the question set, the inputs, one
-  request per input, the three languages, the results table.
+  request per input, the four languages, the results table.
 - `credentials.ts`: temporary keys and optional encrypted browser storage.
-- `runtimes/`: JavaScript, Python, and Rust execution in the browser.
+- `runtimes/`: JavaScript, Python, Rust, and Go execution in the browser.
 - `../../scripts/build-playground.mjs`: packages only public assets.
 - `../../tests/`: interface, example, runtime, and published-file checks.
 
 The installed `lm15` runtime package contains pinned SDK builds. Ordinary page
-edits do not build Python or Rust. Heavy runtimes download only when selected.
+edits do not build Python, Rust, or Go. Heavy runtimes download only when selected.
 
 ## Interface
 
@@ -38,16 +38,16 @@ restores the remembered mode and its default provider; connection selections
 are not persisted. The key card and the code panel are single
 elements that move between the two layouts.
 
-The chat workspace contains a key field, request settings, chat, and three code
-tabs. Provider and model buttons sit beside Send. JavaScript / Python / Rust
+The chat workspace contains a key field, request settings, chat, and four code
+tabs. Provider and model buttons sit beside Send. JavaScript / Python / Rust / Go
 select both the displayed code and the SDK that executes the next message;
 there is no separate execution selector or New chat button. **Code | Request**
 in the panel's corner switches between the program and the request that program
 puts on the wire — method, URL, headers and body, built by the selected
 runtime's own SDK (`Runtime.wire`) for the current turn or the selected Judge
 input, never sent, the key blanked. Python builds it from the shown program's
-head (a judge loop unrolled once); Rust names its pin gap in Judge.
-Selecting Python or Rust loads that runtime on demand. Tabs are locked during
+head (a judge loop unrolled once); Rust and Go use canonical requests with their own SDKs.
+Selecting Python, Rust, or Go loads that runtime on demand. Tabs are locked during
 a running turn so execution cannot silently change.
 
 Desktop keeps settings and code together; narrow screens retain Settings /
@@ -101,8 +101,9 @@ Every provider judges: TypeSafe measures the probability of every declared
 key and the outputs draw the distribution (a sparkline per question; hover or
 tap for the numbers); a chat wire answers the pick and the row records
 `config.probabilities dropped`. Z.AI's wire takes no schema at all: the row
-says the questions never reached the model. Rust is pinned before MAP-14, so
-the tab says so and Run is off.
+says the questions never reached the model. All four SDKs execute Judge using
+complete, never a simulated TypeSafe stream. The custom OpenAI-chat connection
+uses the default compatibility capabilities; it does not claim token-trie scoring.
 
 The run is sequential (the shown loop), stops at the first failure with the
 input named, offers the relay on a browser-blocked provider and resumes
@@ -125,19 +126,19 @@ so request IDs, retry advice and rate-limit headers remain visible. Python
 exception translation removes traceback frames but keeps the complete multiline
 error message. The page redacts remembered/in-memory credentials after formatting.
 A provider that does not expose diagnostic headers through CORS leaves them absent;
-the page does not switch endpoints or retry to obtain them. Rust remains at its
-existing pin and does not yet carry the new rate-limit diagnostics.
+the page does not switch endpoints or retry to obtain them. Rust receives all
+CORS-visible response headers, and Rust/Go retain their SDK's typed diagnostics.
 
-`tests/error_diagnostics_page.test.ts` checks actual JavaScript and Python
-runtime errors in the page, for both HTTP 429 and an error inside HTTP 200 SSE.
+`tests/error_diagnostics_page.test.ts` checks all four actual runtimes in the
+page, for both HTTP 429 and an error inside HTTP 200 SSE.
 It uses dummy credentials and intercepted requests only; `SITE_URL` can select
 the live deployment for the same test without sending real inference requests.
 
 Node-hosted Pyodide leaves interpreter handles alive after assertions finish.
 The unit/integration commands use Node's `--test-force-exit` after test completion;
-it does not skip test failures. Browser tests exit normally. The full Rust
-integration comparison against the latest contract still reports the existing
-structured-data pin gap; upgrading Rust is separate from this runtime update.
+it does not skip test failures. Browser tests exit normally. Runtime comparisons
+use parsed JSON equality as well as body-byte equality: Go serializes maps with
+sorted keys, which can produce equivalent requests with different bytes.
 
 ## Teaching example
 
@@ -152,11 +153,14 @@ never stored or accepted as a real key. Saving a real key does not erase the
 teaching example. Plain text turns use short Message constructors in the code;
 messages with metadata or continuation state retain the full canonical replay.
 
-`npm test` checks 66 generated chat request variants per SDK, including the
-teaching conversation with no token cap, and 48 Judge variants (every provider
-in each shape, with and without instructions) in JavaScript and Python. `npm run rust:snippets` updates the standalone
-Rust example project; from `examples/rust`, `rcargo check --locked` verifies its
-55 snippets without running provider requests.
+Example tests cover provider variants and the teaching conversation without a
+token cap. `npm run rust:snippets` updates the standalone Rust example project,
+including Judge and DataPart examples; from `examples/rust`, `rcargo check --locked`
+verifies them without provider requests. `tests/go_examples_compile.test.ts` separately compiles
+Go examples using the Go toolchain and the sibling `../lm15-go` checkout (no main
+function is invoked). Go examples are standalone programs using canonical JSON
+through the SDK's request decoder. Browser tests intercept inference
+requests with fake replies; no real provider keys or paid calls are needed.
 
 ## Private local keys
 

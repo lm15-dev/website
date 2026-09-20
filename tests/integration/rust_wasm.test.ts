@@ -19,6 +19,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { RustCodec, RustCodecError } from "../../src/playground/runtimes/rust.ts";
 import "lm15/node";
+import { parseJson } from "lm15/browser";
 import { ensureRustWasm, root } from "../support/runtimes.ts";
 import * as hostDriver from "../support/contract-driver.ts";
 
@@ -116,7 +117,7 @@ test("Rust wasm: every pinned body parses to the same canonical response as Type
     if (!existsSync(bodyPath)) continue;
     const body = readFileSync(bodyPath);
     const c = JSON.parse(text) as { canonical_request: unknown; stream?: boolean; base_url?: string; settings?: Record<string, string>; now?: string };
-    const ts = JSON.parse(hostDriver.parseBodyJson(text, body.toString("base64"))) as { refused?: string; code?: string; canonical_response?: unknown; events?: unknown[] };
+    const ts = parseJson(hostDriver.parseBodyJson(text, body.toString("base64"))) as { refused?: string; code?: string; canonical_response?: unknown; events?: unknown[] };
     const isStream = c.stream === true || /^(event:|data:)/.test(body.subarray(0, 64).toString("utf-8").trimStart());
     const connection = { provider, baseUrl: c.base_url, settings: c.settings };
     let rs: { canonical_response?: unknown; events?: unknown[] } | undefined;

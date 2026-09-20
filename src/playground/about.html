@@ -23,7 +23,7 @@
 <li>Encryption does not protect against scripts running on this page: they must be able to use the key to send a request. Only use the playground if you trust this site and its updates. Prefer limited-budget keys and revoke keys you no longer need.</li>
 </ul>
 <h2>What this hosting setup can and cannot do</h2>
-<p>GoDaddy manages the address. GitHub Pages serves the files and provides HTTPS, the encrypted browser connection. JavaScript, Python via Pyodide, and the Rust WebAssembly codec run in your browser. Python and Rust load only when selected; Python downloads about 13 MB the first time.</p>
+<p>GoDaddy manages the address. GitHub Pages serves the files and provides HTTPS, the encrypted browser connection. JavaScript, Python via Pyodide, the Rust WebAssembly codec, and Go compiled to WebAssembly run in your browser. Python, Rust, and Go load only when selected; Python downloads about 13 MB the first time.</p>
 <p>Browser access is controlled by the model provider. A provider that blocks browser requests fails here first, and the page then offers the relay below; nothing is routed anywhere without that choice. For local HTTP model servers, use the <a href="https://github.com/lm15-dev/website#local-provider-keys">local playground</a>; the public HTTPS site allows only HTTPS requests.</p>
 <h2 id="relay">The relay</h2>
 <p>Some provider APIs refuse requests from web pages altogether (TypeSafe's does, checked 2026-09-18). For those, lm15 runs a small relay: a <a href="https://github.com/lm15-dev/website/tree/main/relay">Cloudflare Worker, about ninety lines</a>, that forwards the request to the provider and adds the permission headers the provider left out.</p>
@@ -36,9 +36,10 @@
 <p>GitHub Pages does not let us set custom HTTP security headers. The page uses a restrictive Content Security Policy to limit scripts and connections, but that is not equivalent to a server-controlled policy. Do not embed this playground in another site.</p>
 <p>Releases use versioned asset addresses so a cached script cannot silently mix with a different release's libraries. A new release may require downloading the runtimes again. Reload an old tab if a runtime can no longer be loaded after an update.</p>
 <h2>Source and licenses</h2>
-<p><a href="https://github.com/lm15-dev/website">Website and playground</a> · <a href="https://github.com/lm15-dev/lm15-ts">TypeScript</a> · <a href="https://github.com/lm15-dev/lm15-python">Python</a> · <a href="https://github.com/lm15-dev/lm15-rs">Rust</a> · <a href="/playground/release.json">Published source revisions and file checksums</a></p>
+<p><a href="https://github.com/lm15-dev/website">Website and playground</a> · <a href="https://github.com/lm15-dev/lm15-ts">TypeScript</a> · <a href="https://github.com/lm15-dev/lm15-python">Python</a> · <a href="https://github.com/lm15-dev/lm15-rs">Rust</a> · <a href="https://github.com/lm15-dev/lm15-go">Go</a> · <a href="/playground/release.json">Published source revisions and file checksums</a></p>
 <ul>
-<li>LM15: <a href="__ASSETS__/licenses/lm15-typescript.txt">TypeScript license</a>, <a href="__ASSETS__/licenses/lm15-python.txt">Python license</a>, <a href="__ASSETS__/licenses/lm15-rs.txt">Rust license</a>.</li>
+<li>LM15: <a href="__ASSETS__/licenses/lm15-typescript.txt">TypeScript license</a>, <a href="__ASSETS__/licenses/lm15-python.txt">Python license</a>, <a href="__ASSETS__/licenses/lm15-rs.txt">Rust license</a>, <a href="__ASSETS__/licenses/lm15-go.txt">Go SDK license</a>.</li>
+<li>Go standard library and WebAssembly support: <a href="__ASSETS__/licenses/go-runtime.txt">Go license</a>.</li>
 <li>Rust standard library: <a href="__ASSETS__/licenses/rust-LICENSE-MIT.txt">MIT license</a> or <a href="__ASSETS__/licenses/rust-LICENSE-APACHE.txt">Apache license</a>. <a href="https://github.com/rust-lang/rust/tree/1.97.1">Corresponding source</a>.</li>
 <li>Rust dependencies: <a href="__ASSETS__/licenses/rust-dependencies.txt">license notices</a>. Dependency versions and source locations are listed in the pinned Rust repository's Cargo.lock.</li>
 <li>Pyodide, distributed unmodified: <a href="__ASSETS__/licenses/pyodide-MPL-2.0.txt">Mozilla Public License 2.0</a>. <a href="https://github.com/pyodide/pyodide/tree/72e3c78d53a32a76e0aca7443ad24e5cae1042d3">Corresponding source</a>.</li>

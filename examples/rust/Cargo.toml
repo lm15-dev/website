@@ -7,4 +7,4 @@ publish = false
 [dependencies]
 futures-util = "0.3.34"
 serde_json = "1.0.151"
-lm15 = { git = "https://github.com/lm15-dev/lm15-rs", rev = "62dcbff9afa2688f68fd2c22f7e7f93dcba14377" }
+lm15 = { git = "https://github.com/lm15-dev/lm15-rs", rev = "a742b1cfa5a379f59227bb001bc0a9947ab35e4a" }

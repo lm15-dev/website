@@ -1,7 +1,7 @@
 /**
  * What the playground shares between its interface and its code panel:
  * the connection, the settings, the request they make, and the same
- * request rendered as JavaScript, Python and Rust — each the real SDK's
+ * request rendered as JavaScript, Python, Rust and Go — each the real SDK's
  * own API, and each selectable as the executing runtime.
  *
  * The rendered code is what runs: the JavaScript runtime is this page's
@@ -21,11 +21,12 @@ export interface Settings {
   maxTokens: number | null;
   reasoning: ReasoningEffort | "";
 }
-export type Language = "javascript" | "python" | "rust";
+export type Language = "javascript" | "python" | "rust" | "go";
 export const LANGUAGES: ReadonlyArray<{ id: Language; label: string }> = [
   { id: "javascript", label: "JavaScript" },
   { id: "python", label: "Python" },
   { id: "rust", label: "Rust" },
+  { id: "go", label: "Go" },
 ];
 export const EXAMPLE_API_KEY = "sk-just-kidding";
 export const EXAMPLE_QUESTION = "What is LM15?";
@@ -209,41 +210,53 @@ export function examplePython(connection: Connection, settings: Settings, messag
   return lines.join("\n");
 }
 
-/** The Rust of the same call; in this page the compiled lm15-rs codec runs it (the network is the page's). */
-/**
- * The Rust SDK is pinned (sources.json) before MAP-13 (contract 2026-09-14).
- * Where its bytes are known to differ from the other two runtimes, the
- * page says which rule, instead of calling it a bug. Empty when the Rust
- * pin catches up.
- */
-export function rustPinGap(connection: Connection, request: Request): string | undefined {
-  if (connection.provider === "anthropic" && request.config?.maxTokens === undefined) return "Anthropic without max_tokens: the Rust pin sends the old 1024 default; MAP-13 defaults to the model class ceiling (16384) and records it.";
-  if (connection.provider === "ollama" && request.config?.reasoning !== undefined) return "Ollama with a reasoning effort: the Rust pin refuses; MAP-13 sends reasoning_effort (Ollama maps it to `think`).";
-  return undefined;
+/** Rust string literal (JSON's control escapes are not all Rust escapes). */
+export function rustString(text: string): string {
+  return '"' + Array.from(text, (char) => {
+    if (char === '"') return '\\"';
+    if (char === "\\") return "\\\\";
+    if (char === "\n") return "\\n";
+    if (char === "\r") return "\\r";
+    if (char === "\t") return "\\t";
+    const code = char.codePointAt(0)!;
+    if (code >= 0xd800 && code <= 0xdfff) throw new Error("Rust text cannot contain an unpaired surrogate");
+    return code < 32 ? `\\u{${code.toString(16)}}` : char;
+  }).join("") + '"';
 }
 
-export const RUST_NOT_YET = "// Not in the Rust SDK at this pin: judgments (MAP-14) and the typesafe provider landed in the contract on 2026-09-17;\n// lm15-rs is pinned before that. The JavaScript and Python tabs run this request.";
+/** A complete Go program; canonical JSON keeps arbitrary data/continuation fields and number lexemes intact. */
+export function goProgram(connection: Connection, requests: readonly Request[], stream: boolean): string {
+  const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
+  const lines = ["package main", "", 'import (', '    "context"', '    "encoding/json"', '    "fmt"', '    lm15 "github.com/lm15-dev/lm15-go"', ')', '', 'func main() {', '    if err := run(); err != nil { panic(err) }', '}', '', 'func run() error {', '    ctx, cancel := context.WithCancel(context.Background()) // call cancel to stop', '    defer cancel()', `    lm, err := lm15.AdapterForProvider(${q(provider)}, ${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)}, ${q(baseUrlFor(connection) ?? "")}, nil, nil)`, '    if err != nil { return err }', '    inputs := []string{', ...requests.map((request) => `        ${q(stringifyJson(RequestNs.toJSON(request)))},`), '    }', '    for _, input := range inputs {', '        var request lm15.Request', '        if err := json.Unmarshal([]byte(input), &request); err != nil { return err }'];
+  if (stream) lines.push('        result := lm15.NewResponseStream(lm.Stream(ctx, &request), &request)', '        for text, err := range result.Text() {', '            if err != nil { return err }', '            fmt.Print(text)', '        }', '        response, err := result.Response()');
+  else lines.push('        response, err := lm.Complete(ctx, &request)');
+  lines.push('        if err != nil { return err }', stream ? '        fmt.Println(response.TextOr(""))' : '        fmt.Println(response.Data(), response.Probabilities(), response.Adaptations)', '    }', '    return nil', '}');
+  return lines.join("\n");
+}
+
+export function exampleGo(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {
+  return goProgram(connection, [buildRequest(connection, settings, messages, prompt)], streams(connection));
+}
 
 export function exampleRust(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {
-  if (judgmentsOnly(connection.provider)) return RUST_NOT_YET;
-  const imports = ["LMRouter", "Message", "Request", "ResponseStream", "RouterConfig"];
+  if (judgmentsOnly(connection.provider)) return "// TypeSafe is judgments-only. Open Judge to declare the questions.";
+  const q = rustString;
+  const imports = ["Message", "Request", "ResponseStream"];
   if (configLines(settings, "rust").length) imports.push("Config");
   if (settings.reasoning) imports.push("Reasoning");
   if (messages.some((message) => !plainText(message))) imports.push("Canonical");
-  const lines = ["use futures_util::StreamExt;", `use lm15::{${imports.sort().join(", ")}};`, ""];
+  const lines = ["use futures_util::StreamExt;", "use lm15::{auth::Credential, registry::adapter_for};", `use lm15::{${imports.sort().join(", ")}};`, ""];
   const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
-  lines.push("let router = LMRouter::with_config(", "    RouterConfig::new()", `        .api_key(${q(provider)}, ${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)})`);
   const relay = baseUrlFor(connection);
-  if (relay !== undefined) lines.push(`        .base_url(${q(provider)}, ${q(relay)})`);
-  lines.push(")?;", "", "let request = Request {", `    model: ${q(`${provider}:${connection.model}`)}.into(),`);
+  lines.push("let lm = adapter_for(", `    ${q(provider)}, Credential::api_key(${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)})?,`, `    ${relay === undefined ? "None" : `Some(${q(relay)})`}, None, None,`, ")?;", "", "let request = Request {", `    model: ${q(connection.model)}.into(),`);
   if (settings.system.trim()) lines.push(`    system: Some(${q(settings.system.trim())}.into()),`);
   if (messages.length) {
     lines.push("    messages: vec![", ...messages.map((m) => {
       const simple = plainText(m);
-      return simple ? `        Message::${simple.role}(${q(simple.text)})?,` : `        Message::from_json(&serde_json::json!(${stringifyJson(Message.toJSON(m))}))?,`;
+      return simple ? `        Message::${simple.role}(${q(simple.text)})?,` : `        Message::from_json(&serde_json::from_str(${q(stringifyJson(Message.toJSON(m)))})?)?,`;
     }), `        Message::user(${q(prompt)})?,`, "    ],");
   } else lines.push(`    messages: vec![Message::user(${q(prompt)})?],`);
-  lines.push(...configLines(settings, "rust"), "    ..Default::default()", "};", "", "let mut result = ResponseStream::new(router.stream(&request), &request); // drop it to stop", "while let Some(text) = result.text_chunks().next().await {", '    print!("{}", text?);', "}", "", "// Keep the reply for the next turn.", "let response = result.response().await?;", "let mut messages = request.messages.clone();", "messages.push(response.message.clone());");
+  lines.push(...configLines(settings, "rust"), "    ..Default::default()", "};", "", "let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop", "while let Some(text) = result.text_chunks().next().await {", '    print!("{}", text?);', "}", "", "// Keep the reply for the next turn.", "let response = result.response().await?;", "let mut messages = request.messages.clone();", "messages.push(response.message.clone());");
   return lines.join("\n");
 }
 

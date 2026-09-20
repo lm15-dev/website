@@ -99,8 +99,12 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
     if (url.origin === origin) return route.continue();
     assert.equal(url.href, "https://api.typesafe.ai/v1/systemone");
     assert.equal(route.request().headers()["authorization"], "Bearer dummy-typesafe-key");
-    bodies.push(route.request().postDataJSON());
-    return route.fulfill({ json: JEV_ANSWER, headers: { "Access-Control-Allow-Origin": origin } });
+    const body = route.request().postDataJSON();
+    bodies.push(body);
+    // The current SDK rejects undeclared answer keys: the fake provider must
+    // answer precisely the questions this test has left in the edited schema.
+    const answers = Object.fromEntries(Object.entries(JEV_ANSWER.answers).filter(([key]) => key in body.questions));
+    return route.fulfill({ json: { ...JEV_ANSWER, answers }, headers: { "Access-Control-Allow-Origin": origin } });
   });
   try {
     await page.goto(demo.url);
@@ -234,18 +238,18 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
     assert.equal(await page.locator("#code").textContent(), wire, "Python builds the same bytes as JavaScript for this input");
     await page.locator('[data-language="rust"]').click();
     await waitRuntimeReady(page, "Rust");
-    await page.waitForFunction(() => /Rust SDK at this pin has no judgments/.test(document.getElementById("request-note")?.textContent ?? ""));
+    await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.startsWith("Built by Rust for input 2 of 4"));
+    assert.match(await page.locator("#code").textContent() ?? "", /"state": "Thin and sour, but honest\."/);
     await page.getByRole("button", { name: "Code", exact: true }).click();
     await page.waitForFunction(() => document.getElementById("request-note")?.hidden);
     await page.locator('[data-language="javascript"]').click();
     await waitRuntimeReady(page, "JavaScript");
 
-    // Rust at this pin: the tab says so; Run is off with the reason.
+    // Rust runs Judge through the same declared canonical request.
     await page.locator('[data-language="rust"]').click();
     await waitRuntimeReady(page, "Rust");
-    assert.match(await page.locator("#code").textContent() ?? "", /Not in the Rust SDK at this pin/);
-    assert.equal(await page.getByRole("button", { name: "Run all", exact: true }).isDisabled(), true);
-    assert.match(await page.locator("#judge-gap").textContent() ?? "", /Rust SDK at this pin has no judgments/);
+    assert.ok((await page.locator("#code").textContent() ?? "").includes("lm.complete(&request).await?"));
+    assert.equal(await page.locator("#judge-gap").isHidden(), true);
     await page.locator('[data-language="javascript"]').click();
     await waitRuntimeReady(page, "JavaScript");
     assert.equal(await page.locator("#judge-gap").isHidden(), true);
