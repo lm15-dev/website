@@ -224,18 +224,61 @@ export function rustString(text: string): string {
   }).join("") + '"';
 }
 
-/** A complete Go program; canonical JSON keeps arbitrary data/continuation fields and number lexemes intact. */
-export function goProgram(connection: Connection, requests: readonly Request[], stream: boolean): string {
+/** A Go string literal holding JSON text: raw (backticks) when the text allows it, so the JSON reads as JSON. */
+export function goJsonText(text: string): string {
+  return text.includes("`") ? q(text) : "`" + text + "`";
+}
+
+/**
+ * The frame of every Go program the page shows: package, imports, `main`
+ * delegating to `run() error`, the adapter, and `ctx` (cancel stops a call).
+ * `body` is the indented statements of `run`; `imports` its standard-library
+ * imports beside the SDK.
+ */
+export function goProgram(connection: Connection, imports: readonly string[], body: readonly string[]): string {
   const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
-  const lines = ["package main", "", 'import (', '    "context"', '    "encoding/json"', '    "fmt"', '    lm15 "github.com/lm15-dev/lm15-go"', ')', '', 'func main() {', '    if err := run(); err != nil { panic(err) }', '}', '', 'func run() error {', '    ctx, cancel := context.WithCancel(context.Background()) // call cancel to stop', '    defer cancel()', `    lm, err := lm15.AdapterForProvider(${q(provider)}, ${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)}, ${q(baseUrlFor(connection) ?? "")}, nil, nil)`, '    if err != nil { return err }', '    inputs := []string{', ...requests.map((request) => `        ${q(stringifyJson(RequestNs.toJSON(request)))},`), '    }', '    for _, input := range inputs {', '        var request lm15.Request', '        if err := json.Unmarshal([]byte(input), &request); err != nil { return err }'];
-  if (stream) lines.push('        result := lm15.NewResponseStream(lm.Stream(ctx, &request), &request)', '        for text, err := range result.Text() {', '            if err != nil { return err }', '            fmt.Print(text)', '        }', '        response, err := result.Response()');
-  else lines.push('        response, err := lm.Complete(ctx, &request)');
-  lines.push('        if err != nil { return err }', stream ? '        fmt.Println(response.TextOr(""))' : '        fmt.Println(response.Data(), response.Probabilities(), response.Adaptations)', '    }', '    return nil', '}');
+  const std = [...new Set(["context", ...imports])].sort().map((name) => `    ${q(name)}`);
+  const lines = ["package main", "", "import (", ...std, "", '    lm15 "github.com/lm15-dev/lm15-go"', ")", "", "func main() {", "    if err := run(); err != nil { panic(err) }", "}", "", "func run() error {", "    ctx, cancel := context.WithCancel(context.Background()) // call cancel to stop", "    defer cancel()"];
+  const relay = baseUrlFor(connection);
+  if (connection.provider !== "custom" && relay !== undefined) lines.push("    // This API refuses browser origins; the page relays it (see the Relay note). Outside a browser pass \"\" instead.");
+  lines.push(`    lm, err := lm15.AdapterForProvider(${q(provider)}, ${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)}, ${q(relay ?? "")}, nil, nil)`, "    if err != nil { return err }", "", ...body, "    return nil", "}");
   return lines.join("\n");
 }
 
+/** The Go spelling of one transcript message: the SDK's constructor for plain text; the canonical JSON replayed for anything else (reasoning with continuation state). */
+function goMessage(message: Message): { expression: string; replay?: string[] } {
+  const simple = plainText(message);
+  if (simple) return { expression: `lm15.${simple.role === "user" ? "UserMessage" : "AssistantText"}(${q(simple.text)})` };
+  return { expression: "earlier", replay: ["    // A reply replayed as the wire gave it (its reasoning and continuation state stay verbatim).", "    var earlier lm15.Message", `    if err := json.Unmarshal([]byte(${goJsonText(stringifyJson(Message.toJSON(message)))}), &earlier); err != nil { return err }`] };
+}
+
+function goConfig(settings: Settings): string | undefined {
+  const entries: string[] = [];
+  if (settings.maxTokens !== null) entries.push(`MaxTokens: lm15.I(${settings.maxTokens})`);
+  if (settings.temperature !== null) entries.push(`Temperature: lm15.F(${settings.temperature})`);
+  if (settings.reasoning) entries.push(`Reasoning: &lm15.Reasoning{Effort: ${q(settings.reasoning)}}`);
+  return entries.length ? `lm15.Config{${entries.join(", ")}}` : undefined;
+}
+
+/** The Go of the chat turn: the SDK's own constructors, streamed where the API streams. */
 export function exampleGo(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {
-  return goProgram(connection, [buildRequest(connection, settings, messages, prompt)], streams(connection));
+  if (judgmentsOnly(connection.provider)) return "// TypeSafe is judgments-only. Open Judge to declare the questions.";
+  const streamed = streams(connection);
+  const rendered = messages.map(goMessage);
+  const body: string[] = [];
+  const replays = rendered.flatMap((m) => m.replay ?? []);
+  if (replays.length) body.push(...replays, "");
+  const turns = [...rendered.map((m) => m.expression), `lm15.UserMessage(${q(prompt)})`];
+  const config = goConfig(settings);
+  const options = [...(settings.system.trim() ? [`lm15.WithSystem(${q(settings.system.trim())})`] : []), ...(config ? [`lm15.WithConfig(${config})`] : [])];
+  body.push("    request, err := lm15.NewRequest(", `        ${q(connection.model)},`);
+  if (turns.length === 1) body.push(`        []lm15.Message{${turns[0]}},`);
+  else body.push("        []lm15.Message{", ...turns.map((t) => `            ${t},`), "        },");
+  body.push(...options.map((o) => `        ${o},`), "    )", "    if err != nil { return err }", "");
+  if (streamed) body.push("    result := lm15.NewResponseStream(lm.Stream(ctx, request), request)", "    for text, err := range result.Text() {", "        if err != nil { return err }", "        fmt.Print(text)", "    }", "    response, err := result.Response()");
+  else body.push("    response, err := lm.Complete(ctx, request) // one piece: this API has no stream");
+  body.push("    if err != nil { return err }", ...(streamed ? [] : ['    fmt.Println(response.TextOr(""))']), "", "    // Keep the reply for the next turn.", "    request.Messages = append(request.Messages, response.Message)");
+  return goProgram(connection, replays.length ? ["encoding/json", "fmt"] : ["fmt"], body);
 }
 
 export function exampleRust(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): string {

@@ -6,78 +6,157 @@
 #![allow(dead_code, unused_variables, unused_mut, clippy::all)]
 
 mod openai_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "gpt-4.1-mini".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "gpt-4.1-mini".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod openai_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "gpt-4.1-mini".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "gpt-4.1-mini".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod openai_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "gpt-4.1-mini".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "gpt-4.1-mini".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
@@ -258,78 +337,157 @@ mod openai_zero_temperature {
 }
 
 mod anthropic_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "anthropic", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "claude-haiku-4-5".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "claude-haiku-4-5".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod anthropic_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "anthropic", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "claude-haiku-4-5".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "claude-haiku-4-5".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod anthropic_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "anthropic", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "claude-haiku-4-5".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "claude-haiku-4-5".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
@@ -510,78 +668,157 @@ mod anthropic_zero_temperature {
 }
 
 mod gemini_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "gemini", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "gemini-2.5-flash".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "gemini-2.5-flash".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod gemini_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "gemini", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "gemini-2.5-flash".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "gemini-2.5-flash".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod gemini_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "gemini", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "gemini-2.5-flash".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "gemini-2.5-flash".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
@@ -762,78 +999,157 @@ mod gemini_zero_temperature {
 }
 
 mod groq_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "groq", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "llama-3.3-70b-versatile".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "llama-3.3-70b-versatile".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod groq_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "groq", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "llama-3.3-70b-versatile".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "llama-3.3-70b-versatile".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod groq_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "groq", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "llama-3.3-70b-versatile".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "llama-3.3-70b-versatile".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
@@ -1014,78 +1330,157 @@ mod groq_zero_temperature {
 }
 
 mod openrouter_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openrouter", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "openai/gpt-4.1-mini".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "openai/gpt-4.1-mini".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod openrouter_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openrouter", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "openai/gpt-4.1-mini".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "openai/gpt-4.1-mini".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod openrouter_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openrouter", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "openai/gpt-4.1-mini".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "openai/gpt-4.1-mini".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
@@ -1266,78 +1661,157 @@ mod openrouter_zero_temperature {
 }
 
 mod deepseek_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "deepseek", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "deepseek-chat".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "deepseek-chat".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod deepseek_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "deepseek", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "deepseek-chat".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "deepseek-chat".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod deepseek_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "deepseek", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "deepseek-chat".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "deepseek-chat".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
@@ -1518,78 +1992,157 @@ mod deepseek_zero_temperature {
 }
 
 mod zai_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "zai", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "glm-4.5".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "glm-4.5".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod zai_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "zai", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "glm-4.5".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "glm-4.5".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod zai_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "zai", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "glm-4.5".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "glm-4.5".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
@@ -1770,78 +2323,157 @@ mod zai_zero_temperature {
 }
 
 mod meta_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "meta", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "muse-spark-1.3".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "muse-spark-1.3".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod meta_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "meta", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "muse-spark-1.3".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "muse-spark-1.3".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod meta_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "meta", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "muse-spark-1.3".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "muse-spark-1.3".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
@@ -2022,78 +2654,157 @@ mod meta_zero_temperature {
 }
 
 mod moonshotai_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "moonshotai", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "kimi-k2.5".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "kimi-k2.5".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod moonshotai_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "moonshotai", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "kimi-k2.5".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "kimi-k2.5".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod moonshotai_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "moonshotai", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "kimi-k2.5".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "kimi-k2.5".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
@@ -2274,156 +2985,322 @@ mod moonshotai_zero_temperature {
 }
 
 mod typesafe_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "typesafe", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "jev-latest".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "jev-latest".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod typesafe_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "typesafe", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "jev-latest".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "jev-latest".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod typesafe_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "typesafe", Credential::api_key("sk-just-kidding")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "jev-latest".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"messages\":[{\"role\":\"user\",\"content\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            json!([
+                {
+                    "role": "user",
+                    "content": "Quotes \" and a newline\n</script> are text, not executable code.",
+                },
+            ]),
         ];
-        for request in requests {
+
+        for input in inputs {
+            // Jev has no conversation: the transcript is the state's `messages` array, and a question can point at a turn (`messages[1].content`).
+            let state = json!({ "messages": input });
+            let request = Request {
+                model: "jev-latest".into(),
+                messages: vec![Message::user(Part::data(state))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod ollama_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "ollama", Credential::api_key("unused")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "qwen3.5:0.8b".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "qwen3.5:0.8b".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod ollama_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "ollama", Credential::api_key("unused")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "qwen3.5:0.8b".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "qwen3.5:0.8b".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod ollama_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "ollama", Credential::api_key("unused")?,
             None, None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "qwen3.5:0.8b".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "qwen3.5:0.8b".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
@@ -2604,78 +3481,157 @@ mod ollama_zero_temperature {
 }
 
 mod custom_judge_text {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai-chat", Credential::api_key("unused")?,
             Some("http://localhost:1234/v1"), None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "custom-model".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one text per call.
+        let inputs = [
+            "Quotes \" and a newline\n</script> are text, not executable code.",
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "custom-model".into(),
+                messages: vec![Message::user(input)?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod custom_judge_fields {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai-chat", Credential::api_key("unused")?,
             Some("http://localhost:1234/v1"), None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "custom-model".into(),
-                messages: vec![
-                    Message::user(Part::Data(DataPart::new(serde_json::from_str("{\"note\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\",\"price\":1}")?)))?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let inputs = [
+            json!({
+                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+                "price": 1,
+            }),
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "custom-model".into(),
+                messages: vec![Message::user(Part::data(input))?],
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }
 }
 
 mod custom_judge_conversation {
-    use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai-chat", Credential::api_key("unused")?,
             Some("http://localhost:1234/v1"), None, None,
         )?;
 
-        let requests: Vec<Request> = vec![
-            Request {
-                model: "custom-model".into(),
-                messages: vec![
-                    Message::from_json(&serde_json::from_str("{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"Quotes \\\" and a newline\\n</script> are text, not executable code.\"}]}")?)?,
-                ],
-                config: Config::from_json(&serde_json::from_str("{\"response_format\":{\"type\":\"json_schema\",\"name\":\"judgments\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"quality\":{\"type\":\"integer\",\"description\":\"How good is this wine, according to the note?\",\"anyOf\":[{\"const\":0,\"title\":\"faulty\",\"description\":\"Faulty or unpleasant\"},{\"const\":1,\"title\":\"simple\",\"description\":\"Simple and sound\"},{\"const\":2,\"title\":\"good\",\"description\":\"Good, well made\"},{\"const\":3,\"title\":\"excellent\",\"description\":\"Excellent, complex and structured\"},{\"const\":4,\"title\":\"profound\",\"description\":\"Profound, exceptional\"}]},\"style\":{\"type\":\"string\",\"description\":\"What is the dominant style described?\",\"anyOf\":[{\"const\":\"fruit\",\"description\":\"Fruit-forward\"},{\"const\":\"oak\",\"description\":\"Oak-driven\"},{\"const\":\"mineral\",\"description\":\"Mineral, savoury\"}]},\"ageing\":{\"type\":\"boolean\",\"description\":\"Does the note say the wine will improve with age?\"}},\"required\":[\"quality\",\"style\",\"ageing\"],\"additionalProperties\":false}},\"probabilities\":\"if_available\"}")?)?, // response_format: canonical JSON Schema
-                ..Default::default()
-            },
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+            (Some("faulty".into()), "Faulty or unpleasant".into()),
+            (Some("simple".into()), "Simple and sound".into()),
+            (Some("good".into()), "Good, well made".into()),
+            (Some("excellent".into()), "Excellent, complex and structured".into()),
+            (Some("profound".into()), "Profound, exceptional".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("style".into(), choice_described("What is the dominant style described?", [
+            ("fruit".into(), Some("Fruit-forward".into())),
+            ("oak".into(), Some("Oak-driven".into())),
+            ("mineral".into(), Some("Mineral, savoury".into())),
+        ])?.into());
+        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
+        let questions = judgments(questions)?;
+
+        // one transcript per call.
+        let inputs = [
+            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
         ];
-        for request in requests {
+
+        for input in inputs {
+            let request = Request {
+                model: "custom-model".into(),
+                messages: input,
+                config: Config {
+                    response_format: Some(questions.clone()),
+                    probabilities: Some(ProbabilityPolicy::IfAvailable),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             let response = lm.complete(&request).await?;
-            println!("{}", response.to_json()); // data, probabilities and adaptations
+            println!("{:?}", response.data()); // the picked key per judgment
+            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
         Ok(())
     }

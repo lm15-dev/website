@@ -19,11 +19,15 @@ test("four runtime names, lossless UTF-8 wire bytes, and honest sorted-key compa
   assert.equal((error as unknown as { status: number }).status, 429);
 });
 
-test("Go chat and Judge examples embed exactly the page's canonical requests for every provider and input shape", () => {
-  for (const { source, canonical, rust, hasData } of goExamples()) {
-    const literals = source.split("    inputs := []string{\n")[1]!.split("    }\n")[0]!.trim().split("\n");
-    assert.deepEqual(literals.map((line) => parseJson(JSON.parse(line.trim().replace(/,$/, "")) as string)), canonical);
-    if (rust) assert.ok(rust.includes("Config::from_json"));
-    if (hasData) assert.ok(rust?.includes("DataPart::new"));
+test("Go and Rust chat and Judge examples are the SDKs' own constructors for every provider and input shape", () => {
+  for (const { source, rust, hasData } of goExamples()) {
+    assert.doesNotMatch(source, /json\.Unmarshal\(\[\]byte\("\{/, "no request travels as an escaped JSON string");
+    assert.match(source, /lm15\.NewRequest\(/);
+    if (rust) {
+      assert.match(rust, /let questions = judgments\(questions\)\?;/);
+      assert.match(source, /lm15\.Judgments\("judgments", true,/);
+      assert.doesNotMatch(rust, /serde_json::from_str/, "no request travels as an escaped JSON string");
+    }
+    if (hasData) { assert.match(rust!, /Part::data\(/); assert.match(source, /lm15\.Data\(/); }
   }
 });

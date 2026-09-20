@@ -19,7 +19,7 @@
  * loop body unchanged. Nothing here touches the DOM or the network.
  */
 
-import { Message, Request as RequestNs, choice, isJsonObject, judgments, judgmentsInSchema, lookup, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "lm15/browser";
+import { Message, RawNumber, Request as RequestNs, choice, isJsonObject, judgments, judgmentsInSchema, lookup, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "lm15/browser";
 import { ANTHROPIC_BROWSER_HEADER, EXAMPLE_API_KEY, goProgram, rustString, baseUrlFor, judgmentsOnly, keyless, type Connection } from "./experience.ts";
 
 export type Shape = "text" | "fields" | "conversation";
@@ -388,12 +388,18 @@ export function toJsonExport(spec: JudgeSpec, rows: ReadonlyArray<{ value: Input
 
 const q = JSON.stringify;
 
-/** A property spelled with the SDK's sugar when the sugar reproduces it exactly; otherwise the schema verbatim. */
-function sugar(name: string, prop: JsonValue, lang: "javascript" | "python"): string | undefined {
+/** The question the SDK's sugar spells, when the sugar reproduces the property exactly (MAP-14 §4 is one convention in every language); otherwise the schema goes verbatim. */
+function sugarQuestion(name: string, prop: JsonValue): Question | undefined {
   const found = judgmentsInSchema({ type: "object", properties: { [name]: prop } }).get(name);
   if (!found) return undefined;
   const question = questionOf(found);
-  if (stringifyJson(writeQuestion(question)) !== stringifyJson(prop)) return undefined;
+  return stringifyJson(writeQuestion(question)) === stringifyJson(prop) ? question : undefined;
+}
+
+/** A property spelled with the SDK's sugar when the sugar reproduces it exactly; otherwise the schema verbatim. */
+function sugar(name: string, prop: JsonValue, lang: "javascript" | "python"): string | undefined {
+  const question = sugarQuestion(name, prop);
+  if (!question) return undefined;
   const text = q(question.question.trim() || name);
   const py = lang === "python";
   if (question.kind === "yesNo") return `${py ? "yes_no" : "yesNo"}(${text})`;
@@ -548,31 +554,165 @@ export function judgePython(connection: Connection, spec: JudgeSpec, inputs: rea
   return lines.join("\n");
 }
 
-export function judgeGo(connection: Connection, spec: JudgeSpec, inputs: readonly InputValue[]): string {
-  return goProgram(connection, inputs.map((value) => judgeRequest(connection, spec, value)), false);
+// ─── Go ──────────────────────────────────────────────────────────────
+
+/** A Go literal of a JSON value: `lm15.JSONObject` for objects, `[]any` for arrays, `nil` for null. */
+function goJson(value: JsonValue, level: number): string {
+  const pad = "    ".repeat(level), inner = "    ".repeat(level + 1);
+  if (value === null) return "nil";
+  if (typeof value === "boolean" || typeof value === "number") return String(value);
+  if (typeof value === "string") return q(value);
+  if (value instanceof RawNumber) return value.raw;
+  if (Array.isArray(value)) return value.length ? `[]any{\n${value.map((v) => `${inner}${goJson(v, level + 1)},`).join("\n")}\n${pad}}` : "[]any{}";
+  const entries = Object.entries(value as Record<string, JsonValue>);
+  return entries.length ? `lm15.JSONObject{\n${entries.map(([k, v]) => `${inner}${q(k)}: ${goJson(v, level + 1)},`).join("\n")}\n${pad}}` : "lm15.JSONObject{}";
 }
 
-/** Native Rust construction of precisely the canonical requests passed to the wasm codec. */
+/** The elements of a Go composite literal: the type elided on each element, as Go allows. */
+function goElements(value: JsonValue): string {
+  if (Array.isArray(value)) return value.map((v) => goElements(v)).join(", ");
+  if (value !== null && typeof value === "object" && !(value instanceof RawNumber)) return `{${Object.entries(value as Record<string, JsonValue>).map(([k, v]) => `${q(k)}: ${goJson(v, 0)}`).join(", ")}}`;
+  return goJson(value, 0);
+}
+
+const GO_RESERVED = new Set(["break", "case", "chan", "const", "continue", "default", "defer", "else", "fallthrough", "for", "func", "go", "goto", "if", "import", "interface", "map", "package", "range", "return", "select", "struct", "switch", "type", "var", "lm", "lm15", "ctx", "cancel", "err", "questions", "inputs", "input", "state", "request", "response", "main", "run"]);
+
+/** One Go variable per question, named after it: `quality`, `is_good` → `isGood`, anything unspellable → `question1`. */
+function goIdentifiers(names: readonly string[]): string[] {
+  const taken = new Set(GO_RESERVED);
+  return names.map((name, i) => {
+    const camel = name.replace(/[^A-Za-z0-9]+(.)?/g, (_, c: string | undefined) => (c ? c.toUpperCase() : "")).replace(/^[0-9]+/, "");
+    let candidate = /^[A-Za-z_]\w*$/.test(camel) && !taken.has(camel) ? camel : `question${i + 1}`;
+    for (let n = 2; taken.has(candidate); n++) candidate = `${camel || "question"}${n}`;
+    taken.add(candidate);
+    return candidate;
+  });
+}
+
+/** The Go of the same loop: the SDK's sugar for each question, one request per input, `Complete` (never streamed). */
+export function judgeGo(connection: Connection, spec: JudgeSpec, inputs: readonly InputValue[]): string {
+  const jev = judgmentsOnly(connection.provider);
+  const instructions = spec.instructions.trim();
+  const body: string[] = ["    // Declared keys in, a distribution out (MAP-14)."];
+  const entries = Object.entries(spec.properties);
+  const names = goIdentifiers(entries.map(([name]) => name));
+  const properties: string[] = [];
+  entries.forEach(([name, prop], i) => {
+    const question = sugarQuestion(name, prop);
+    const text = q(question?.question.trim() || name);
+    if (!question) { properties.push(`lm15.JudgmentProperty{Name: ${q(name)}, Schema: ${goJson(prop, 2)}}`); return; }
+    if (question.kind === "yesNo") { properties.push(`lm15.JudgmentProperty{Name: ${q(name)}, Schema: lm15.YesNo(${text})}`); return; }
+    properties.push(`lm15.JudgmentProperty{Name: ${q(name)}, Schema: ${names[i]}}`);
+    if (question.kind === "choice") {
+      if (question.options.every((o) => !o.description)) body.push(`    ${names[i]}, err := lm15.Choice(${text}, lm15.Options(${question.options.map((o) => q(o.key)).join(", ")})...)`);
+      else body.push(`    ${names[i]}, err := lm15.Choice(${text},`, ...question.options.map((o) => `        lm15.ChoiceOption{Key: ${q(o.key)}${o.description ? `, Description: ${q(o.description)}` : ""}},`), "    )");
+    } else {
+      body.push(`    ${names[i]}, err := lm15.Score(${text}, // levels, worst to best`, ...question.options.map((o) => `        lm15.ScoreLevel{${[...(o.key ? [`Name: ${q(o.key)}`] : []), ...(o.description ? [`Description: ${q(o.description)}`] : [])].join(", ")}},`), "    )");
+    }
+    body.push("    if err != nil { return err }");
+  });
+  body.push('    questions, err := lm15.Judgments("judgments", true,', ...properties.map((p) => `        ${p},`), "    )", "    if err != nil { return err }", "");
+  // The inputs, typed by shape: texts, field objects, or transcripts (Jev takes a transcript as its own `messages` array).
+  body.push(`    // ${SHAPE_NOTE[spec.shape]}.`);
+  if (spec.shape === "text") body.push("    inputs := []string{", ...inputs.map((v) => `        ${q(v as string)},`), "    }");
+  else if (spec.shape === "fields") body.push("    inputs := []lm15.JSONObject{", ...inputs.map((v) => `        ${goElements(v as JsonValue)},`), "    }");
+  else if (jev) body.push("    inputs := [][]lm15.JSONObject{", ...inputs.map((v) => `        {${(v as readonly Turn[]).map((t) => `{"role": ${q(t.role)}, "content": ${q(t.content)}}`).join(", ")}},`), "    }");
+  else body.push("    inputs := [][]lm15.Message{", ...inputs.map((v) => `        {${(v as readonly Turn[]).map((t) => `lm15.${t.role === "user" ? "UserMessage" : "AssistantText"}(${q(t.content)})`).join(", ")}},`), "    }");
+  body.push("    for _, input := range inputs {");
+  let messages: string;
+  if (jev) {
+    const fieldNames = spec.shape === "fields" ? Object.keys((inputs[0] ?? {}) as Record<string, JsonValue>) : [];
+    const state = spec.shape === "conversation" ? (instructions ? `lm15.JSONObject{${q(JEV_INSTRUCTIONS_KEY)}: ${q(instructions)}, "messages": input}` : `lm15.JSONObject{"messages": input}`)
+      : spec.shape === "fields" ? (instructions ? `lm15.JSONObject{\n${[`${q(JEV_INSTRUCTIONS_KEY)}: ${q(instructions)}`, ...fieldNames.map((f) => `${q(f)}: input[${q(f)}]`)].map((e) => `            ${e},`).join("\n")}\n        }` : "input")
+      : instructions ? `lm15.JSONObject{${q(JEV_INSTRUCTIONS_KEY)}: ${q(instructions)}, ${q(JEV_TEXT_KEY)}: input}` : "input";
+    if (spec.shape === "text" && !instructions) messages = "[]lm15.Message{lm15.UserMessage(input)}";
+    else {
+      body.push(`        // ${JEV_STATE_NOTE[spec.shape]}.`, `        state := ${state}`);
+      messages = "[]lm15.Message{lm15.UserParts(lm15.Data(state))}";
+    }
+  } else messages = spec.shape === "conversation" ? "input" : spec.shape === "fields" ? "[]lm15.Message{lm15.UserParts(lm15.Data(input))}" : "[]lm15.Message{lm15.UserMessage(input)}";
+  body.push("        request, err := lm15.NewRequest(", `            ${q(connection.model)},`, `            ${messages},`);
+  if (instructions && !jev) body.push(`            lm15.WithSystem(${q(instructions)}),`);
+  body.push("            lm15.WithConfig(lm15.Config{ResponseFormat: questions, Probabilities: lm15.ProbabilitiesIfAvailable}),", "        )", "        if err != nil { return err }", "        response, err := lm.Complete(ctx, request)", "        if err != nil { return err }", "        fmt.Println(response.Data())          // the picked key per judgment", "        fmt.Println(response.Probabilities()) // one distribution per judgment where the provider measures one; else nil and recorded", "        fmt.Println(response.Adaptations)     // MAP-13: what this wire could not take as asked", "    }");
+  return goProgram(connection, ["fmt"], body);
+}
+
+// ─── Rust ────────────────────────────────────────────────────────────
+
+/** A `serde_json::json!` literal of a JSON value, laid out as a person would write it. */
+function rustJson(value: JsonValue, level: number): string {
+  const pad = "    ".repeat(level), inner = "    ".repeat(level + 1);
+  if (value === null || typeof value === "boolean" || typeof value === "number") return String(value);
+  if (typeof value === "string") return rustString(value);
+  if (value instanceof RawNumber) return value.raw;
+  if (Array.isArray(value)) return value.length ? `[\n${value.map((v) => `${inner}${rustJson(v, level + 1)},`).join("\n")}\n${pad}]` : "[]";
+  const entries = Object.entries(value as Record<string, JsonValue>);
+  return entries.length ? `{\n${entries.map(([k, v]) => `${inner}${rustString(k)}: ${rustJson(v, level + 1)},`).join("\n")}\n${pad}}` : "{}";
+}
+
+/** rustfmt's order inside a `use` list: functions (snake_case) before types. */
+function rustUseOrder(names: Iterable<string>): string[] {
+  return [...names].sort((a, b) => (/^[a-z]/.test(a) === /^[a-z]/.test(b) ? a.localeCompare(b) : /^[a-z]/.test(a) ? -1 : 1));
+}
+
+/** Rust's `[(a, b), ...]` of an option list, one per line when it would not fit. */
+function rustPairs(pairs: readonly string[], level: number): string {
+  const inline = `[${pairs.join(", ")}]`;
+  if (inline.length < 60) return inline;
+  const pad = "    ".repeat(level), inner = "    ".repeat(level + 1);
+  return `[\n${pairs.map((p) => `${inner}${p},`).join("\n")}\n${pad}]`;
+}
+
+/** The Rust of the same loop: the SDK's sugar for each question, one `Request` per input, `complete` (never streamed). */
 export function judgeRust(connection: Connection, spec: JudgeSpec, inputs: readonly InputValue[]): string {
   const q = rustString;
   const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
   const base = baseUrlFor(connection);
-  const requests = inputs.map((input) => judgeRequest(connection, spec, input));
-  const lines = ["use lm15::{auth::Credential, registry::adapter_for, Canonical, Config, DataPart, Message, Part, Request};", "", "let lm = adapter_for(", `    ${q(provider)}, Credential::api_key(${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)})?,`, `    ${base === undefined ? "None" : `Some(${q(base)})`}, None, None,`, ")?;", "", "let requests: Vec<Request> = vec!["];
-  for (const request of requests) {
-    const canonical = RequestNs.toJSON(request);
-    lines.push("    Request {", `        model: ${q(request.model)}.into(),`);
-    if (typeof request.system === "string") lines.push(`        system: Some(${q(request.system)}.into()),`);
-    lines.push("        messages: vec![");
-    for (const message of request.messages) {
-      const part = message.parts[0];
-      if (message.role === "user" && message.parts.length === 1 && part?.type === "data") {
-        lines.push(`            Message::user(Part::Data(DataPart::new(serde_json::from_str(${q(stringifyJson(part.value))})?)))?,`);
-      } else lines.push(`            Message::from_json(&serde_json::from_str(${q(stringifyJson(Message.toJSON(message)))})?)?,`);
-    }
-    lines.push("        ],", `        config: Config::from_json(&serde_json::from_str(${q(stringifyJson(canonical.config))})?)?, // response_format: canonical JSON Schema`, "        ..Default::default()", "    },");
+  const jev = judgmentsOnly(connection.provider);
+  const instructions = spec.instructions.trim();
+  const uses = new Set<string>(["judgments", "Config", "JsonObject", "Message", "ProbabilityPolicy", "Request"]);
+  let json = false;
+  const questions: string[] = [];
+  for (const [name, prop] of Object.entries(spec.properties)) {
+    const question = sugarQuestion(name, prop);
+    const text = q(question?.question.trim() || name);
+    if (!question) { json = true; questions.push(`questions.insert(${q(name)}.into(), json!(${rustJson(prop, 0)}));`); continue; }
+    if (question.kind === "yesNo") { uses.add("yes_no"); questions.push(`questions.insert(${q(name)}.into(), yes_no(${text}).into());`); continue; }
+    if (question.kind === "choice") {
+      if (question.options.every((o) => !o.description)) { uses.add("choice"); questions.push(`questions.insert(${q(name)}.into(), choice(${text}, ${rustPairs(question.options.map((o) => q(o.key)), 0)})?.into());`); }
+      else { uses.add("choice_described"); questions.push(`questions.insert(${q(name)}.into(), choice_described(${text}, ${rustPairs(question.options.map((o) => `(${q(o.key)}.into(), ${o.description ? `Some(${q(o.description)}.into())` : "None"})`), 0)})?.into());`); }
+    } else if (question.options.every((o) => !o.key)) { uses.add("score"); questions.push(`questions.insert(${q(name)}.into(), score(${text}, ${rustPairs(question.options.map((o) => q(o.description)), 0)})?.into()); // levels, worst to best`); }
+    else { uses.add("score_named"); questions.push(`questions.insert(${q(name)}.into(), score_named(${text}, ${rustPairs(question.options.map((o) => `(${o.key ? `Some(${q(o.key)}.into())` : "None"}, ${q(o.description)}.into())`), 0)})?.into()); // levels, worst to best`); }
   }
-  lines.push("];", "for request in requests {", "    let response = lm.complete(&request).await?;", '    println!("{}", response.to_json()); // data, probabilities and adaptations', "}");
+  // The inputs, typed by shape: texts, `json!` objects, or transcripts (Jev takes a transcript as its own `messages` array).
+  const inputLines: string[] = [];
+  if (spec.shape === "text") inputLines.push(...inputs.map((v) => `    ${q(v as string)},`));
+  else if (spec.shape === "fields") { json = true; inputLines.push(...inputs.map((v) => `    json!(${rustJson(v as JsonValue, 1)}),`)); }
+  else if (jev) { json = true; inputLines.push(...inputs.map((v) => `    json!(${rustJson((v as readonly Turn[]).map((t) => ({ role: t.role, content: t.content })), 1)}),`)); }
+  else inputLines.push(...inputs.map((v) => `    vec![${(v as readonly Turn[]).map((t) => `Message::${t.role}(${q(t.content)})?`).join(", ")}],`));
+  const loop: string[] = [];
+  let messages: string;
+  if (jev) {
+    const fieldNames = spec.shape === "fields" ? Object.keys((inputs[0] ?? {}) as Record<string, JsonValue>) : [];
+    const state = spec.shape === "conversation" ? (instructions ? `json!({ ${q(JEV_INSTRUCTIONS_KEY)}: ${q(instructions)}, "messages": input })` : `json!({ "messages": input })`)
+      : spec.shape === "fields" ? (instructions ? `json!({\n${[`${q(JEV_INSTRUCTIONS_KEY)}: ${q(instructions)}`, ...fieldNames.map((f) => `${q(f)}: input[${q(f)}]`)].map((e) => `        ${e},`).join("\n")}\n    })` : "input")
+      : instructions ? `json!({ ${q(JEV_INSTRUCTIONS_KEY)}: ${q(instructions)}, ${q(JEV_TEXT_KEY)}: input })` : "input";
+    if (spec.shape === "text" && !instructions) messages = "vec![Message::user(input)?]";
+    else {
+      uses.add("Part");
+      if (state !== "input") { json = true; loop.push(`    // ${JEV_STATE_NOTE[spec.shape]}.`, `    let state = ${state};`); }
+      messages = `vec![Message::user(Part::data(${state === "input" ? "input" : "state"}))?]`;
+    }
+  } else if (spec.shape === "conversation") messages = "input";
+  else if (spec.shape === "fields") { uses.add("Part"); messages = "vec![Message::user(Part::data(input))?]"; }
+  else messages = "vec![Message::user(input)?]";
+  const lines = ["use lm15::{auth::Credential, registry::adapter_for};", `use lm15::{${rustUseOrder(uses).join(", ")}};`, ...(json ? ["use serde_json::json;"] : []), ""];
+  lines.push("let lm = adapter_for(", `    ${q(provider)}, Credential::api_key(${q(keyless(connection.provider) ? "unused" : EXAMPLE_API_KEY)})?,`, `    ${base === undefined ? "None" : `Some(${q(base)})`}, None, None,`, ")?;", "");
+  lines.push("// Declared keys in, a distribution out (MAP-14).", "let mut questions = JsonObject::new();", ...questions, "let questions = judgments(questions)?;", "");
+  lines.push(`// ${SHAPE_NOTE[spec.shape]}.`, "let inputs = [", ...inputLines, "];", "");
+  lines.push("for input in inputs {", ...loop, "    let request = Request {", `        model: ${q(connection.model)}.into(),`);
+  if (instructions && !jev) lines.push(`        system: Some(${q(instructions)}.into()),`);
+  lines.push(`        messages: ${messages},`, "        config: Config {", "            response_format: Some(questions.clone()),", "            probabilities: Some(ProbabilityPolicy::IfAvailable),", "            ..Default::default()", "        },", "        ..Default::default()", "    };", "    let response = lm.complete(&request).await?;", '    println!("{:?}", response.data()); // the picked key per judgment', '    println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded', '    println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked', "}");
   return lines.join("\n");
 }
 

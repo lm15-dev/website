@@ -157,9 +157,12 @@ Example tests cover provider variants and the teaching conversation without a
 token cap. `npm run rust:snippets` updates the standalone Rust example project,
 including Judge and DataPart examples; from `examples/rust`, `rcargo check --locked`
 verifies them without provider requests. `tests/go_examples_compile.test.ts` separately compiles
-Go examples using the Go toolchain and the sibling `../lm15-go` checkout (no main
-function is invoked). Go examples are standalone programs using canonical JSON
-through the SDK's request decoder. Browser tests intercept inference
+every Go program the page shows against the Go toolchain and the sibling `../lm15-go`
+checkout, then runs each one with its provider call swapped for a dump and checks the
+request it built equals the page's canonical request. All four languages show the
+SDK's own constructors (`Message.user`, `judgments` / `score` / `choice` / `yes_no` and
+their Go and Rust spellings); only a replayed reply carrying reasoning or continuation
+state is shown as its canonical JSON, in every language. Browser tests intercept inference
 requests with fake replies; no real provider keys or paid calls are needed.
 
 ## Private local keys

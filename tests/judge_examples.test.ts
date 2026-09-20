@@ -165,6 +165,6 @@ test("Rust: Judge builds and parses prepared replies for every provider and shap
     const response = CanonicalResponse.fromJSON(parsed.canonical_response as Parameters<typeof CanonicalResponse.fromJSON>[0]);
     assert.deepEqual(verdictOf(response, { ms: 0, provider: c.connection.provider, model: c.connection.model, runtime: "Rust" }).data, JSON.parse(JUDGED_TEXT));
     assert.ok(judgeRust(c.connection, c.spec, c.inputs).includes("lm.complete(&request).await?"));
-    assert.ok(judgeGo(c.connection, c.spec, c.inputs).includes("lm.Complete(ctx, &request)"));
+    assert.ok(judgeGo(c.connection, c.spec, c.inputs).includes("lm.Complete(ctx, request)"));
   }
 });
