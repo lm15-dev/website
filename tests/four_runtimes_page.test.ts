@@ -64,7 +64,7 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
   const expected = JSON.parse(preview.slice(preview.indexOf("\n\n{" ) + 2));
   assert.equal(calls.length, 0, "wire preview sends nothing");
   await page.getByRole("button", { name: "Send", exact: true }).click();
-  await page.waitForFunction(() => document.getElementById("transcript")?.textContent?.includes("Hello 🍷 from wasm"));
+  await page.waitForFunction(() => [...document.querySelectorAll<HTMLTextAreaElement>("#transcript textarea")].some((area) => area.value.includes("Hello 🍷 from wasm")));
   await waitRuntimeReady(page, language);
   assert.deepEqual(calls[0]!.body, expected);
   assert.equal(calls[0]!.body["stream"], true);

@@ -104,11 +104,15 @@ body[data-mode="judge"] .toggle-code { display: none; }
 article { margin-bottom: 28px; }
 .message-heading { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
 article b { font-size: 12px; font-weight: 500; color: var(--muted); }
-article p { font-size: 14px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
-article[data-role="user"] p { padding: 12px 15px; border: 1px solid var(--line); background: var(--soft); border-radius: 7px; }
+/* Every turn is a textarea that reads as text: no border on a reply, the usual box on a message; a focus shows it can be rewritten. */
+.turn-text { padding: 0; border: 1px solid transparent; border-radius: 7px; background: transparent; resize: none; overflow: hidden; font-size: 14px; line-height: 1.8; color: var(--ink); }
+article[data-role="user"] .turn-text { padding: 12px 15px; border-color: var(--line); background: var(--soft); }
+article[data-role="assistant"] .turn-text { margin: 0 -8px; padding: 0 8px; }
+.turn-text:hover:not(:read-only) { border-color: var(--strong-line); }
+.turn-text:focus { outline: none; border-color: var(--accent); }
+article[data-invalid] .turn-text { border-color: var(--danger); }
 article[data-incomplete] { opacity: .65; }
-article.streaming p:empty::after { content: "Waiting for the provider…"; color: var(--muted); font-size: 12px; }
-.message-copy { margin-left: auto; font-size: 12px; padding: 2px 5px; min-height: 28px; color: var(--muted); }
+article.streaming .turn-text::placeholder { color: var(--muted); font-size: 12px; }
 .composer-area { padding: 12px 20px; }
 .composer { position: relative; border: 1px solid var(--strong-line); border-radius: 8px; background: var(--surface); }
 .composer:focus-within { border-color: var(--accent); }

@@ -72,7 +72,7 @@ test("the published static files boot, keep keys private, and run all four SDKs"
       await page.getByLabel("Message", { exact: true }).fill(`Hello from ${runtime}`);
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await page.waitForFunction((name) => document.getElementById("usage")?.textContent?.endsWith(name), runtime, { timeout: 30_000 });
-      assert.equal(await page.locator("#transcript article").last().locator("p").textContent(), "Static site works.");
+      assert.equal(await page.locator("#transcript article").last().locator("textarea").inputValue(), "Static site works.");
     }
     await page.waitForFunction(() => document.getElementById("fidelity")?.textContent?.includes("Same parsed request from JavaScript, Python, Rust, Go"));
     assert.equal(calls.length, 4);

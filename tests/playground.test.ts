@@ -216,7 +216,7 @@ test("ten local keys load privately; each provider receives only its key; manual
         await page.getByLabel("Message", { exact: true }).fill("Hello");
         await page.getByRole("button", { name: "Send", exact: true }).click();
         await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
-        assert.equal(await page.locator("#transcript article").last().locator("p").textContent(), "Hello");
+        assert.equal(await page.locator("#transcript article").last().locator("textarea").inputValue(), "Hello");
       }
       assert.equal(sent, 9);
       const discoveries = modelLists;
@@ -320,7 +320,7 @@ test("the playground: settings reach the code and the wire; a remembered key sur
     assert.equal(sent.instructions, "Answer briefly.");
     assert.equal(sent.max_output_tokens, 64);
     assert.equal(sent.reasoning.effort, "low");
-    assert.equal(await page.locator("#transcript article").last().locator("p").textContent(), "Hello there.");
+    assert.equal(await page.locator("#transcript article").last().locator("textarea").inputValue(), "Hello there.");
     // Encrypted at rest: the stored record is not the key; a reload decrypts it back.
     const stored = await page.evaluate(async () => {
       const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open("lm15-playground"); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
@@ -457,7 +457,8 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
     assert.equal(await page.locator("#picker-status").isVisible(), false, "and no explanation");
     assert.equal(await page.locator('#picker [role="option"][aria-selected="true"] .pick-main').evaluate((e) => e.textContent), "OpenAI", "the highlight starts on the current provider");
     await closePicker(page);
-    assert.deepEqual(await page.locator("#transcript article p").allTextContents(), [EXAMPLE_QUESTION, EXAMPLE_ANSWER]);
+    assert.deepEqual(await page.locator("#transcript article textarea").evaluateAll((areas) => areas.map((a) => (a as HTMLTextAreaElement).value)), [EXAMPLE_QUESTION, EXAMPLE_ANSWER]);
+    assert.equal(await page.locator("#transcript button").count(), 0, "turns are edited in place; there is nothing to copy them with");
     assert.equal(await page.locator('#transcript article[data-example="true"]').count(), 2);
     assert.deepEqual(await page.locator("[data-language]").allTextContents(), ["JavaScript", "Python", "Rust", "Go"]);
     assert.equal(await page.locator('#composer .composer-actions #provider-button').count(), 1);
@@ -699,7 +700,7 @@ test("the playground runs the same turn through Python (Pyodide) and Rust (wasm)
       await page.getByLabel("Message", { exact: true }).fill(`hello from ${runtime}`);
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await page.waitForFunction((r) => document.getElementById("usage")?.textContent?.endsWith(r), runtime, { timeout: 60_000 });
-      assert.equal(await page.locator("#transcript article").last().locator("p").textContent(), "Hello there.", runtime);
+      assert.equal(await page.locator("#transcript article").last().locator("textarea").inputValue(), "Hello there.", runtime);
       assert.equal(await page.locator("#transcript article").last().locator("b").textContent(), `OpenAI · ${runtime}`);
     }
     await page.waitForFunction(() => document.getElementById("fidelity")?.textContent?.includes("Same request body bytes from JavaScript, Python, Rust"));
@@ -831,6 +832,17 @@ test("the Request view: the code panel shows what the selected runtime puts on t
     assert.doesNotMatch(wire, /sk-real-secret-key/);
     assert.match(wire, /Bearer \[your key\]/);
     assert.equal(sent, 0, "the Request view sends nothing");
+    // Every turn can be rewritten: the request is built from the transcript as it now reads.
+    const reply = page.locator("#transcript article").nth(1).locator("textarea");
+    await reply.fill("LM15 is one interface to many model providers.");
+    await page.waitForFunction(() => /"text": "LM15 is one interface to many model providers\."/.test(document.getElementById("code")?.textContent ?? ""));
+    assert.doesNotMatch(await page.locator("#code").textContent() ?? "", new RegExp(JSON.stringify(EXAMPLE_ANSWER).slice(1, -1)));
+    await reply.fill("");
+    await page.waitForFunction(() => /A turn cannot be empty/.test(document.getElementById("request-note")?.textContent ?? ""));
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    assert.match(await page.locator("#alert").textContent() ?? "", /A turn cannot be empty/);
+    await reply.fill(EXAMPLE_ANSWER);
+    await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.startsWith("Built by JavaScript"));
     // Python builds the same bytes.
     await page.locator('[data-language="python"]').click();
     await waitRuntimeReady(page, "Python");

@@ -1,5 +1,5 @@
 /** The playground: a chat or a judge set, its settings, and the same request in four languages that actually run. */
-import { Message, parseJson, stringifyJson, type Request } from "lm15/browser";
+import { Message, parseJson, stringifyJson, text as textPart, type Request } from "lm15/browser";
 import { CONNECTIONS } from "./connections.ts";
 import { Credentials } from "./credentials.ts";
 import { renderCode } from "./code-view.ts";
@@ -57,6 +57,8 @@ const modeConnections: Record<Mode, Connection> = {
 let judge: JudgeView;
 /** The code panel shows the program, or the request that program puts on the wire (built by the selected runtime, never sent). */
 let codeView: "code" | "request" = "code";
+/** An edited turn that became empty: nothing can be built from it until it has text again. */
+let transcriptError = "";
 /** What the provider list says in red: a missing key, an example key, a failed save. Cleared by the next good key. */
 let keyError = "";
 const savingKey = new Set<string>();
@@ -177,7 +179,7 @@ async function updateCode(): Promise<void> {
   const invalidTemperature = !temperatureInput.validity.valid;
   maxTokensInput.setAttribute("aria-invalid", String(invalidMax));
   temperatureInput.setAttribute("aria-invalid", String(invalidTemperature));
-  let error = invalidTemperature ? "Temperature must be 0 to 2 in steps of 0.1, or empty for the provider default." : invalidMax ? "Max tokens must be a whole number from 1 to 100000, or empty for the provider default." : "";
+  let error = invalidTemperature ? "Temperature must be 0 to 2 in steps of 0.1, or empty for the provider default." : invalidMax ? "Max tokens must be a whole number from 1 to 100000, or empty for the provider default." : transcriptError;
   $("settings-error").hidden = !error;
   $("settings-error").textContent = error;
   try {
@@ -264,7 +266,7 @@ function refreshStatus(): void {
 }
 
 function reset(): void {
-  generation++; active?.abort(); active = undefined; messages = exampleConversation();
+  generation++; active?.abort(); active = undefined; messages = exampleConversation(); transcriptError = "";
   $("transcript").replaceChildren(); $("usage").textContent = ""; $("fidelity").textContent = "";
   for (const message of messages) {
     const role = message.role === "user" ? "user" : "assistant";
@@ -488,19 +490,42 @@ async function fidelity(request: Request): Promise<void> {
 
 // ─── Chat ─────────────────────────────────────────────────────────────
 
-function turn(who: string, text: string, role: "user" | "assistant" = who === "You" ? "user" : "assistant"): HTMLElement {
+/**
+ * One turn of the transcript: a heading and the text, which is a textarea because every turn can be
+ * rewritten — the next request is built from what the transcript says, not from what was once sent.
+ * A turn that is streaming, or that failed, is read-only: it is not part of `messages`.
+ */
+function turn(who: string, text: string, role: "user" | "assistant" = who === "You" ? "user" : "assistant"): HTMLTextAreaElement {
   const article = document.createElement("article");
   article.dataset.role = role;
   const heading = document.createElement("div"); heading.className = "message-heading";
   const label = document.createElement("b"); label.textContent = who;
-  const body = document.createElement("p"); body.textContent = text;
-  const copy = document.createElement("button"); copy.type = "button"; copy.className = "quiet message-copy"; copy.textContent = "Copy"; copy.setAttribute("aria-label", `Copy ${role === "user" ? "your message" : "reply"}`);
-  copy.addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(body.textContent ?? ""); copy.textContent = "Copied"; }
-    catch { copy.textContent = "Select text to copy"; }
-  });
-  heading.append(label, copy); article.append(heading, body); $("transcript").append(article);
+  const body = document.createElement("textarea"); body.className = "turn-text"; body.rows = 1; body.value = text; body.spellcheck = false;
+  body.setAttribute("aria-label", `${who}: edit this ${role === "user" ? "message" : "reply"}`);
+  body.addEventListener("input", () => { autosize(body); editTurn(article, body.value); });
+  heading.append(label); article.append(heading, body); $("transcript").append(article);
+  autosize(body);
   return body;
+}
+/** The transcript's live turns (not failed ones) are `messages`, in order: rewrite the one that changed. */
+function editTurn(article: HTMLElement, value: string): void {
+  const live = [...$("transcript").querySelectorAll<HTMLElement>("article:not([data-incomplete])")];
+  const index = live.indexOf(article);
+  const current = messages[index];
+  if (!current) return;
+  try {
+    if (!value.trim()) throw new Error("empty");
+    // The text is replaced; anything else the turn carried (reasoning, continuation state) stays as it was.
+    const at = current.parts.findIndex((part) => part.type === "text");
+    const kept = current.parts.filter((part) => part.type !== "text");
+    const parts = [...kept.slice(0, Math.max(at, 0)), textPart(value), ...kept.slice(Math.max(at, 0))];
+    messages = messages.with(index, Message.create({ role: current.role, parts, ...(current.continuation ? { continuation: current.continuation } : {}) }));
+    transcriptError = ""; article.removeAttribute("data-invalid");
+  } catch {
+    transcriptError = "A turn cannot be empty. Put the text back, or start again with a new provider."; article.dataset["invalid"] = "true";
+  }
+  $("fidelity").textContent = "";
+  updateControls(); void updateCode();
 }
 
 async function sendTurn(text: string): Promise<void> {
@@ -509,12 +534,15 @@ async function sendTurn(text: string): Promise<void> {
   if (!temperatureInput.reportValidity()) { temperatureInput.focus(); return; }
   if (!maxTokensInput.reportValidity()) { maxTokensInput.focus(); return; }
   if (!connection.model.trim()) { notify("Choose a model first."); return; }
+  if (transcriptError) { notify(transcriptError); return; }
   const version = generation;
   const controller = new AbortController();
   active = controller; updateControls(); notify();
   const request = buildRequest(connection, settings, messages, text);
   const chosen = RUNTIMES[runtime];
-  const body = (turn("You", text), turn(`${currentChoice().label} · ${chosen.label}`, ""));
+  const asked = turn("You", text);
+  const body = turn(`${currentChoice().label} · ${chosen.label}`, "");
+  asked.readOnly = body.readOnly = true; body.placeholder = "Waiting for the provider…";
   body.parentElement!.classList.add("streaming");
   prompt.value = ""; autosize(prompt);
   if (matchMedia("(max-width: 1100px)").matches) setView("chat");
@@ -526,11 +554,12 @@ async function sendTurn(text: string): Promise<void> {
       if (version !== generation) return;
       const area = $("chat-scroll");
       const following = area.scrollHeight - area.scrollTop - area.clientHeight < 96;
-      body.textContent += piece;
+      body.value += piece; autosize(body);
       if (following) scrollChat();
     });
     if (version !== generation) return;
     messages = [...request.messages, response.message];
+    asked.readOnly = body.readOnly = false;
     const usage = response.usage;
     const adapted = response.adaptations.length ? ` · adapted: ${response.adaptations.map((a) => `${a.field} ${a.action}`).join(", ")}` : "";
     $("usage").textContent = `${response.finishReason} · input ${usage?.inputTokens ?? "unreported"} · output ${usage?.outputTokens ?? "unreported"} · ${Math.round(performance.now() - started)} ms · ${chosen.label}${adapted}`;
@@ -540,14 +569,15 @@ async function sendTurn(text: string): Promise<void> {
     if (version !== generation) return;
     notify(controller.signal.aborted ? "Stopped. This incomplete turn is not included in the next request." : errorMessage(error));
     body.parentElement?.setAttribute("data-incomplete", "true");
+    asked.parentElement?.setAttribute("data-incomplete", "true"); // neither turn is in `messages`
     if (!controller.signal.aborted && looksBrowserBlocked(error) && !relayed(connection.provider) && !keyless(connection.provider)) resend = await offerRelay();
   } finally {
-    body.parentElement?.classList.remove("streaming");
+    body.parentElement?.classList.remove("streaming"); body.placeholder = "";
     if (version === generation) { active = undefined; updateControls(); void updateCode(); }
   }
   if (resend && version === generation) {
     // The user allowed the relay: the failed turn leaves the transcript and the same text is sent again, through it.
-    body.parentElement?.previousElementSibling?.remove();
+    asked.parentElement?.remove();
     body.parentElement?.remove();
     void sendTurn(text);
   }
@@ -583,7 +613,7 @@ $("forget-relays").addEventListener("click", () => { disableAllRelays(); catalog
 $("provider-button").addEventListener("click", () => picker.open("provider", connection.provider));
 $("model-button").addEventListener("click", () => { picker.open("model", connection.model); if (automatic.checked) void discover(); });
 // A textarea's natural height depends on its width and font: both change with the viewport.
-addEventListener("resize", () => { autosize(prompt); autosize(systemInput); });
+addEventListener("resize", () => { for (const area of [prompt, systemInput, ...document.querySelectorAll<HTMLTextAreaElement>(".turn-text")]) autosize(area); });
 moreMenu.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && moreMenu.open) { moreMenu.open = false; $("more-toggle").focus(); event.preventDefault(); }
 });

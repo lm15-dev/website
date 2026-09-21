@@ -176,9 +176,16 @@ sorted keys, which can produce equivalent requests with different bytes.
 
 The initial conversation asks what LM15 is, includes one short answer, and has
 a follow-up ready in the composer. The system prompt sets an LM15 teacher role.
-These are labeled example turns, not replies fetched from a provider. Changing
-provider/model or keys starts a fresh conversation with that same example;
-language changes preserve the conversation. No inference is performed on arrival.
+These are labeled example turns, not replies fetched from a provider. Every
+turn in the transcript — example, yours, or a reply — is a textarea and can be
+rewritten; the next request is built from what the transcript says now. A
+rewritten reply keeps anything it carried besides its text (reasoning,
+continuation state). An emptied turn blocks sending and says so in the code
+panel until it has text again. Turns are not copyable as a separate action: the
+code panel's Copy is the copy. A streaming or failed turn is read-only; a failed
+pair is greyed and not part of the next request. Changing provider/model or keys
+starts a fresh conversation with that same example; language changes preserve
+the conversation. No inference is performed on arrival.
 
 The joke API key is a visible placeholder and appears in copyable code, but is
 never stored or accepted as a real key. Saving a real key does not erase the
@@ -201,7 +208,10 @@ requests with fake replies; no real provider keys or paid calls are needed.
 
 After building the site, `npm run playground:local` opens a separate loopback
 server with an explicit, one-use handoff from `../.env`. Ordinary previews and
-the public site never read that file. Keys are never printed or placed in the
+the public site never read that file. `HOST=<address> PORT=<port> node
+--experimental-strip-types scripts/serve-playground.ts` serves the same built
+page on another interface (a Tailscale IP, to open it from another machine);
+the key handoff is refused there — paste keys in the page. Keys are never printed or placed in the
 code panel. Browser storage is not a secure vault: scripts on the same origin
 can access keys when the page uses them.
 

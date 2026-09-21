@@ -11,7 +11,14 @@ import { CONNECTIONS } from '../src/playground/connections.ts';
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const publicDir = resolve(root, '.build/public');
 const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.whl': 'application/zip', '.zip': 'application/zip', '.txt': 'text/plain', '.svg': 'image/svg+xml' };
-export async function startDemo(options: { envFile?: string; port?: number } = {}): Promise<{ server: Server; url: string; browserUrl: string; providers: string[] }> {
+/**
+ * `host` defaults to loopback. Another address (say, the machine's Tailscale IP, to open the page from a
+ * laptop) is allowed for the page alone: the private key handoff stays loopback-only, so `envFile` is
+ * refused with any other host.
+ */
+export async function startDemo(options: { envFile?: string; port?: number; host?: string } = {}): Promise<{ server: Server; url: string; browserUrl: string; providers: string[] }> {
+  const host = options.host ?? '127.0.0.1';
+  if (options.envFile && !['127.0.0.1', 'localhost', '::1'].includes(host)) throw new Error(`Private keys are handed over on loopback only; not on ${host}. Paste keys in the page instead.`);
   const credentials: Record<string, string> = {};
   if (options.envFile) {
     const values = parseEnv(readFileSync(options.envFile, 'utf8'));
@@ -54,16 +61,16 @@ export async function startDemo(options: { envFile?: string; port?: number } = {
       res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream' }).end(req.method === 'HEAD' ? undefined : body);
     } catch { res.writeHead(404).end('Not found. Run npm run build first.'); }
   });
-  await new Promise<void>((done, reject) => { server.once('error', reject); server.listen(options.port ?? 0, '127.0.0.1', done); });
+  await new Promise<void>((done, reject) => { server.once('error', reject); server.listen(options.port ?? 0, host, done); });
   const addr = server.address();
   if (!addr || typeof addr === 'string') throw new Error('Expected a loopback TCP address');
-  origin = `http://127.0.0.1:${addr.port}`;
+  origin = `http://${host.includes(':') ? `[${host}]` : host}:${addr.port}`;
   const url = `${origin}/playground/`;
   return { server, url, browserUrl: token ? `${url}#local-test=${token}` : url, providers };
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const local = process.argv.includes('--local-keys');
-  const demo = await startDemo({ ...(local ? { envFile: resolve(root, '../.env') } : {}), port: Number(process.env['PORT'] ?? 0) });
+  const demo = await startDemo({ ...(local ? { envFile: resolve(root, '../.env') } : {}), port: Number(process.env['PORT'] ?? 0), ...(process.env['HOST'] ? { host: process.env['HOST'] } : {}) });
   console.log(`LM15 playground: ${demo.url}`);
   if (local) console.log(`Private local test keys: ${demo.providers.join(', ') || 'none found'}. Keys are never printed or saved in the page.`);
   if (process.argv.includes('--open')) {
