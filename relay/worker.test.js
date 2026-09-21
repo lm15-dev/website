@@ -73,7 +73,7 @@ test("a request is forwarded with its method, body and authorization, minus brow
   assert.equal(res.headers.get("access-control-expose-headers"), "*");
   assert.equal(res.headers.get("x-typesafe-request-id"), "r-1");
   assert.equal(res.headers.get("set-cookie"), null);
-  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.equal(res.headers.get("cache-control"), "no-store, no-transform", "no-transform keeps the edge from compressing a body the SDK asked for as identity");
   assert.equal(res.headers.get("vary"), "Origin");
 });
 

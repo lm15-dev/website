@@ -113,7 +113,9 @@ export async function handle(request, env = {}, upstreamFetch = fetch) {
   for (const [name, value] of upstream.headers) if (!DROP_RESPONSE.has(name.toLowerCase())) out.set(name, value);
   for (const [name, value] of Object.entries(corsHeaders(origin))) out.set(name, value);
   out.set("access-control-expose-headers", "*");
-  out.set("cache-control", "no-store");
+  // no-transform: Cloudflare's edge would otherwise compress the body (zstd, br) for the browser, and the
+  // page's SDK refuses a Content-Encoding it did not ask for (it asks for identity, so streams are never buffered).
+  out.set("cache-control", "no-store, no-transform");
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: out });
 }
 
