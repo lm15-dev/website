@@ -591,7 +591,15 @@ test("runtime loading can be retried, never silently switches language, and does
     assert.equal(await page.getByRole("button", { name: "Rust", exact: true }).getAttribute("aria-pressed"), "true");
     assert.equal(await page.locator('[data-language="rust"]').getAttribute("aria-pressed"), "true");
     assert.equal(await page.locator("#send").isDisabled(), true);
+    assert.equal(await page.locator("#send").textContent(), "Rust not loaded", "the Send button says why it is off");
+    assert.equal(await page.locator("#runtime-title").textContent(), "Could not load Rust");
     await page.getByRole("button", { name: "Retry loading" }).click();
+    // The retry is held: the card shows the load in progress, over the dimmed code, and Send says so.
+    await page.waitForFunction(() => document.getElementById("runtime-card")!.dataset["state"] === "loading");
+    assert.equal(await page.locator("#runtime-title").textContent(), "Loading Rust");
+    assert.equal(await page.locator("#send").textContent(), "Loading Rust…");
+    assert.equal(await page.locator("#code-body").evaluate((e) => e.hasAttribute("data-loading")), true);
+    assert.equal(await page.locator("#code-tabs").getAttribute("data-state"), "loading");
     await page.getByLabel("Message", { exact: true }).press("Enter");
     assert.equal(posts, 0, "Keyboard sending is blocked too while the runtime loads");
     assert.equal(await page.locator("#prompt").inputValue(), "Keep this draft");
@@ -601,6 +609,9 @@ test("runtime loading can be retried, never silently switches language, and does
     await page.getByRole("button", { name: "Rust", exact: true }).click();
     await waitRuntimeReady(page, "Rust");
     assert.equal(await page.locator("#runtime-status").textContent(), "", "Successful loading does not leave technical status text");
+    assert.equal(await page.locator("#runtime-card").isHidden(), true, "the card leaves when the runtime is ready");
+    assert.equal(await page.locator("#code-body").evaluate((e) => e.hasAttribute("data-loading")), false);
+    assert.equal(await page.locator("#send").textContent(), "Send");
     assert.equal(attempts, 2, "Retry actually refetches, rather than reusing a rejected promise");
     await page.getByRole("button", { name: "Send", exact: true }).click();
     for (const name of ["JavaScript", "Python", "Rust", "Go"]) assert.equal(await page.getByRole("button", { name, exact: true }).isDisabled(), true, "The executing language cannot change mid-turn");

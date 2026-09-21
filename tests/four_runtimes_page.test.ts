@@ -51,8 +51,12 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
   await page.getByLabel("API key", { exact: true }).fill("offline-dummy-key");
   await page.getByRole("button", { name: "Use key for this provider" }).click();
   await page.locator(`[data-language="${language}"]`).click();
-  await page.waitForFunction(() => document.getElementById("runtime-status")?.textContent?.includes("Could not load"));
+  await page.waitForFunction(() => document.getElementById("runtime-title")?.textContent?.includes("Could not load"));
+  assert.match(await page.locator("#runtime-status").textContent() ?? "", /HTTP 503/, "the card says why");
   await page.locator("#retry-runtime").click();
+  await page.waitForFunction(() => !document.getElementById("runtime-card")!.hidden && document.getElementById("runtime-card")!.dataset["state"] === "loading");
+  // Rust and Go downloads are measured against the build's size manifest: the bar carries a real value.
+  await page.waitForFunction(() => document.getElementById("runtime-bar")?.getAttribute("aria-valuenow") !== null || document.getElementById("code-tabs")?.dataset["state"] === "ready");
   await waitRuntimeReady(page, language);
   if (language === "go") assert.equal(assets.filter((path) => path.endsWith("/vendor/go/wasm_exec.js")).length, 1, "retry reuses one Go support script");
   await page.getByRole("button", { name: "Request", exact: true }).click();

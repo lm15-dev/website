@@ -4,6 +4,7 @@ import { CONNECTIONS } from "./connections.ts";
 import { Credentials } from "./credentials.ts";
 import { renderCode } from "./code-view.ts";
 import { comment, dim, finish, replaceAll, unmarked, type Code } from "./marks.ts";
+import type { Progress } from "./runtimes/progress.ts";
 import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleGo, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyPage, keyless, slashCommand, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
 import { JudgeView } from "./judge-ui.ts";
 import type { JudgeSource } from "./judge.ts";
@@ -84,6 +85,7 @@ function setView(view: string): void {
 function updateControls(): void {
   const busy = Boolean(active) || (judge?.busy() ?? false);
   send.disabled = Boolean(active) || loadingRuntime || !RUNTIMES[runtime].loaded() || !prompt.value.trim();
+  send.textContent = loadingRuntime ? `Loading ${RUNTIMES[runtime].label}…` : RUNTIMES[runtime].loaded() ? "Send" : `${RUNTIMES[runtime].label} not loaded`;
   stop.disabled = !active;
   $("code-tabs").dataset.state = loadingRuntime ? "loading" : RUNTIMES[runtime].loaded() ? "ready" : "error";
   $("code-tabs").setAttribute("aria-busy", String(loadingRuntime));
@@ -345,6 +347,37 @@ function options(kind: PickerKind, query: string): PickResult {
 
 // ─── Runtimes ─────────────────────────────────────────────────────────
 
+/** The loading card over the code: what is happening, measured where it can be; or why it failed, with Retry. */
+function showLoading(label: string, progress: Progress): void {
+  const card = $("runtime-card"), bar = $("runtime-bar");
+  card.hidden = false; card.dataset.state = "loading";
+  $("code-body").dataset.loading = "";
+  $("runtime-title").textContent = `Loading ${label}`;
+  $("runtime-status").textContent = progress.detail ? `${progress.phase} · ${progress.detail}` : progress.phase;
+  if (progress.fraction === undefined) { bar.removeAttribute("aria-valuenow"); bar.dataset.indeterminate = ""; bar.style.removeProperty("--fraction"); }
+  else { delete bar.dataset.indeterminate; bar.setAttribute("aria-valuenow", String(Math.round(progress.fraction * 100))); bar.style.setProperty("--fraction", `${(progress.fraction * 100).toFixed(1)}%`); }
+  bar.hidden = false;
+  $("runtime-note").textContent = "Downloaded once; your browser keeps it for next time.";
+  $("retry-runtime").hidden = true;
+}
+function showLoadFailure(label: string, reason: string): void {
+  const card = $("runtime-card");
+  card.hidden = false; card.dataset.state = "error";
+  $("code-body").dataset.loading = "";
+  // The title and the reason together read "Could not load Go: … " for a screen reader and the tests; the eye sees the title once.
+  $("runtime-title").textContent = `Could not load ${label}`;
+  $("runtime-status").textContent = `${reason}. Retry, or choose another language.`;
+  $("runtime-bar").hidden = true;
+  $("runtime-note").textContent = "";
+  $("retry-runtime").hidden = false;
+}
+function hideLoading(): void {
+  $("runtime-card").hidden = true;
+  delete $("code-body").dataset.loading;
+  $("runtime-status").textContent = "";
+  $("retry-runtime").hidden = true;
+}
+
 async function selectRuntime(id: RuntimeId): Promise<void> {
   if (active) return;
   const version = ++runtimeVersion;
@@ -352,21 +385,18 @@ async function selectRuntime(id: RuntimeId): Promise<void> {
   try { localStorage.setItem("lm15.playground.runtime", id); } catch { /* storage is optional */ }
   const chosen = RUNTIMES[id];
   loadingRuntime = !chosen.loaded();
-  $("runtime-status").textContent = "";
-  $("retry-runtime").hidden = true;
+  hideLoading();
   refreshStatus();
   if (loadingRuntime) {
+    showLoading(chosen.label, { phase: "Starting" });
     try {
-      await chosen.load((status) => { if (version === runtimeVersion) $("runtime-status").textContent = status.startsWith(`${chosen.label} ready`) ? "" : status; });
+      await chosen.load((progress) => { if (version === runtimeVersion && !progress.phase.startsWith(`${chosen.label} ready`)) showLoading(chosen.label, progress); });
     } catch (error) {
-      if (version === runtimeVersion) {
-        $("runtime-status").textContent = `Could not load ${chosen.label}: ${redact(error instanceof Error ? error.message : String(error))}. Retry, or choose another language.`;
-        $("retry-runtime").hidden = false;
-      }
+      if (version === runtimeVersion) showLoadFailure(chosen.label, redact(error instanceof Error ? error.message : String(error)));
     } finally {
       if (version === runtimeVersion) {
         loadingRuntime = false;
-        if (chosen.loaded()) $("runtime-status").textContent = "";
+        if (chosen.loaded()) hideLoading();
         refreshStatus();
       }
     }
@@ -566,6 +596,7 @@ judge = new JudgeView({
   runtime: () => runtime,
   runtimes: RUNTIMES,
   runtimeReady: () => !loadingRuntime && RUNTIMES[runtime].loaded() && !active,
+  runtimeLoading: () => (loadingRuntime ? `Loading ${RUNTIMES[runtime].label}…` : RUNTIMES[runtime].loaded() ? undefined : `${RUNTIMES[runtime].label} not loaded`),
   providerLabel: () => currentChoice().label,
   offerRelay,
   errorMessage,

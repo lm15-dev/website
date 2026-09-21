@@ -13,6 +13,7 @@ import { Message, Response, type Request } from "lm15/browser";
 import { EXAMPLE_API_KEY, examplePython, keyless, streams, type Connection, type Settings, type Wire } from "../experience.ts";
 import { isJudgeRequest, judgePython, specOfRequest, type JudgeSource } from "../judge.ts";
 import type { Runtime } from "./index.ts";
+import { fetchWithProgress, fileSizes, megabytes, paint, type Report } from "./progress.ts";
 import { translatePythonError as translate } from "../error-display.ts";
 
 interface Pyodide {
@@ -29,18 +30,48 @@ let pyodide: Pyodide | undefined;
 let loading: Promise<Pyodide> | undefined;
 let bootAttempts = 0;
 
-async function boot(report: (status: string) => void): Promise<Pyodide> {
+/** The files Pyodide fetches for itself, by size: downloaded here with progress so the bar is real, then handed to Pyodide so nothing is fetched twice. */
+const PYODIDE_FILES = ["pyodide.asm.wasm", "python_stdlib.zip"] as const;
+
+async function boot(report: Report): Promise<Pyodide> {
   if (pyodide) return pyodide;
   loading ??= (async () => {
-    report("Loading Pyodide (13 MB, cached after the first time)…");
+    const sizes = await fileSizes();
+    const total = PYODIDE_FILES.reduce((sum, name) => sum + (sizes[`pyodide/${name}`] ?? 0), 0);
+    const bytes: Partial<Record<(typeof PYODIDE_FILES)[number], ArrayBuffer>> = {};
+    let done = 0;
+    for (const name of PYODIDE_FILES) {
+      const size = sizes[`pyodide/${name}`];
+      const response = await fetchWithProgress(`${INDEX_URL}${name}`, "Downloading Python", undefined, (p) => {
+        if (!total || !size) return report(p);
+        const here = Math.min(size, Math.round((p.fraction ?? 0) * size));
+        report({ phase: "Downloading Python", detail: `${megabytes(done + here)} of ${megabytes(total)}`, fraction: (done + here) / total });
+      });
+      bytes[name] = await response.arrayBuffer();
+      done += size ?? 0;
+    }
+    report({ phase: "Starting Python", detail: "compiling the interpreter" });
+    await paint();
     // Browsers can cache a failed module import. A retry needs a fresh module URL.
     const retry = bootAttempts++ === 0 ? "" : `?retry=${bootAttempts}`;
-    const module = (await import(/* @vite-ignore */ `${INDEX_URL}pyodide.mjs${retry}`)) as { loadPyodide(options: { indexURL: string }): Promise<Pyodide> };
-    const py = await module.loadPyodide({ indexURL: INDEX_URL });
-    report("Installing lm15 for Python…");
+    const module = (await import(/* @vite-ignore */ `${INDEX_URL}pyodide.mjs${retry}`)) as { loadPyodide(options: { indexURL: string; stdLibURL?: string }): Promise<Pyodide> };
+    const stdlib = URL.createObjectURL(new Blob([bytes["python_stdlib.zip"]!], { type: "application/zip" }));
+    // Pyodide has an option for the stdlib but fetches its wasm at a fixed URL under indexURL; for the length of the boot, that one URL is answered from the bytes above. Everything else passes through untouched.
+    const wasmUrl = new URL(`${INDEX_URL}pyodide.asm.wasm`).href;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<globalThis.Response> => {
+      const url = typeof input === "string" ? new URL(input, location.href).href : input instanceof URL ? input.href : input.url;
+      if (url === wasmUrl) return Promise.resolve(new globalThis.Response(bytes["pyodide.asm.wasm"]!, { headers: { "content-type": "application/wasm" } }));
+      return realFetch(input, init);
+    };
+    let py: Pyodide;
+    try { py = await module.loadPyodide({ indexURL: INDEX_URL, stdLibURL: stdlib }); }
+    finally { globalThis.fetch = realFetch; URL.revokeObjectURL(stdlib); }
+    report({ phase: "Installing lm15", detail: "the Python SDK" });
+    await paint();
     await py.loadPackage(WHEEL_URL, { messageCallback: () => {} });
     const version = String(await py.runPythonAsync("import lm15, sys; f'lm15 {lm15.__version__} on Python {sys.version.split()[0]}'"));
-    report(`Python ready: ${version}`);
+    report({ phase: `Python ready: ${version}`, fraction: 1 });
     pyodide = py;
     return py;
   })().catch((error) => { loading = undefined; throw error; });

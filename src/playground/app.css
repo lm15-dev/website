@@ -92,8 +92,6 @@ summary:hover { border-color: var(--strong-line); }
 [aria-invalid="true"] { border-color: var(--danger); }
 #loaded { overflow-wrap: anywhere; }
 .note { font-size: 12px; color: var(--muted); }
-.runtime-feedback { padding: 12px 16px 0; }
-.runtime-feedback:has(#runtime-status:empty):has(#retry-runtime[hidden]) { display: none; }
 .chat-scroll { flex: 1; min-height: 0; overflow: auto; padding: 18px 24px; scrollbar-width: thin; scrollbar-color: var(--strong-line) transparent; }
 article { margin-bottom: 28px; }
 .message-heading { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
@@ -127,6 +125,9 @@ article.streaming p:empty::after { content: "Waiting for the provider…"; color
 .code-tabs button { min-height: 48px; padding: 8px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: 12px; }
 .code-tabs button:hover:not(:disabled) { background: transparent; }
 .code-tabs button[aria-pressed="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.code-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* While a runtime loads, the code stays visible but steps back; the card says what is happening. */
+.code-body[data-loading] pre { opacity: 0.35; transition: opacity 200ms; }
 .code-panel pre { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 16px; color: var(--code-ink); font: 16px/1.8 ui-monospace, "SFMono-Regular", Consolas, monospace; tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; scrollbar-color: var(--strong-line) transparent; }
 /* One block per source line (each keeps its newline, so the text is exact): a wrapped line continues under its own indent (code-view.ts). */
 .code-panel pre .line { display: block; min-height: 1.8em; padding-left: calc(var(--indent, 0) * 1ch); text-indent: calc(var(--indent, 0) * -1ch); }
@@ -136,6 +137,32 @@ article.streaming p:empty::after { content: "Waiting for the provider…"; color
 .tok-comment { color: var(--code-muted); font-style: italic; }
 .tok-dim { color: var(--code-muted); }
 .tok-dim .tok-comment { color: inherit; }
+/* The loading card: centred over the code, one message at a time, a bar only when the bytes are being counted. */
+.runtime-card { position: absolute; inset: 0; margin: auto; width: min(340px, calc(100% - 32px)); height: fit-content; padding: 22px 24px 20px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px color-mix(in srgb, var(--ink) 12%, transparent); }
+.runtime-card[hidden] { display: none; }
+.runtime-title { margin: 6px 0 0; font-weight: 600; font-size: 15px; }
+.runtime-phase { margin: 0; font-size: 13px; color: var(--muted); min-height: 1.4em; overflow-wrap: anywhere; }
+.runtime-note { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.runtime-note:empty { display: none; }
+.runtime-card button { margin-top: 10px; }
+.runtime-bar { width: 100%; height: 6px; margin-top: 8px; border-radius: 3px; background: var(--accent-soft); overflow: hidden; }
+.runtime-bar[hidden] { display: none; }
+.runtime-bar-fill { height: 100%; width: var(--fraction, 0%); background: var(--accent); border-radius: 3px; transition: width 160ms linear; }
+/* Not yet measurable: a short segment sweeps instead of a filling bar. */
+.runtime-bar[data-indeterminate] .runtime-bar-fill { width: 35%; animation: runtime-sweep 1.4s ease-in-out infinite; }
+@keyframes runtime-sweep { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+/* A transform animation with will-change runs on the compositor, so it keeps turning while the main thread compiles a module. */
+.runtime-spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--accent-soft); border-top-color: var(--accent); animation: runtime-spin 0.9s linear infinite; will-change: transform; }
+.runtime-card[data-state="error"] .runtime-spinner { display: none; }
+.runtime-card[data-state="error"] .runtime-title { color: var(--danger); }
+@keyframes runtime-spin { to { transform: rotate(360deg); } }
+/* The loading tab carries a small pulsing dot: the other tabs stay quiet. */
+.code-tabs[data-state="loading"] button[aria-pressed="true"]::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; vertical-align: 2px; border-radius: 50%; background: var(--accent); animation: runtime-pulse 1.2s ease-in-out infinite; }
+@keyframes runtime-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) {
+  .runtime-spinner, .runtime-bar[data-indeterminate] .runtime-bar-fill, .code-tabs[data-state="loading"] button[aria-pressed="true"]::after { animation: none; }
+  .runtime-bar[data-indeterminate] .runtime-bar-fill { width: 100%; opacity: 0.4; }
+}
 dialog { width: min(94vw, 500px); max-height: 80dvh; padding: 20px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; }
 dialog::backdrop { background: #10241c55; }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }

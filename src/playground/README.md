@@ -53,8 +53,17 @@ puts on the wire — method, URL, headers and body, built by the selected
 runtime's own SDK (`Runtime.wire`) for the current turn or the selected Judge
 input, never sent, the key blanked. Python builds it from the shown program's
 head (a judge loop unrolled once); Rust and Go use canonical requests with their own SDKs.
-Selecting Python, Rust, or Go loads that runtime on demand. Tabs are locked during
-a running turn so execution cannot silently change.
+Selecting Python, Rust, or Go loads that runtime on demand. While it loads, a card
+over the dimmed code says the phase (downloading, starting, installing) with a
+progress bar measured against `vendor/sizes.json`, the real byte sizes the build
+writes (the wire is gzipped, so Content-Length would overshoot); Send and Run all
+read "Loading Python…". A failure turns the card into the reason and a Retry.
+Python's two big files are downloaded once with progress and handed to Pyodide
+(`stdLibURL`, and its wasm URL answered from the bytes for the length of the
+boot), so nothing is fetched twice and nothing depends on the HTTP cache. The
+loaders yield two frames before compiling a module so the card paints first; the
+spinner is a compositor animation, so it keeps turning while the main thread is
+busy. Tabs are locked during a running turn so execution cannot silently change.
 
 Desktop keeps settings and code together; narrow screens retain Settings /
 Chat / Code views. There are no welcome cards, duplicate setup buttons, reset

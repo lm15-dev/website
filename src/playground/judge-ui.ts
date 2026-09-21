@@ -21,6 +21,8 @@ export interface JudgeHost {
   runtime(): RuntimeId;
   readonly runtimes: Readonly<Record<RuntimeId, Runtime>>;
   runtimeReady(): boolean;
+  /** Why the runtime cannot run yet ("Loading Python…", "Go not loaded"), or nothing when it can: the Run button says so. */
+  runtimeLoading(): string | undefined;
   providerLabel(): string;
   /** Ask, in words, before any key goes through the relay; true when allowed for this provider. */
   offerRelay(): Promise<boolean>;
@@ -575,7 +577,8 @@ export class JudgeView {
     $("judge-count").textContent = `${n} input${n === 1 ? "" : "s"} · ${judgments} question${judgments === 1 ? "" : "s"} · ${calls} call${calls === 1 ? "" : "s"}${pending && pending < n ? ` (${pending} changed or new)` : ""}${blank ? ` · ${blank} blank skipped` : ""}`;
     const run = $<HTMLButtonElement>("judge-run");
     const partial = pending > 0 && pending < n - blank;
-    run.textContent = this.running ? "Running…" : partial ? `Run ${pending} new` : "Run all";
+    const loading = this.host.runtimeLoading();
+    run.textContent = this.running ? "Running…" : loading ?? (partial ? `Run ${pending} new` : "Run all");
     // With some rows changed, the main button judges only those; a second, quieter one redoes the whole set.
     const again = $<HTMLButtonElement>("judge-run-again"); again.hidden = !partial || Boolean(this.running);
     const gap = this.stateError();

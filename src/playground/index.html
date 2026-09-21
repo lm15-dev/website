@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-vzDM+wPtdfGgwcSDia6gRane5rggh7T4wuIn42/jZc4='; style-src 'self'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-vzDM+wPtdfGgwcSDia6gRane5rggh7T4wuIn42/jZc4='; style-src 'self'; connect-src 'self' blob: https: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; base-uri 'none'; form-action 'self'">
 <title>lm15 playground</title>
 <link rel="stylesheet" href="./app.css">
 <script type="importmap">{"imports":{"lm15/browser":"../../dist/browser.js"}}</script>
@@ -100,9 +100,19 @@
   <aside id="code-panel" class="code-panel" aria-label="Code">
     <header class="code-toolbar"><div id="code-tabs" class="code-tabs" role="group" aria-label="Run language" data-state="ready" aria-busy="false"></div>
       <div class="code-tools"><div class="seg" id="code-view" role="group" aria-label="Panel view"><button type="button" data-code-view="code" aria-pressed="true">Code</button><button type="button" data-code-view="request" aria-pressed="false">Request</button></div><button id="copy-code" class="quiet" type="button">Copy code</button></div></header>
-    <div class="runtime-feedback"><p id="runtime-status" class="note" role="status"></p><button id="retry-runtime" class="text-button" type="button" hidden>Retry loading</button></div>
     <p id="request-note" class="note request-note" role="status" hidden></p>
-    <pre id="code-scroll" tabindex="0" aria-label="Example code"><code id="code"></code></pre>
+    <div id="code-body" class="code-body">
+      <pre id="code-scroll" tabindex="0" aria-label="Example code"><code id="code"></code></pre>
+      <!-- Heavy runtimes (Python, Rust, Go) download once; this card says what is happening while they do. -->
+      <div id="runtime-card" class="runtime-card" role="status" aria-live="polite" hidden>
+        <div class="runtime-spinner" aria-hidden="true"></div>
+        <p id="runtime-title" class="runtime-title"></p>
+        <p id="runtime-status" class="runtime-phase"></p>
+        <div id="runtime-bar" class="runtime-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-labelledby="runtime-title"><div class="runtime-bar-fill"></div></div>
+        <p id="runtime-note" class="runtime-note"></p>
+        <button id="retry-runtime" class="primary" type="button" hidden>Retry loading</button>
+      </div>
+    </div>
     <span id="copy-status" class="sr-only" role="status"></span>
   </aside>
 </main>

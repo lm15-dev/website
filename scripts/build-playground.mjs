@@ -1,7 +1,7 @@
 /** Build the playground separately from Astro: no docs scripts run on the key-bearing page. */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { socialHead } from '../social-card.mjs';
@@ -48,6 +48,9 @@ export function buildPlayground() {
   for (const name of ['pyodide.mjs', 'pyodide.asm.js', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json']) {
     copy(join(root, 'node_modules/pyodide', name), `vendor/pyodide/${name}`);
   }
+  // The real (decoded) size of each runtime file: the loading card measures a gzipped download against these.
+  const vendored = filesUnder(join(staging, 'vendor')).map(path => relative(join(staging, 'vendor'), path));
+  writeFileSync(join(staging, 'vendor/sizes.json'), JSON.stringify(Object.fromEntries(vendored.map(path => [path, statSync(join(staging, 'vendor', path)).size]))) + '\n');
   copy(join(sdk, 'LICENSE'), 'licenses/lm15-typescript.txt');
   for (const [source, target] of [[join(sdk, 'runtime/licenses'), 'licenses'], [join(root, 'public/licenses'), 'licenses']]) {
     for (const file of filesUnder(source)) copy(file, `${target}/${relative(source, file)}`);
@@ -71,10 +74,13 @@ export function buildPlayground() {
   const escapeAttribute = value => String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   const shareTags = socialHead('LM15 Playground', 'Try LM15 in JavaScript, Python, Rust and Go, directly in your browser.', 'https://lm15.dev/playground/')
     .map(({ attrs }) => `<meta ${Object.entries(attrs).map(([key, value]) => `${key}="${escapeAttribute(value)}"`).join(' ')}>`).join('\n');
+  // Development allows local model servers; production narrows to https. blob: is the prefetched Python stdlib handed to Pyodide.
+  const DEV_CONNECT = "connect-src 'self' blob: https: http://localhost:* http://127.0.0.1:*";
+  if (!html.includes(DEV_CONNECT)) throw new Error('The page CSP connect-src is not the one the build narrows');
   html = html.replace(oldMap, newMap).replace(hash(oldMap), hash(newMap))
     .replace('href="./app.css"', `href="${prefix}/playground/app.css"`)
     .replace('src="./build/main.js"', `src="${prefix}/playground/main.js"`)
-    .replace("connect-src 'self' https: http://localhost:* http://127.0.0.1:*", "connect-src 'self' https:")
+    .replace(DEV_CONNECT, "connect-src 'self' blob: https:")
     .replace('</head>', '<meta name="description" content="Try LM15 in JavaScript, Python, Rust and Go, directly in your browser.">\n<link rel="canonical" href="https://lm15.dev/playground/">\n' + shareTags + '\n</head>');
   mkdirSync(join(generatedDir, 'playground/about'), { recursive: true });
   writeFileSync(join(generatedDir, 'playground/index.html'), html);

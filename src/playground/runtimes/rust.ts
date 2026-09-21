@@ -163,17 +163,21 @@ import { Request as RequestNs, Response as CanonicalResponse, parseJson, stringi
 import { ANTHROPIC_BROWSER_HEADER, baseUrlFor, keyless, type Connection, type Wire } from "../experience.ts";
 import { isJudgeRequest } from "../judge.ts";
 import type { Runtime } from "./index.ts";
+import { fetchWithProgress, fileSizes, paint, type Report } from "./progress.ts";
 
 const WASM_URL = new URL("../../vendor/rust/lm15.wasm", import.meta.url).href;
 let codec: RustCodec | undefined;
 let loading: Promise<RustCodec> | undefined;
 
-async function boot(report: (status: string) => void): Promise<RustCodec> {
+async function boot(report: Report): Promise<RustCodec> {
   if (codec) return codec;
   loading ??= (async () => {
-    report("Loading the lm15-rs codec (1 MB)…");
-    const loaded = await RustCodec.load(WASM_URL);
-    report(`Rust ready: lm15-rs ${loaded.version().version} (wasm32)`);
+    const sizes = await fileSizes();
+    const response = await fetchWithProgress(WASM_URL, "Downloading Rust", sizes["rust/lm15.wasm"], report);
+    report({ phase: "Starting Rust", detail: "compiling the codec" });
+    await paint();
+    const loaded = await RustCodec.load(response);
+    report({ phase: `Rust ready: lm15-rs ${loaded.version().version} (wasm32)`, fraction: 1 });
     codec = loaded;
     return loaded;
   })().catch((error) => { loading = undefined; throw error; });

@@ -3,6 +3,7 @@ import { Request as RequestNs, Response, parseJson, stringifyJson } from "lm15/b
 import { isJudgeRequest } from "../judge.ts";
 import { connectionOf, RustCodecError, wireOf, type RustFailure, type WireRequest, type CanonicalEvent } from "./rust.ts";
 import type { Runtime } from "./index.ts";
+import { fetchWithProgress, fileSizes, paint, type Report } from "./progress.ts";
 
 interface GoBridge {
   call(op: string, input: string, signal?: AbortSignal, onEvent?: (event: string) => void): Promise<string>;
@@ -36,16 +37,18 @@ function loadScript(): Promise<void> {
   });
 }
 
-async function boot(report: (status: string) => void): Promise<GoBridge> {
+async function boot(report: Report): Promise<GoBridge> {
   if (bridge) return bridge;
   return loading ??= (async () => {
-    report("Loading the Go SDK (WebAssembly)…");
+    report({ phase: "Loading Go", detail: "the support script" });
     await loadScript();
     // A parked Go scheduler owns its globals until it exits. Never launch a second one on a timeout.
     if (running) throw new Error("Go is still starting; reload the page before retrying");
     const program = new globals.Go!();
-    const response = await fetch(WASM_URL, { signal: AbortSignal.timeout(30_000) });
-    if (!response.ok) throw new Error(`Go WebAssembly: HTTP ${response.status}`);
+    const sizes = await fileSizes();
+    const response = await fetchWithProgress(WASM_URL, "Downloading Go", sizes["go/lm15-go.wasm"], report, { signal: AbortSignal.timeout(120_000) });
+    report({ phase: "Starting Go", detail: "compiling the SDK" });
+    await paint();
     const { instance } = await WebAssembly.instantiate(await response.arrayBuffer(), program.importObject);
     delete globals.lm15Go;
     running = true;
@@ -63,7 +66,7 @@ async function boot(report: (status: string) => void): Promise<GoBridge> {
     const ready = globals.lm15Go;
     const version = await call<{ version: string }>(ready, "version", {});
     bridge = ready;
-    report(`Go ready: lm15-go ${version.version} (wasm)`);
+    report({ phase: `Go ready: lm15-go ${version.version} (wasm)`, fraction: 1 });
     return ready;
   })().catch((error) => { loading = undefined; throw error; });
 }
