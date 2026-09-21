@@ -189,8 +189,13 @@ the conversation. No inference is performed on arrival.
 
 The joke API key is a visible placeholder and appears in copyable code, but is
 never stored or accepted as a real key. Saving a real key does not erase the
-teaching example. Plain text turns use short Message constructors in the code;
-messages with metadata or continuation state retain the full canonical replay.
+teaching example. Plain text turns use short Message constructors in the code. A
+reply that carries hidden reasoning or replay state (an OpenAI reasoning item,
+an Anthropic signature, a Gemini thought signature) is spelled with the SDK's
+own part constructors — `thinking("", { continuation: continuationState(...) })`
+and its Python, Rust and Go equivalents — so the reader sees the shape rather
+than a JSON blob. Only what those cannot express (tool calls, media, numbers in
+an opaque payload, state on the message itself) keeps the canonical JSON replay.
 
 Example tests cover provider variants and the teaching conversation without a
 token cap. `npm run rust:snippets` updates the standalone Rust example project,
@@ -200,8 +205,8 @@ every Go program the page shows against the Go toolchain and the sibling `../lm1
 checkout, then runs each one with its provider call swapped for a dump and checks the
 request it built equals the page's canonical request. All four languages show the
 SDK's own constructors (`Message.user`, `judgments` / `score` / `choice` / `yes_no` and
-their Go and Rust spellings); only a replayed reply carrying reasoning or continuation
-state is shown as its canonical JSON, in every language. Browser tests intercept inference
+their Go and Rust spellings); only a replayed reply the part constructors cannot
+express is shown as its canonical JSON, in every language. Browser tests intercept inference
 requests with fake replies; no real provider keys or paid calls are needed.
 
 ## Private local keys
