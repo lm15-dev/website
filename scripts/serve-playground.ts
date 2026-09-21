@@ -11,14 +11,20 @@ import { CONNECTIONS } from '../src/playground/connections.ts';
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const publicDir = resolve(root, '.build/public');
 const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.whl': 'application/zip', '.zip': 'application/zip', '.txt': 'text/plain', '.svg': 'image/svg+xml' };
+/** Loopback, or a Tailscale address (100.64.0.0/10: WireGuard between this person's own machines). */
+export function privateHost(host: string): boolean {
+  if (['127.0.0.1', 'localhost', '::1'].includes(host)) return true;
+  const m = /^100\.(\d+)\.\d+\.\d+$/.exec(host);
+  return m !== null && Number(m[1]) >= 64 && Number(m[1]) <= 127;
+}
 /**
- * `host` defaults to loopback. Another address (say, the machine's Tailscale IP, to open the page from a
- * laptop) is allowed for the page alone: the private key handoff stays loopback-only, so `envFile` is
- * refused with any other host.
+ * `host` defaults to loopback. Another address is allowed for the page alone; the private key handoff
+ * (`envFile`) is allowed only on loopback or a Tailscale address, where the wire is this person's own.
+ * `rememberKeys` asks the page to keep the handed-over keys encrypted on that device instead of in the tab.
  */
-export async function startDemo(options: { envFile?: string; port?: number; host?: string } = {}): Promise<{ server: Server; url: string; browserUrl: string; providers: string[] }> {
+export async function startDemo(options: { envFile?: string; port?: number; host?: string; rememberKeys?: boolean } = {}): Promise<{ server: Server; url: string; browserUrl: string; providers: string[] }> {
   const host = options.host ?? '127.0.0.1';
-  if (options.envFile && !['127.0.0.1', 'localhost', '::1'].includes(host)) throw new Error(`Private keys are handed over on loopback only; not on ${host}. Paste keys in the page instead.`);
+  if (options.envFile && !privateHost(host)) throw new Error(`Private keys are handed over on loopback or Tailscale only; not on ${host}. Paste keys in the page instead.`);
   const credentials: Record<string, string> = {};
   if (options.envFile) {
     const values = parseEnv(readFileSync(options.envFile, 'utf8'));
@@ -46,7 +52,7 @@ export async function startDemo(options: { envFile?: string; port?: number; host
         res.writeHead(403).end(); return;
       }
       used = true;
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(credentials));
+      res.writeHead(200, { 'Content-Type': 'application/json', ...(options.rememberKeys ? { 'X-LM15-Remember': '1' } : {}) }).end(JSON.stringify(credentials));
       for (const key of Object.keys(credentials)) delete credentials[key];
       return;
     }
@@ -70,9 +76,10 @@ export async function startDemo(options: { envFile?: string; port?: number; host
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const local = process.argv.includes('--local-keys');
-  const demo = await startDemo({ ...(local ? { envFile: resolve(root, '../.env') } : {}), port: Number(process.env['PORT'] ?? 0), ...(process.env['HOST'] ? { host: process.env['HOST'] } : {}) });
+  const rememberKeys = process.argv.includes('--remember-keys');
+  const demo = await startDemo({ ...(local ? { envFile: resolve(root, '../.env') } : {}), port: Number(process.env['PORT'] ?? 0), ...(process.env['HOST'] ? { host: process.env['HOST'] } : {}), rememberKeys });
   console.log(`LM15 playground: ${demo.url}`);
-  if (local) console.log(`Private local test keys: ${demo.providers.join(', ') || 'none found'}. Keys are never printed or saved in the page.`);
+  if (local) console.log(`Private local test keys: ${demo.providers.join(', ') || 'none found'}. Keys are never printed in the page${rememberKeys ? '; the page keeps them encrypted on the device (More → Forget all keys removes them)' : ' or saved'}.\nOne-use link (30 minutes): ${demo.browserUrl}`);
   if (process.argv.includes('--open')) {
     const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer.exe' : 'xdg-open';
     spawn(opener, [demo.browserUrl], { stdio: 'ignore' }).on('error', () => console.error('Could not open a browser automatically.'));

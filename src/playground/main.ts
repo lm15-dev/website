@@ -748,13 +748,17 @@ refreshStatus();
 const token = new URLSearchParams(location.hash.slice(1)).get("local-test");
 if (token) {
   history.replaceState(null, "", location.pathname + location.search);
-  if (!["127.0.0.1", "localhost", "[::1]"].includes(location.hostname)) notify("Local test credentials can only be loaded from localhost.");
+  // Loopback, or a Tailscale address (100.64.0.0/10): the server refuses to hand keys over anywhere else too.
+  const tailscale = /^100\.(\d+)\.\d+\.\d+$/.exec(location.hostname);
+  const privateHost = ["127.0.0.1", "localhost", "[::1]"].includes(location.hostname) || (tailscale !== null && Number(tailscale[1]) >= 64 && Number(tailscale[1]) <= 127);
+  if (!privateHost) notify("Local test credentials can only be loaded from localhost or a Tailscale address.");
   else void (async () => {
     try {
       const response = await fetch("/__lm15_test_credentials", { headers: { "X-LM15-Test-Token": token }, cache: "no-store" });
       if (!response.ok) throw new Error("Local test session expired. Restart the local demo to load keys.");
       const data = await response.json() as Record<string, string>;
-      for (const choice of CONNECTIONS) { const key = data[choice.id]; if (typeof key === "string" && key) await credentials.set(choice.id, key, false); }
+      const rememberKeys = response.headers.get("X-LM15-Remember") === "1"; // the server was started with --remember-keys
+      for (const choice of CONNECTIONS) { const key = data[choice.id]; if (typeof key === "string" && key) await credentials.set(choice.id, key, rememberKeys); }
       refreshStatus(); if (automatic.checked) void discover();
     } catch (error) { notify(errorMessage(error)); }
   })();
