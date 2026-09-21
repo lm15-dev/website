@@ -10,6 +10,12 @@ test("origins: the listed site and loopback on any port; nothing else, and never
   assert.equal(originAllowed("https://lm15.dev", allowed), true);
   assert.equal(originAllowed("http://localhost:4321", allowed), true);
   assert.equal(originAllowed("http://127.0.0.1:8080", allowed), true);
+  assert.equal(originAllowed("http://100.86.49.54:4173", allowed), true, "a Tailscale address is the person's own machine");
+  assert.equal(originAllowed("http://100.127.255.1", allowed), true);
+  assert.equal(originAllowed("http://100.128.0.1:4173", allowed), false, "just outside 100.64.0.0/10");
+  assert.equal(originAllowed("http://100.63.0.1", allowed), false);
+  assert.equal(originAllowed("https://100.86.49.54", allowed), false, "https there is not the playground's own server");
+  assert.equal(originAllowed("http://10.0.0.5:4173", allowed), false, "an ordinary LAN address is not listed");
   assert.equal(originAllowed("https://evil.example", allowed), false);
   assert.equal(originAllowed("http://lm15.dev.evil.example", allowed), false);
   assert.equal(originAllowed(null, allowed), false);

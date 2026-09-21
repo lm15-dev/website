@@ -39,13 +39,22 @@ function list(value, fallback) {
   return new Set((value ?? fallback).split(",").map((s) => s.trim()).filter(Boolean));
 }
 
-/** Loopback origins on any port are local development; everything else must be listed. */
+/**
+ * Loopback origins on any port are local development, and so is a Tailscale
+ * address (100.64.0.0/10: a page served on someone's own WireGuard mesh, as
+ * the playground is when opened from another machine); everything else must
+ * be listed. The relay still only reaches the listed upstreams, with the
+ * caller's own key, so a private page gains nothing it could not do itself.
+ */
 export function originAllowed(origin, allowed) {
   if (!origin) return false;
   if (allowed.has(origin)) return true;
   try {
     const url = new URL(origin);
-    return url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]");
+    if (url.protocol !== "http:") return false;
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]") return true;
+    const tailscale = /^100\.(\d+)\.\d+\.\d+$/.exec(url.hostname);
+    return tailscale !== null && Number(tailscale[1]) >= 64 && Number(tailscale[1]) <= 127;
   } catch {
     return false;
   }
