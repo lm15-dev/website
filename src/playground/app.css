@@ -56,6 +56,7 @@ h2 { font-size: 13px; font-weight: 500; }
 .provider-chip { max-width: 42%; }
 .model-chip { flex: 1; }
 #provider-name, #model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linking { color: var(--muted); font-size: 13px; margin-right: 6px; }
 .reset-button { color: var(--muted); font-size: 13px; }
 .reset-button:hover:not(:disabled) { color: var(--lm-code-api); background: transparent; border-color: transparent; text-decoration: underline; }
 body[data-mode="judge"] .reset-button { display: none; }

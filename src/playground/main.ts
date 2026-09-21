@@ -67,6 +67,7 @@ let lit: string | undefined;
 let pinned: string | undefined; // the focused control keeps its light while the pointer wanders
 /** An unset setting whose field is touched: drawn into the code as "unset" so its place is visible. */
 let ghost: Ghost | undefined;
+const linking = $<HTMLInputElement>("linking"); // the two-way highlight; off keeps both sides quiet
 const GHOSTS: readonly Ghost[] = ["temperature", "maxTokens", "reasoning"];
 function ghostFor(source: string | undefined): Ghost | undefined {
   if (!source || !(GHOSTS as readonly string[]).includes(source)) return;
@@ -522,6 +523,7 @@ async function fidelity(request: Request): Promise<void> {
  * meanwhile (`ghost`), so its place is visible.
  */
 function spotlight(source: string | undefined, scroll: false | "code" | "chat" | "both" = "code"): void {
+  if (!linking.checked) source = undefined;
   const changed = source !== lit;
   lit = source;
   const nextGhost = ghostFor(source);
@@ -711,6 +713,7 @@ $("forget").addEventListener("click", () => {
 });
 $("toggle-code").addEventListener("click", () => setCodeCollapsed(document.body.dataset.code !== "collapsed"));
 $("reset").addEventListener("click", resetAll);
+linking.addEventListener("change", () => { try { localStorage.setItem("lm15.playground.highlight", linking.checked ? "on" : "off"); } catch { /* not remembered */ } spotlight(linking.checked ? pinned : undefined); });
 automatic.addEventListener("change", () => { refreshStatus(); if (automatic.checked) void discover(); });
 $("list").addEventListener("click", () => void discover(true));
 systemInput.addEventListener("input", () => { settings.system = systemInput.value; autosize(systemInput); void updateCode(); });
@@ -783,6 +786,7 @@ let remembered: string | null = null;
 try { remembered = localStorage.getItem("lm15.playground.mode"); } catch { remembered = null; }
 setMode(remembered === "judge" ? "judge" : "chat");
 try { setCodeCollapsed(localStorage.getItem("lm15.playground.code") === "collapsed", false); } catch { setCodeCollapsed(false, false); }
+try { linking.checked = localStorage.getItem("lm15.playground.highlight") !== "off"; } catch { /* stays on */ }
 try {
   const savedRuntime = localStorage.getItem("lm15.playground.runtime");
   const selected = LANGUAGES.find((item) => item.id === savedRuntime);
