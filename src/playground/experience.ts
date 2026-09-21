@@ -11,7 +11,7 @@
  * placeholders in the text.
  */
 
-import { Message, OpenAIChatLM, RawNumber, Request as RequestNs, adapterFor, access, lookup, stringifyJson, type Config, type ProviderLM, type ReasoningEffort, type Request } from "lm15/browser";
+import { Message, OpenAIChatLM, RawNumber, Request as RequestNs, adapterFor, access, lookup, stringifyJson, type Config, type ContinuationState, type ProviderLM, type ReasoningEffort, type Request } from "lm15/browser";
 import { api, comment, dim, finish, quotedValue, val, type Code } from "./marks.ts";
 import { relayBaseUrl, relayed } from "./relay.ts";
 
@@ -124,6 +124,63 @@ function pyLiteral(value: unknown, level = 0): string {
   return entries.length ? `{\n${entries.map(([k, v]) => `${inner}${q(k)}: ${pyLiteral(v, level + 1)}`).join(",\n")},\n${pad}}` : "{}";
 }
 
+/**
+ * A reply the SDK's own constructors can spell: thinking and text parts, each
+ * carrying its replay state as `continuation` (an OpenAI reasoning item, an
+ * Anthropic signature, a Gemini thought signature) whose data is strings —
+ * what every dialect writes. Anything else (tool calls, media, numbers in an
+ * opaque payload, state on the message itself) keeps the canonical JSON replay.
+ */
+interface ReplayPart { readonly type: "thinking" | "text"; readonly text: string; readonly continuation: readonly ContinuationState[] }
+function replayParts(message: Message): ReplayPart[] | undefined {
+  if (message.role !== "assistant" || message.continuation?.length) return;
+  const parts: ReplayPart[] = [];
+  for (const part of message.parts) {
+    if (part.type !== "thinking" && part.type !== "text") return;
+    const continuation = part.continuation ?? [];
+    if (!continuation.every((state) => Object.values(state.data).every((value) => typeof value === "string"))) return;
+    parts.push({ type: part.type, text: part.text, continuation });
+  }
+  return parts.length ? parts : undefined;
+}
+/** The state's data as a flat literal in each language (strings only, by `replayParts`). */
+const dataEntries = (state: ContinuationState): Array<[string, string]> => Object.entries(state.data).map(([k, v]) => [k, v as string]);
+const jsIdentifier = /^[A-Za-z_$][\w$]*$/;
+const jsData = (state: ContinuationState): string => `{ ${dataEntries(state).map(([k, v]) => `${jsIdentifier.test(k) ? k : q(k)}: ${q(v)}`).join(", ")} }`;
+const pyData = (state: ContinuationState): string => `{${dataEntries(state).map(([k, v]) => `${q(k)}: ${q(v)}`).join(", ")}}`;
+const goData = (state: ContinuationState): string => `lm15.JSONObject{${dataEntries(state).map(([k, v]) => `${q(k)}: ${q(v)}`).join(", ")}}`;
+const rustData = (state: ContinuationState): string => `json!({ ${dataEntries(state).map(([k, v]) => `${rustString(k)}: ${rustString(v)}`).join(", ")} })`;
+
+/** JavaScript: `Message.assistant([thinking("", { continuation: continuationState(...) }), "the answer"])`, one part per line. */
+function jsReplay(parts: readonly ReplayPart[], source: string): string[] {
+  const state = (s: ContinuationState) => `${api("continuationState")}(${q(s.provider)}, ${q(s.kind)}, ${jsData(s)})`;
+  const states = (c: readonly ContinuationState[]) => `{ continuation: ${c.length === 1 ? state(c[0]!) : `[${c.map(state).join(", ")}]`} }`;
+  return [`${api("Message.assistant")}([`, ...parts.map((p) => p.type === "thinking"
+    ? `  ${api("thinking")}(${qv(p.text)}${p.continuation.length ? `, ${states(p.continuation)}` : ""}),`
+    : p.continuation.length ? `  ${api("text")}(${qv(p.text, source)}, ${states(p.continuation)}),` : `  ${qv(p.text, source)},`), "]),"];
+}
+/** Python: the same shape with `ContinuationState(...)`; `thinking` and `text` come from `lm15.types`. */
+function pyReplay(parts: readonly ReplayPart[], source: string, pad: string): string[] {
+  const state = (s: ContinuationState) => `${api("ContinuationState")}(${q(s.provider)}, ${q(s.kind)}, ${pyData(s)})`;
+  const states = (c: readonly ContinuationState[]) => `continuation=${c.length === 1 ? state(c[0]!) : `[${c.map(state).join(", ")}]`}`;
+  return [`${pad}${api("Message.assistant")}([`, ...parts.map((p) => p.type === "thinking"
+    ? `${pad}    ${api("thinking")}(${qv(p.text)}${p.continuation.length ? `, ${states(p.continuation)}` : ""}),`
+    : p.continuation.length ? `${pad}    ${api("text")}(${qv(p.text, source)}, ${states(p.continuation)}),` : `${pad}    ${qv(p.text, source)},`), `${pad}]),`];
+}
+/** The names a program needs beyond `Message` to spell its replayed replies. */
+function replayNames(messages: readonly Message[]): { thinking: boolean; text: boolean; state: boolean } {
+  const names = { thinking: false, text: false, state: false };
+  for (const message of messages) {
+    if (plainText(message)) continue;
+    for (const part of replayParts(message) ?? []) {
+      if (part.type === "thinking") names.thinking = true;
+      else if (part.continuation.length) names.text = true;
+      if (part.continuation.length) names.state = true;
+    }
+  }
+  return names;
+}
+
 /** Only use shorthand when it preserves the complete canonical message. */
 function plainText(message: Message): { role: "user" | "assistant"; text: string } | undefined {
   const data = Message.toJSON(message);
@@ -168,20 +225,24 @@ export function jsClient(connection: Connection): string[] {
 
 export function exampleJavascript(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): Code {
   const streamed = streams(connection);
-  const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", "Message", "Request", ...(streamed ? ["ResponseStream"] : [])];
+  const replay = replayNames(messages);
+  const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", "Message", "Request", ...(streamed ? ["ResponseStream"] : []), ...(replay.state ? ["continuationState"] : []), ...(replay.text ? ["text"] : []), ...(replay.thinking ? ["thinking"] : [])];
   if (connection.provider === "anthropic") imports.splice(1, 0, "access");
+  const chunk = replay.text ? "piece" : "text"; // the streamed variable steps aside for the `text` constructor
   const lines = [dim(`import { ${imports.join(", ")} } from "lm15/browser";`), "", ...jsClient(connection)];
   lines.push("", `const request = ${api("Request.create")}({`, `  model: ${qv(connection.model, "model")},`);
   if (settings.system.trim()) lines.push(`  system: ${qv(settings.system.trim(), "system")},`);
   if (messages.length) {
     lines.push("  messages: [", ...indent(messages.map((m, i) => {
       const simple = plainText(m);
-      return simple ? `${api(`Message.${simple.role}`)}(${qv(simple.text, turnSource(i))}),` : `${api("Message.fromJSON")}(${stringifyJson(Message.toJSON(m), { indent: 2 })}),`;
+      if (simple) return `${api(`Message.${simple.role}`)}(${qv(simple.text, turnSource(i))}),`;
+      const parts = replayParts(m);
+      return parts ? jsReplay(parts, turnSource(i)).join("\n") : `${api("Message.fromJSON")}(${stringifyJson(Message.toJSON(m), { indent: 2 })}),`;
     }).join("\n"), 2).split("\n"), `    ${api("Message.user")}(${qv(prompt, "draft")}),`, "  ],");
   } else lines.push(`  messages: [${api("Message.user")}(${qv(prompt, "draft")})],`);
   lines.push(...configLines(settings, "javascript"), "});", "");
   if (streamed) {
-    lines.push(`const controller = new AbortController(); ${comment("// Stop calls controller.abort()")}`, `const result = new ${api("ResponseStream")}(${api("lm.stream")}(request, { signal: controller.signal }), request);`, "for await (const text of result) console.log(text);", "", comment("// Keep the reply for the next turn."), `const response = await ${api("result.response")}();`);
+    lines.push(`const controller = new AbortController(); ${comment("// Stop calls controller.abort()")}`, `const result = new ${api("ResponseStream")}(${api("lm.stream")}(request, { signal: controller.signal }), request);`, `for await (const ${chunk} of result) console.log(${chunk});`, "", comment("// Keep the reply for the next turn."), `const response = await ${api("result.response")}();`);
   } else {
     lines.push(`const controller = new AbortController(); ${comment("// Stop calls controller.abort()")}`, `const response = await ${api("lm.complete")}(request, { signal: controller.signal }); ${comment("// one piece: this API has no stream")}`);
   }
@@ -217,20 +278,28 @@ export function pyImports(names: readonly string[], connection: Connection, extr
 export function examplePython(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): Code {
   const client = pyClient(connection);
   const streamed = streams(connection);
-  const names = [client.cls, ...(streamed ? ["AsyncResponseStream"] : []), "Message", "Request"];
+  const replay = replayNames(messages);
+  const names = [client.cls, ...(streamed ? ["AsyncResponseStream"] : []), "Message", "Request", ...(replay.state ? ["ContinuationState"] : [])];
   if (configLines(settings, "python").length) names.push("Config");
   if (settings.reasoning) names.push("Reasoning");
-  const lines = pyImports(names, connection, messages.some((message) => !plainText(message)) ? ["from lm15.serde import message_from_dict"] : []);
+  const factories = [...(replay.text ? ["text"] : []), ...(replay.thinking ? ["thinking"] : [])];
+  const chunk = replay.text ? "piece" : "text";
+  const lines = pyImports(names, connection, [
+    ...(factories.length ? [`from lm15.types import ${factories.join(", ")}`] : []),
+    ...(messages.some((message) => !plainText(message) && !replayParts(message)) ? ["from lm15.serde import message_from_dict"] : []),
+  ]);
   lines.push("", ...client.lines, "", `request = ${api("Request")}(`, `    model=${qv(connection.model, "model")},`);
   if (settings.system.trim()) lines.push(`    system=${qv(settings.system.trim(), "system")},`);
   if (messages.length) {
-    lines.push("    messages=(", ...messages.map((m, i) => {
+    lines.push("    messages=(", ...messages.flatMap((m, i) => {
       const simple = plainText(m);
-      return simple ? `        ${api(`Message.${simple.role}`)}(${qv(simple.text, turnSource(i))}),` : `        ${api("message_from_dict")}(${pyLiteral(Message.toJSON(m), 2)}),`;
+      if (simple) return [`        ${api(`Message.${simple.role}`)}(${qv(simple.text, turnSource(i))}),`];
+      const parts = replayParts(m);
+      return parts ? pyReplay(parts, turnSource(i), "        ") : [`        ${api("message_from_dict")}(${pyLiteral(Message.toJSON(m), 2)}),`];
     }), `        ${api("Message.user")}(${qv(prompt, "draft")}),`, "    ),");
   } else lines.push(`    messages=(${api("Message.user")}(${qv(prompt, "draft")}),),`);
   lines.push(...configLines(settings, "python"), ")", "");
-  if (streamed) lines.push(`result = ${api("AsyncResponseStream")}(${api("lm.stream")}(request), request)  ${comment("# Stop closes the stream")}`, "async for text in result:", '    print(text, end="", flush=True)', "", comment("# Keep the reply for the next turn."), `response = await ${api("result.response")}()`);
+  if (streamed) lines.push(`result = ${api("AsyncResponseStream")}(${api("lm.stream")}(request), request)  ${comment("# Stop closes the stream")}`, `async for ${chunk} in result:`, `    print(${chunk}, end="", flush=True)`, "", comment("# Keep the reply for the next turn."), `response = await ${api("result.response")}()`);
   else lines.push(`response = await ${api("lm.complete")}(request)  ${comment("# one piece: this API has no stream")}`);
   lines.push("messages = (*request.messages, response.message)");
   return finish(lines.join("\n"));
@@ -289,6 +358,16 @@ export const GO_ERR_IN_LOOP = dim("        if err != nil { return err }");
 function goMessage(message: Message, index: number): { expression: string; replay?: string[] } {
   const simple = plainText(message);
   if (simple) return { expression: `${api(simple.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(simple.text, turnSource(index))})` };
+  const parts = replayParts(message);
+  if (parts) {
+    // A multi-line composite literal; the caller writes it at 12 columns.
+    const state = (s: ContinuationState) => `{Provider: ${q(s.provider)}, Kind: ${q(s.kind)}, Data: ${goData(s)}}`;
+    const states = (c: readonly ContinuationState[]) => `Continuation: []${api("lm15.ContinuationState")}{${c.map(state).join(", ")}}`;
+    const inner = parts.map((p) => p.type === "thinking"
+      ? `${api("lm15.ThinkingPart")}{${[...(p.text ? [`Text: ${qv(p.text)}`] : []), ...(p.continuation.length ? [states(p.continuation)] : [])].join(", ")}}`
+      : p.continuation.length ? `${api("lm15.TextPart")}{Text: ${qv(p.text, turnSource(index))}, ${states(p.continuation)}}` : `${api("lm15.Text")}(${qv(p.text, turnSource(index))})`);
+    return { expression: [`${api("lm15.AssistantMessage")}(`, ...inner.map((line) => `                ${line},`), "            )"].join("\n") };
+  }
   return { expression: "earlier", replay: [`    ${comment("// A reply replayed as the wire gave it (its reasoning and continuation state stay verbatim).")}`, `    var earlier ${api("lm15.Message")}`, `    if err := json.Unmarshal([]byte(${goJsonText(stringifyJson(Message.toJSON(message)))}), &earlier); err != nil { return err }`] };
 }
 
@@ -326,13 +405,27 @@ export function exampleRust(connection: Connection, settings: Settings, messages
   const imports = ["Message", "Request", "ResponseStream"];
   if (configLines(settings, "rust").length) imports.push("Config");
   if (settings.reasoning) imports.push("Reasoning");
-  if (messages.some((message) => !plainText(message))) imports.push("Canonical");
-  const lines = [dim("use futures_util::StreamExt;"), dim("use lm15::{auth::Credential, registry::adapter_for};"), dim(`use lm15::{${imports.sort().join(", ")}};`), "", ...rustClient(connection), "", `let request = ${api("Request")} {`, `    model: ${rv(connection.model, "model")}.into(),`];
+  if (messages.some((message) => !plainText(message) && !replayParts(message))) imports.push("Canonical");
+  const replay = replayNames(messages);
+  if (replay.thinking || replay.text) imports.push("Part");
+  if (replay.thinking) imports.push("ThinkingPart");
+  if (replay.text) imports.push("TextPart");
+  if (replay.state) imports.push("ContinuationState");
+  const lines = [dim("use futures_util::StreamExt;"), dim("use lm15::{auth::Credential, registry::adapter_for};"), dim(`use lm15::{${imports.sort().join(", ")}};`), ...(replay.state ? [dim("use serde_json::json;")] : []), "", ...rustClient(connection), "", `let request = ${api("Request")} {`, `    model: ${rv(connection.model, "model")}.into(),`];
   if (settings.system.trim()) lines.push(`    system: Some(${rv(settings.system.trim(), "system")}.into()),`);
   if (messages.length) {
-    lines.push("    messages: vec![", ...messages.map((m, i) => {
+    lines.push("    messages: vec![", ...messages.flatMap((m, i) => {
       const simple = plainText(m);
-      return simple ? `        ${api(`Message::${simple.role}`)}(${rv(simple.text, turnSource(i))})?,` : `        ${api("Message::from_json")}(&serde_json::from_str(${rustString(stringifyJson(Message.toJSON(m)))})?)?,`;
+      if (simple) return [`        ${api(`Message::${simple.role}`)}(${rv(simple.text, turnSource(i))})?,`];
+      const parts = replayParts(m);
+      if (!parts) return [`        ${api("Message::from_json")}(&serde_json::from_str(${rustString(stringifyJson(Message.toJSON(m)))})?)?,`];
+      const state = (s: ContinuationState) => `${api("ContinuationState::new")}(${rustString(s.provider)}, ${rustString(s.kind)}, serde_json::from_value(${rustData(s)})?)?`;
+      const states = (c: readonly ContinuationState[]) => `continuation: vec![${c.map(state).join(", ")}],`;
+      return [`        ${api("Message::assistant")}(vec![`, ...parts.flatMap((p) => {
+        if (!p.continuation.length) return [`            ${api(p.type === "thinking" ? "Part::thinking" : "Part::text")}(${rv(p.text, p.type === "text" ? turnSource(i) : undefined)}),`];
+        const kind = p.type === "thinking" ? ["Part::Thinking", "ThinkingPart"] : ["Part::Text", "TextPart"];
+        return [`            ${api(kind[0]!)}(${api(kind[1]!)} {`, `                text: ${rv(p.text, p.type === "text" ? turnSource(i) : undefined)}.into(),`, `                ${states(p.continuation)}`, "            }),"];
+      }), "        ])?,"];
     }), `        ${api("Message::user")}(${rv(prompt, "draft")})?,`, "    ],");
   } else lines.push(`    messages: vec![${api("Message::user")}(${rv(prompt, "draft")})?],`);
   lines.push(...configLines(settings, "rust"), dim("    ..Default::default()"), "};", "", `let mut result = ${api("ResponseStream::new")}(${api("lm.stream")}(&request), &request); ${comment("// drop it to stop")}`, `while let Some(text) = ${api("result.text_chunks")}().next().await {`, '    print!("{}", text?);', "}", "", comment("// Keep the reply for the next turn."), `let response = ${api("result.response")}().await?;`, "let mut messages = request.messages.clone();", "messages.push(response.message.clone());");

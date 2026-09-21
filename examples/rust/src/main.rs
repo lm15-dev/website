@@ -196,7 +196,8 @@ mod openai_first_turn {
 mod openai_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -209,7 +210,13 @@ mod openai_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
@@ -527,7 +534,8 @@ mod anthropic_first_turn {
 mod anthropic_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -540,7 +548,13 @@ mod anthropic_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
@@ -858,7 +872,8 @@ mod gemini_first_turn {
 mod gemini_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -871,7 +886,13 @@ mod gemini_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
@@ -1189,7 +1210,8 @@ mod groq_first_turn {
 mod groq_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -1202,7 +1224,13 @@ mod groq_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
@@ -1520,7 +1548,8 @@ mod openrouter_first_turn {
 mod openrouter_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -1533,7 +1562,13 @@ mod openrouter_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
@@ -1851,7 +1886,8 @@ mod deepseek_first_turn {
 mod deepseek_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -1864,7 +1900,13 @@ mod deepseek_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
@@ -2182,7 +2224,8 @@ mod zai_first_turn {
 mod zai_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -2195,7 +2238,13 @@ mod zai_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
@@ -2513,7 +2562,8 @@ mod meta_first_turn {
 mod meta_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -2526,7 +2576,13 @@ mod meta_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
@@ -2844,7 +2900,8 @@ mod moonshotai_first_turn {
 mod moonshotai_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -2857,7 +2914,13 @@ mod moonshotai_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
@@ -3337,7 +3400,8 @@ mod ollama_first_turn {
 mod ollama_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -3350,7 +3414,13 @@ mod ollama_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
@@ -3668,7 +3738,8 @@ mod custom_first_turn {
 mod custom_with_history {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{Canonical, Config, Message, Reasoning, Request, ResponseStream};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -3681,7 +3752,13 @@ mod custom_with_history {
             system: Some("Answer briefly.".into()),
             messages: vec![
                 Message::user("Earlier question")?,
-                Message::from_json(&serde_json::from_str("{\"role\":\"assistant\",\"parts\":[{\"type\":\"thinking\",\"text\":\"Earlier hidden reasoning\",\"continuation\":[{\"provider\":\"anthropic\",\"kind\":\"thinking_signature\",\"data\":{\"signature\":\"opaque-replay-signature\"}}]},{\"type\":\"text\",\"text\":\"Earlier answer\"}]}")?)?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
                 Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
             ],
             config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },

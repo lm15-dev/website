@@ -126,7 +126,7 @@ test(`JavaScript: all ${cases.length} variants type-check, execute, and build th
     assert.equal(calls[0]!.url, want.url);
     assert.equal(calls[0]!.body, want.body, `${c.connection.provider}: the JavaScript text and the page build the same bytes`);
     assert.equal(module.response.finishReason, "stop");
-    if (c.messages === history) assert.match(sources[i]!, /"continuation": \[/, "the transcript is replayed with its continuation state");
+    if (c.messages === history) assert.match(sources[i]!, /thinking\("Earlier hidden reasoning", \{ continuation: continuationState\("anthropic", "thinking_signature", \{ signature: "opaque-replay-signature" \}\) \}\)/, "the transcript is replayed with the SDK's own constructors, state included");
   }
 });
 
