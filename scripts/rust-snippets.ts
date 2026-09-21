@@ -47,7 +47,7 @@ export function renderRustExamples(): string {
     const connection: Connection = { provider: choice.id, model: choice.model || "custom-model", endpoint: "http://localhost:1234/v1" };
     for (const shape of ["text", "fields", "conversation"] as const) {
       const input = shape === "text" ? prompt : shape === "fields" ? { note: prompt, price: 1 } : [{ role: "user" as const, content: prompt }];
-      const body = judgeRust(connection, { ...EXAMPLE_SPEC, shape }, [input]).text;
+      const body = judgeRust(connection, { ...EXAMPLE_SPEC, shape }, input).text;
       const [uses, code] = splitUses(body);
       parts.push(`mod ${choice.id.replace(/-/g, "_")}_judge_${shape} {`, ...uses.map((u) => `    ${u}`), "    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {", ...code.split("\n").map((line) => line ? `        ${line}` : ""), "        Ok(())", "    }", "}", "");
     }

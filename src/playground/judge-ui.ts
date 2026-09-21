@@ -1,7 +1,7 @@
 /**
- * Judge mode in the page: the question form (a view over the schema),
- * the inputs and their outputs as one table, the run loop, the
- * distribution popover, the exports, and what the device remembers.
+ * Judge mode in the page: one state, the question form (a view over the
+ * schema), one call, its result, the distribution popover, and what the
+ * device remembers (the state and the questions; never a result).
  *
  * The rules are in judge.ts; this file only moves them onto the DOM.
  * The page's connection, key, runtime and relay are the host's (main.ts):
@@ -11,7 +11,7 @@
 import { judgmentsInSchema, stringifyJson, type Judgment, type JsonObject, type JsonValue, type Request } from "lm15/browser";
 import { keyless, type Connection } from "./experience.ts";
 import { comment, finish, type Code } from "./marks.ts";
-import { JEV_INSTRUCTIONS_KEY, JEV_TEXT_KEY, jevState, EXAMPLE_INPUTS, EXAMPLE_SPEC, EXAMPLE_FIELDS, distribution, emptyInput, expectedLevel, fieldText, fieldValue, freeName, inputIsBlank, inputSummary, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, parseCsv, parseInputs, parseProperties, pickLabel, readQuestions, toCsv, toJsonExport, verdictOf, withQuestion, withoutQuestion, type FieldDef, type InputValue, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type Turn, type Verdict } from "./judge.ts";
+import { EXAMPLE_SPEC, distribution, emptyState, exampleState, expectedLevel, freeName, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, parseProperties, parseStateObject, pickLabel, questionSource, readQuestions, stateIsBlank, verdictOf, withQuestion, withoutQuestion, type Echo, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type StateValue, type Turn, type Verdict } from "./judge.ts";
 import { looksBrowserBlocked, relayed } from "./relay.ts";
 import type { Runtime, RuntimeId } from "./runtimes/index.ts";
 
@@ -21,7 +21,7 @@ export interface JudgeHost {
   runtime(): RuntimeId;
   readonly runtimes: Readonly<Record<RuntimeId, Runtime>>;
   runtimeReady(): boolean;
-  /** Why the runtime cannot run yet ("Loading Python…", "Go not loaded"), or nothing when it can: the Run button says so. */
+  /** Why the runtime cannot run yet ("Loading Python…", "Go not loaded"), or nothing when it can: the Judge button says so. */
   runtimeLoading(): string | undefined;
   providerLabel(): string;
   /** Ask, in words, before any key goes through the relay; true when allowed for this provider. */
@@ -33,38 +33,32 @@ export interface JudgeHost {
   onBusy(busy: boolean): void;
   pickProvider(): void;
   pickModel(): void;
-  /** The code panel must re-render (a question, input or setting changed). */
+  /** The code panel must re-render (a question, the state or a setting changed). */
   codeChanged(): void;
-}
-
-interface Row {
-  readonly id: number;
-  value: InputValue;
-  verdict?: Verdict;
-  error?: string;
-  /** The value changed since its verdict, or it was never judged. */
-  stale: boolean;
+  /** A textarea that is as tall as its text. */
+  autosize(area: HTMLTextAreaElement): void;
 }
 
 const STORAGE = "lm15.playground.judge";
-const STORAGE_VERSION = 1;
-type StoredRow = { value: InputValue; verdict?: Verdict };
-interface Stored { version: number; spec: JudgeSpec; rows: Record<Shape, StoredRow[]>; raw: boolean; results: boolean }
+const STORAGE_VERSION = 2;
+interface Stored { version: number; spec: JudgeSpec; state: Record<Shape, StateValue>; raw: boolean }
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const pct = (p: number) => `${Math.round(p * 100)}%`;
-const grow = (ta: HTMLTextAreaElement) => { ta.style.height = "auto"; ta.style.height = `${ta.scrollHeight}px`; };
 
 export class JudgeView {
   private spec: JudgeSpec = { ...EXAMPLE_SPEC };
-  private rows: Row[] = [];
-  /** Each shape keeps its own inputs: switching shapes never loses a row. */
-  private shelved: Record<Shape, Row[]> = { text: [], fields: [], conversation: [] };
-  private nextId = 1;
+  /** Each shape keeps its own state: switching shapes never loses what was typed. */
+  private states: Record<Shape, StateValue> = { text: exampleState("text"), fields: exampleState("fields"), conversation: exampleState("conversation") };
+  /** The `fields` state as typed, when it does not parse yet; the last good object stands in `states.fields`. */
+  private objectError: string | undefined;
   private rawText = "";
   private rawMode = false;
   private outView: "answers" | "json" = "answers";
-  private selected: number | undefined;
+  private verdict: Verdict | undefined;
+  /** The state or the questions changed since the verdict: it is shown greyed, and not echoed in the code. */
+  private stale = false;
+  private error: string | undefined;
   private running: AbortController | undefined;
   private generation = 0;
   private readonly host: JudgeHost;
@@ -77,38 +71,51 @@ export class JudgeView {
     this.renderAll();
   }
 
+  private get state(): StateValue { return this.states[this.spec.shape]; }
+
   // ─── What the host asks ──────────────────────────────────────────
 
-  /** The code panel's text for the current language: the whole set, one loop. */
+  /** The code panel's text for the current language: one call, with the answer echoed once there is one. */
   code(runtime: RuntimeId): Code {
-    const error = this.questionsError();
+    const error = this.questionsError() ?? this.stateError();
     if (error) return finish(comment(`// ${error}`));
-    const inputs = this.rows.map((r) => r.value);
-    if (runtime === "javascript") return judgeJavascript(this.host.connection, this.spec, inputs);
-    if (runtime === "python") return judgePython(this.host.connection, this.spec, inputs);
-    if (runtime === "go") return judgeGo(this.host.connection, this.spec, inputs);
-    return judgeRust(this.host.connection, this.spec, inputs);
+    const echo: Echo | undefined = this.verdict && !this.stale ? { data: this.verdict.data, ...(this.verdict.probabilities ? { probabilities: this.verdict.probabilities } : {}), adaptations: this.verdict.adaptations } : undefined;
+    if (runtime === "javascript") return judgeJavascript(this.host.connection, this.spec, this.state, echo);
+    if (runtime === "python") return judgePython(this.host.connection, this.spec, this.state, echo);
+    if (runtime === "go") return judgeGo(this.host.connection, this.spec, this.state, echo);
+    return judgeRust(this.host.connection, this.spec, this.state, echo);
   }
 
   busy(): boolean { return this.running !== undefined; }
 
-  /** The request one input makes — the selected row, else the first — for the Request view; which one it is, in words; and what it was built from. */
+  /** The request the state makes, for the Request view; and what it was built from. */
   currentRequest(): { request: Request; source: JudgeSource; label: string } | undefined {
-    const rows = this.rows.filter((r) => !inputIsBlank(r.value));
-    const row = rows.find((r) => r.id === this.selected) ?? rows[0];
-    if (!row) return undefined;
-    return { request: judgeRequest(this.host.connection, this.spec, row.value), source: { spec: this.spec, value: row.value }, label: `input ${this.rows.indexOf(row) + 1} of ${this.rows.length}` };
+    if (this.questionsError() || this.stateError()) return undefined;
+    return { request: judgeRequest(this.host.connection, this.spec, this.state), source: { spec: this.spec, value: this.state }, label: "this state" };
   }
 
   /** The provider, model, key or runtime changed. */
   refresh(): void {
     const provider = this.host.connection.provider;
-    if (provider !== this.lastProvider) { this.lastProvider = provider; this.renderQuestions(); }
+    if (provider !== this.lastProvider) { this.lastProvider = provider; this.renderHint(); }
     $("judge-provider-name").textContent = this.host.providerLabel();
     $("judge-model-name").textContent = this.host.connection.model || "Choose model";
     $("judge-provider-button").title = this.host.providerLabel();
     $("judge-model-button").title = this.host.connection.model;
-    this.renderCounts();
+    this.renderRun();
+  }
+
+  /** The panel became visible or changed width: its textareas take the height of their text. */
+  layout(): void { for (const ta of $("judge-panel").querySelectorAll("textarea")) this.host.autosize(ta); }
+
+  /** Start over: the example question over the example state, no result. */
+  reset(): void {
+    this.running?.abort();
+    this.spec = { ...EXAMPLE_SPEC };
+    this.states = { text: exampleState("text"), fields: exampleState("fields"), conversation: exampleState("conversation") };
+    this.objectError = undefined; this.rawMode = false; this.rawText = stringifyJson(this.spec.properties, { indent: 2 });
+    this.verdict = undefined; this.stale = false; this.error = undefined;
+    this.showAlert(); this.persist(); this.renderAll(); this.host.codeChanged();
   }
 
   // ─── Persistence ─────────────────────────────────────────────────
@@ -116,30 +123,16 @@ export class JudgeView {
   private restore(): void {
     let stored: Stored | undefined;
     try { const text = localStorage.getItem(STORAGE); if (text) stored = JSON.parse(text) as Stored; } catch { stored = undefined; }
-    const thaw = (rows: StoredRow[] | undefined): Row[] => (rows ?? []).map((r) => ({ id: this.nextId++, value: r.value, ...(r.verdict ? { verdict: r.verdict } : {}), stale: !r.verdict }));
-    if (stored?.version === STORAGE_VERSION && stored.spec && stored.rows) {
-      this.spec = stored.spec;
-      for (const shape of ["text", "fields", "conversation"] as const) this.shelved[shape] = thaw(stored.rows[shape]);
+    if (stored?.version === STORAGE_VERSION && stored.spec && stored.state) {
+      this.spec = { properties: stored.spec.properties, shape: stored.spec.shape };
+      for (const shape of ["text", "fields", "conversation"] as const) if (stored.state[shape] !== undefined) this.states[shape] = stored.state[shape];
       this.rawMode = Boolean(stored.raw);
-      if (stored.results === false) this.toggleResults(false);
-    } else {
-      for (const shape of ["text", "fields", "conversation"] as const) this.shelved[shape] = this.exampleRows(shape);
     }
-    this.rows = this.shelved[this.spec.shape];
     this.rawText = stringifyJson(this.spec.properties, { indent: 2 });
   }
 
-  /** What a shape starts with: the contract's wine notes, in that shape. */
-  private exampleRows(shape: Shape): Row[] {
-    if (shape === "text") return EXAMPLE_INPUTS.map((value) => ({ id: this.nextId++, value, stale: true }));
-    if (shape === "fields") return EXAMPLE_INPUTS.slice(0, 2).map((note, i) => ({ id: this.nextId++, value: { note, price_eur: i === 0 ? 48 : 6 }, stale: true }));
-    return [{ id: this.nextId++, value: [{ role: "user", content: "Something to lay down for ten years?" }, { role: "assistant", content: `The 2019 Pauillac: ${EXAMPLE_INPUTS[0]}` }], stale: true }];
-  }
-
   private persist(): void {
-    this.shelved[this.spec.shape] = this.rows;
-    const freeze = (rows: Row[]): StoredRow[] => rows.map((r) => ({ value: r.value, ...(r.verdict && !r.stale ? { verdict: r.verdict } : {}) }));
-    const data: Stored = { version: STORAGE_VERSION, spec: this.spec, rows: { text: freeze(this.shelved.text), fields: freeze(this.shelved.fields), conversation: freeze(this.shelved.conversation) }, raw: this.rawMode, results: $("judge-toggle-results").getAttribute("aria-expanded") !== "false" };
+    const data: Stored = { version: STORAGE_VERSION, spec: this.spec, state: this.states, raw: this.rawMode };
     try { localStorage.setItem(STORAGE, JSON.stringify(data)); } catch { /* storage full or disabled: the page still works for this visit */ }
   }
 
@@ -157,14 +150,15 @@ export class JudgeView {
   private setProperties(properties: JsonObject): void {
     this.spec = { ...this.spec, properties };
     this.rawText = stringifyJson(properties, { indent: 2 });
-    for (const row of this.rows) row.stale = true;
     this.changed();
   }
 
+  /** The state or the questions changed: a result on record is from before. */
   private changed(): void {
+    if (this.verdict) this.stale = true;
     this.persist();
-    this.renderCounts();
-    this.renderRows();
+    this.renderResult();
+    this.renderRun();
     this.host.codeChanged();
   }
 
@@ -184,18 +178,17 @@ export class JudgeView {
     const error = this.questionsError();
     $("judge-questions-error").hidden = !error || this.rawMode;
     $("judge-questions-error").textContent = error ?? "";
-    const hint = $("judge-paths-hint");
-    const jev = this.host.connection.provider === "typesafe";
-    const instructions = Boolean(this.spec.instructions.trim());
-    hint.hidden = this.spec.shape === "text" && !(jev && instructions);
-    const field = this.spec.fields.length ? this.spec.fields[0]!.name : "note";
-    // The state is the input verbatim (2026-09-19 D1); on Jev the page writes the instructions into it as a named key (D4), so every path is the input's own.
-    hint.replaceChildren(...(this.spec.shape === "fields"
-      ? this.hintNodes("Inputs have fields. A question can point at one with backticks, e.g. ", `\`${field}\``, jev && instructions ? `. On Jev the instructions ride beside them as \`${JEV_INSTRUCTIONS_KEY}\`. Without a path, Jev reads the whole object.` : ". Without a path, Jev reads the whole object; a chat model gets the object as JSON text.")
-      : this.spec.shape === "conversation"
-        ? this.hintNodes("Inputs are conversations. On Jev the transcript is the state's `messages` array: a question can point at a turn with backticks, e.g. ", "`messages[1].content`", instructions ? `; the instructions ride beside it as \`${JEV_INSTRUCTIONS_KEY}\`. A chat model gets the turns as its conversation.` : ". A chat model gets the turns as its conversation.")
-        : this.hintNodes("Jev has no system prompt: the instructions ride in the state as ", `\`${JEV_INSTRUCTIONS_KEY}\``, ` and the text as \`${JEV_TEXT_KEY}\`; a question can point at either.`)));
     document.body.dataset.judgeRaw = String(this.rawMode);
+  }
+
+  /** How a question can point into a structured state; nothing to say for a text. */
+  private renderHint(): void {
+    const hint = $("judge-paths-hint");
+    hint.hidden = this.spec.shape === "text";
+    const field = Object.keys(this.spec.shape === "fields" ? (this.state as Record<string, JsonValue>) : {})[0] ?? "note";
+    hint.replaceChildren(...(this.spec.shape === "fields"
+      ? this.hintNodes("A question can point at a field with backticks, e.g. ", `\`${field}\``, ". Without a path, Jev reads the whole object; a chat model gets the object as JSON text.")
+      : this.hintNodes("On Jev the transcript is the state's `messages` array: a question can point at a turn with backticks, e.g. ", "`messages[1].content`", ". A chat model gets the turns as its conversation.")));
   }
 
   private hintNodes(before: string, code: string, after: string): Node[] {
@@ -217,7 +210,7 @@ export class JudgeView {
   }
 
   private questionCard(q: Question): HTMLElement {
-    const card = document.createElement("details"); card.className = "question"; card.dataset.name = q.name;
+    const card = document.createElement("details"); card.className = "question"; card.dataset.name = q.name; card.dataset.source = questionSource(q.name);
     if (this.openCards.has(q.name)) card.open = true;
     card.addEventListener("toggle", () => { if (card.open) this.openCards.add(q.name); else this.openCards.delete(q.name); });
     const summary = document.createElement("summary");
@@ -288,211 +281,85 @@ export class JudgeView {
     $("judge-question-list").querySelector<HTMLInputElement>(`[data-name="${CSS.escape(name)}"] input`)?.select();
   }
 
-  // ─── Inputs and outputs ──────────────────────────────────────────
+  // ─── The state ───────────────────────────────────────────────────
 
   private setShape(shape: Shape): void {
     if (shape === this.spec.shape) return;
-    this.shelved[this.spec.shape] = this.rows;
-    const fields = shape === "fields" && this.spec.fields.length === 0 ? [...EXAMPLE_FIELDS] : this.spec.fields;
-    this.spec = { ...this.spec, shape, fields };
-    // A text is not an object: each shape keeps its own inputs, and comes back to them.
-    this.rows = this.shelved[shape];
-    this.selected = undefined;
+    this.spec = { ...this.spec, shape };
     for (const b of document.querySelectorAll<HTMLButtonElement>("#judge-shape button")) b.setAttribute("aria-pressed", String(b.dataset.shape === shape));
-    this.renderQuestions();
-    this.renderFieldDefs();
-    this.renderAdd();
+    this.renderState(); this.renderHint();
     this.changed();
   }
 
-  private renderFieldDefs(): void {
-    const el = $("judge-field-defs");
-    el.hidden = this.spec.shape !== "fields";
-    if (el.hidden) return;
-    const label = document.createElement("span"); label.className = "lbl"; label.textContent = "fields";
-    el.replaceChildren(label, ...this.spec.fields.map((f, i) => {
-      const chip = document.createElement("span"); chip.className = "fd";
-      const name = document.createElement("span"); name.textContent = f.name;
-      const type = document.createElement("select"); type.setAttribute("aria-label", `Type of ${f.name}`);
-      for (const t of ["text", "number", "json"] as const) { const o = document.createElement("option"); o.value = t; o.textContent = t; o.selected = f.type === t; type.append(o); }
-      type.addEventListener("change", () => this.setFields(this.spec.fields.map((x, k) => k === i ? { ...x, type: type.value as FieldDef["type"] } : x)));
-      const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "×"; x.setAttribute("aria-label", `Remove field ${f.name}`);
-      x.addEventListener("click", () => this.setFields(this.spec.fields.filter((_, k) => k !== i)));
-      chip.append(name, type, x); return chip;
-    }));
-    const add = document.createElement("button"); add.type = "button"; add.className = "text-button"; add.textContent = "+ field";
-    add.addEventListener("click", () => {
-      const raw = prompt("Field name (a JSON key)", "");
-      const name = raw?.trim();
-      if (!name) return;
-      if (this.spec.fields.some((f) => f.name === name)) { this.showAlert(`There is already a field named ${name}.`); return; }
-      this.setFields([...this.spec.fields, { name, type: "text" }]);
-    });
-    el.append(add);
+  private stateError(): string | undefined {
+    if (this.spec.shape === "fields" && this.objectError) return this.objectError;
+    if (stateIsBlank(this.state)) return "The state is empty: type something to judge.";
+    return undefined;
   }
 
-  private setFields(fields: FieldDef[]): void {
-    this.spec = { ...this.spec, fields };
-    for (const row of this.rows) {
-      const object = row.value as Record<string, JsonValue>;
-      row.value = Object.fromEntries(fields.map((f) => [f.name, object[f.name] ?? (f.type === "number" ? null : f.type === "json" ? null : "")]));
-      row.stale = true;
-    }
-    this.renderFieldDefs();
-    this.renderQuestions();
+  private setState(value: StateValue): void {
+    this.states[this.spec.shape] = value;
+    this.error = undefined;
     this.changed();
   }
 
-  private renderAdd(): void {
-    const el = $("judge-add");
-    el.replaceChildren();
-    if (this.spec.shape === "text") {
-      const ta = document.createElement("textarea"); ta.id = "judge-new-text"; ta.rows = 2; ta.placeholder = "New input — one per line to add several"; ta.setAttribute("aria-label", "New inputs");
-      const add = document.createElement("button"); add.type = "button"; add.id = "judge-add-inputs"; add.textContent = "Add input";
-      const submit = () => { const values = parseInputs("text", ta.value, []); if (!values.length) return; this.addRows(values); ta.value = ""; };
-      add.addEventListener("click", submit);
-      ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); } });
-      el.append(ta, add);
-      return;
-    }
-    const add = document.createElement("button"); add.type = "button"; add.id = "judge-add-inputs"; add.textContent = "+ Add input";
-    add.addEventListener("click", () => this.addRows([emptyInput(this.spec.shape, this.spec.fields)], true));
-    const paste = document.createElement("button"); paste.type = "button"; paste.id = "judge-paste-open"; paste.textContent = this.spec.shape === "fields" ? "Paste CSV / JSON…" : "Paste JSON…";
-    paste.addEventListener("click", () => this.openPaste());
-    const hint = document.createElement("span"); hint.className = "hint"; hint.textContent = this.spec.shape === "fields" ? "one object per input · CSV header = field names" : "one conversation per input";
-    el.append(add, paste, hint);
-  }
-
-  private addRows(values: InputValue[], focus = false): void {
-    for (const value of values) this.rows.push({ id: this.nextId++, value, stale: true });
-    this.selected = this.rows[this.rows.length - 1]!.id;
-    this.changed();
-    if (focus) $("judge-rows").querySelector<HTMLTextAreaElement>("tr:last-child textarea")?.focus();
-  }
-
-  private openPaste(): void {
-    const dialog = $<HTMLDialogElement>("judge-paste");
-    $("judge-paste-help").textContent = this.spec.shape === "fields"
-      ? `CSV with a header row naming the fields (${this.spec.fields.map((f) => f.name).join(", ")}), or a JSON array of objects.`
-      : 'A JSON array: each item { "messages": [{ "role": "user" | "assistant", "content": "…" }] }, or an array of turns.';
-    $<HTMLTextAreaElement>("judge-paste-text").value = "";
-    $("judge-paste-error").hidden = true;
-    dialog.showModal();
-  }
-
-  private pasteInputs(): void {
-    const text = $<HTMLTextAreaElement>("judge-paste-text").value;
-    try {
-      const values = this.spec.shape === "fields" && !text.trim().startsWith("[") ? parseCsv(text, this.spec.fields) : parseInputs(this.spec.shape, text, this.spec.fields);
-      this.addRows(values);
-      $<HTMLDialogElement>("judge-paste").close();
-    } catch (e) {
-      $("judge-paste-error").textContent = (e as Error).message; $("judge-paste-error").hidden = false;
-    }
-  }
-
-  private renderRows(): void {
-    const body = $("judge-rows");
-    const judgments = this.judgments();
-    body.replaceChildren(...this.rows.map((row, i) => {
-      const tr = document.createElement("tr"); tr.dataset.id = String(row.id);
-      if (row.id === this.selected) tr.classList.add("selected");
-      const input = document.createElement("td"); input.append(this.inputCell(row, i));
-      const output = document.createElement("td"); output.className = "out"; output.append(this.outputCell(row, judgments));
-      tr.append(input, output);
-      tr.addEventListener("focusin", () => this.select(row.id));
-      tr.addEventListener("click", (e) => { if (!(e.target instanceof Element && e.target.closest("button, .spark"))) this.select(row.id); });
-      return tr;
-    }));
-    for (const ta of body.querySelectorAll<HTMLTextAreaElement>("textarea")) grow(ta);
-  }
-
-  private select(id: number): void {
-    if (this.selected === id) return;
-    this.selected = id;
-    for (const tr of $("judge-rows").querySelectorAll("tr")) tr.classList.toggle("selected", tr.dataset.id === String(id));
-    this.host.codeChanged(); // the Request view follows the selected input
-  }
-
-  private inputCell(row: Row, index: number): HTMLElement {
-    const wrap = document.createElement("div"); wrap.className = "io-row";
-    const num = document.createElement("span"); num.className = "num"; num.textContent = String(index + 1);
-    const editor = document.createElement("div"); editor.className = "in-editor";
-    const edit = (value: InputValue) => { row.value = value; row.stale = true; delete row.error; this.persist(); this.renderCounts(); this.renderOutput(row); this.host.codeChanged(); };
-    if (typeof row.value === "string") {
-      const ta = document.createElement("textarea"); ta.className = "in-text"; ta.rows = 1; ta.value = row.value; ta.setAttribute("aria-label", `Input ${index + 1}`);
-      ta.addEventListener("input", () => { grow(ta); edit(ta.value); });
-      editor.append(ta);
-    } else if (Array.isArray(row.value)) {
-      const turns = row.value as readonly Turn[];
+  /** The editor for the shape: a text, a JSON object, or a transcript of turns. */
+  private renderState(): void {
+    const el = $("judge-state");
+    const value = this.state;
+    if (typeof value === "string") {
+      const ta = document.createElement("textarea"); ta.id = "judge-state-text"; ta.className = "state-text"; ta.rows = 1; ta.value = value; ta.placeholder = "The text to judge"; ta.setAttribute("aria-label", "State");
+      ta.addEventListener("input", () => { this.host.autosize(ta); this.setState(ta.value); });
+      el.replaceChildren(ta); this.host.autosize(ta);
+    } else if (Array.isArray(value)) {
+      const turns = value as readonly Turn[];
       const convo = document.createElement("div"); convo.className = "convo";
       turns.forEach((t, k) => {
         const msg = document.createElement("div"); msg.className = "msg";
         const role = document.createElement("span"); role.className = `role ${t.role}`; role.textContent = t.role;
-        const ta = document.createElement("textarea"); ta.rows = 1; ta.value = t.content; ta.setAttribute("aria-label", `Input ${index + 1}, ${t.role} turn ${k + 1}`);
-        ta.addEventListener("input", () => { grow(ta); edit(turns.map((x, j) => j === k ? { ...x, content: ta.value } : x)); });
+        const ta = document.createElement("textarea"); ta.rows = 1; ta.value = t.content; ta.setAttribute("aria-label", `${t.role} turn ${k + 1}`);
+        ta.addEventListener("input", () => { this.host.autosize(ta); this.setState(turns.map((x, j) => (j === k ? { ...x, content: ta.value } : x))); });
         const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "×"; x.setAttribute("aria-label", `Remove turn ${k + 1}`);
-        x.addEventListener("click", () => { edit(turns.filter((_, j) => j !== k)); this.renderRows(); });
+        x.addEventListener("click", () => { this.setState(turns.filter((_, j) => j !== k)); this.renderState(); });
         msg.append(role, ta, x); convo.append(msg);
       });
       const add = document.createElement("div"); add.className = "add-msg"; add.textContent = "+ ";
       for (const role of ["user", "assistant"] as const) {
         const b = document.createElement("button"); b.type = "button"; b.className = "text-button"; b.textContent = role;
-        b.addEventListener("click", () => { edit([...turns, { role, content: "" }]); this.renderRows(); $("judge-rows").querySelector<HTMLTextAreaElement>(`tr[data-id="${row.id}"] .msg:last-of-type textarea`)?.focus(); });
+        b.addEventListener("click", () => { this.setState([...turns, { role, content: "" }]); this.renderState(); $("judge-state").querySelector<HTMLTextAreaElement>(".msg:last-of-type textarea")?.focus(); });
         add.append(b, document.createTextNode(role === "user" ? " · " : ""));
       }
-      convo.append(add); editor.append(convo);
+      convo.append(add); el.replaceChildren(convo);
+      for (const ta of el.querySelectorAll("textarea")) this.host.autosize(ta);
     } else {
-      const object = row.value as Record<string, JsonValue>;
-      const grid = document.createElement("div"); grid.className = "fields-grid";
-      for (const f of this.spec.fields) {
-        const k = document.createElement("span"); k.className = "fkey"; k.textContent = f.name;
-        const ta = document.createElement("textarea"); ta.className = `fval${f.type === "text" ? "" : " mono"}`; ta.rows = 1; ta.value = fieldText(object[f.name]); ta.setAttribute("aria-label", `Input ${index + 1} ${f.name}`);
-        ta.addEventListener("input", () => {
-          grow(ta);
-          try { edit({ ...object, [f.name]: fieldValue(f, ta.value) }); ta.setAttribute("aria-invalid", "false"); ta.title = ""; }
-          catch (e) { ta.setAttribute("aria-invalid", "true"); ta.title = (e as Error).message; }
-        });
-        grid.append(k, ta);
-      }
-      editor.append(grid);
+      const ta = document.createElement("textarea"); ta.id = "judge-state-json"; ta.className = "state-json"; ta.rows = 1; ta.spellcheck = false; ta.value = stringifyJson(value, { indent: 2 }); ta.setAttribute("aria-label", "State (JSON object)");
+      ta.addEventListener("input", () => {
+        this.host.autosize(ta);
+        try { const object = parseStateObject(ta.value); this.objectError = undefined; ta.setAttribute("aria-invalid", "false"); this.setState(object); }
+        catch (e) { this.objectError = (e as Error).message; ta.setAttribute("aria-invalid", "true"); this.changed(); }
+      });
+      el.replaceChildren(ta); this.host.autosize(ta);
     }
-    const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "×"; x.title = "Remove input"; x.setAttribute("aria-label", `Remove input ${index + 1}`);
-    x.addEventListener("click", () => { this.rows = this.rows.filter((r) => r !== row); if (this.selected === row.id) this.selected = undefined; this.changed(); });
-    const status = document.createElement("span"); status.className = "in-status"; status.append(...this.statusNodes(row));
-    wrap.append(num, editor, x, status);
-    return wrap;
   }
 
-  private statusNodes(row: Row): Node[] {
-    if (row.error) { const b = document.createElement("span"); b.className = "bad"; b.textContent = row.error; return [b]; }
-    if (!row.verdict || row.stale) return [document.createTextNode(row.verdict ? "changed · run again" : "not judged yet")];
-    const done = document.createElement("span"); done.className = "done"; done.textContent = "judged";
-    const v = row.verdict;
-    const tokens = v.inputTokens !== undefined || v.outputTokens !== undefined ? ` · ${(v.inputTokens ?? 0) + (v.outputTokens ?? 0)} tokens` : "";
-    return [done, document.createTextNode(`${tokens} · ${v.ms} ms · ${v.runtime}`)];
-  }
+  // ─── The result ──────────────────────────────────────────────────
 
-  private renderOutput(row: Row): void {
-    const tr = $("judge-rows").querySelector<HTMLTableRowElement>(`tr[data-id="${row.id}"]`);
-    if (!tr) return;
-    tr.querySelector("td.out")!.replaceChildren(this.outputCell(row, this.judgments()));
-    tr.querySelector(".in-status")!.replaceChildren(...this.statusNodes(row));
-  }
-
-  private outputCell(row: Row, judgments: Judgment[]): HTMLElement {
-    const wrap = document.createElement("div"); wrap.className = "out-row";
-    if (!row.verdict) {
-      const note = document.createElement("span"); note.className = "pending-note"; note.textContent = row.error ? "— failed" : "— run to judge"; wrap.append(note); return wrap;
-    }
-    if (row.stale) wrap.classList.add("stale");
-    const v = row.verdict;
+  private renderResult(): void {
+    const section = $("judge-result");
+    const v = this.verdict;
+    section.hidden = !v && !this.error;
+    const note = $("judge-result-note");
+    const answers = $("judge-answers");
+    section.classList.toggle("stale", this.stale);
+    if (!v) { answers.replaceChildren(); note.hidden = !this.error; note.textContent = this.error ?? ""; note.className = "out-meta bad"; $("judge-method").textContent = ""; return; }
+    note.className = "out-meta";
+    $("judge-method").textContent = `${v.provider} · ${v.model} · ${v.method ? v.method.replace(/_/g, " ") : "pick only — this wire does not measure a distribution"}`;
     if (this.outView === "json") {
-      const pre = document.createElement("pre"); pre.textContent = stringifyJson({ data: v.data as JsonObject, ...(v.probabilities ? { probabilities: v.probabilities as unknown as JsonObject } : {}), ...(v.method ? { method: v.method } : {}) }, { indent: 2 });
-      wrap.append(pre);
+      const pre = document.createElement("pre"); pre.textContent = stringifyJson({ data: v.data as JsonObject, ...(v.probabilities ? { probabilities: v.probabilities as unknown as JsonObject } : {}), ...(v.method ? { method: v.method } : {}), adaptations: v.adaptations.map((a) => ({ ...a })) }, { indent: 2 });
+      answers.replaceChildren(pre);
     } else {
-      const answers = document.createElement("div"); answers.className = "answers";
-      for (const j of judgments) {
+      const grid = document.createElement("div"); grid.className = "answers";
+      for (const j of this.judgments()) {
         const ans = document.createElement("div"); ans.className = "ans";
         const name = document.createElement("span"); name.className = "q"; name.textContent = j.name;
         const line = document.createElement("div"); line.className = "line";
@@ -505,19 +372,19 @@ export class JudgeView {
           const expected = expectedLevel(j, v);
           p.textContent = pct(top) + (expected !== undefined ? ` · expected ${expected.toFixed(1)}` : "");
         } else p.textContent = "pick only";
-        pick.append(p); line.append(pick); ans.append(name, line); answers.append(ans);
+        pick.append(p); line.append(pick); ans.append(name, line); grid.append(ans);
       }
-      wrap.append(answers);
+      answers.replaceChildren(grid);
     }
-    if (v.adaptations.length || row.stale) {
-      const meta = document.createElement("div"); meta.className = "out-meta";
-      const formatDropped = v.adaptations.some((a) => a.field === "config.response_format" && a.action === "dropped");
-      if (formatDropped) { const warn = document.createElement("b"); warn.className = "bad"; warn.textContent = "not a judgment: this wire took no schema, so the questions never reached the model; the text above happened to parse"; meta.append(warn, document.createTextNode(" · ")); }
-      meta.append(document.createTextNode([row.stale ? "from the previous input" : "", ...v.adaptations.map((a) => `adapted: ${a.field} ${a.action}`)].filter(Boolean).join(" · ")));
-      meta.title = v.adaptations.map((a) => `${a.field}: ${a.reason}`).join("\n");
-      wrap.append(meta);
-    }
-    return wrap;
+    const formatDropped = v.adaptations.some((a) => a.field === "config.response_format" && a.action === "dropped");
+    const parts = [
+      ...(this.stale ? ["from the previous state or questions · judge again"] : []),
+      ...(formatDropped ? ["not a judgment: this wire took no schema, so the questions never reached the model; the text above happened to parse"] : []),
+      ...v.adaptations.map((a) => `adapted: ${a.field} ${a.action}`),
+    ];
+    note.hidden = !parts.length; note.textContent = parts.join(" · "); note.className = formatDropped ? "out-meta bad" : "out-meta";
+    note.title = v.adaptations.map((a) => `${a.field}: ${a.reason}`).join("\n");
+    for (const b of document.querySelectorAll<HTMLButtonElement>("#judge-out-view button")) b.setAttribute("aria-pressed", String(b.dataset.view === this.outView));
   }
 
   private spark(j: Judgment, dist: Array<{ key: string; label: string; p: number }>, v: Verdict): HTMLElement {
@@ -566,125 +433,75 @@ export class JudgeView {
     for (const bar of document.querySelectorAll(".spark i.hover")) bar.classList.remove("hover");
   }
 
-  // ─── Counts and the run ──────────────────────────────────────────
+  // ─── The run ─────────────────────────────────────────────────────
 
-  private pending(): Row[] { return this.rows.filter((r) => r.stale && !inputIsBlank(r.value)); }
-  private runnable(): Row[] { return this.rows.filter((r) => !inputIsBlank(r.value)); }
-
-  private renderCounts(): void {
-    const n = this.rows.length, judgments = this.judgments().length, pending = this.pending().length, blank = this.rows.filter((r) => inputIsBlank(r.value)).length;
-    const calls = pending || n - blank;
-    $("judge-count").textContent = `${n} input${n === 1 ? "" : "s"} · ${judgments} question${judgments === 1 ? "" : "s"} · ${calls} call${calls === 1 ? "" : "s"}${pending && pending < n ? ` (${pending} changed or new)` : ""}${blank ? ` · ${blank} blank skipped` : ""}`;
+  private renderRun(): void {
     const run = $<HTMLButtonElement>("judge-run");
-    const partial = pending > 0 && pending < n - blank;
     const loading = this.host.runtimeLoading();
-    run.textContent = this.running ? "Running…" : loading ?? (partial ? `Run ${pending} new` : "Run all");
-    // With some rows changed, the main button judges only those; a second, quieter one redoes the whole set.
-    const again = $<HTMLButtonElement>("judge-run-again"); again.hidden = !partial || Boolean(this.running);
-    const gap = this.stateError();
-    run.disabled = Boolean(this.running) || !this.host.runtimeReady() || calls === 0 || Boolean(this.questionsError()) || Boolean(gap);
-    run.title = gap ?? "";
-    const note = $("judge-gap"); note.hidden = !gap; note.textContent = gap ?? "";
-    $("judge-instructions-note").textContent = this.host.connection.provider === "typesafe" ? `Jev takes no system text: sent in the state as the key ${JEV_INSTRUCTIONS_KEY}` : "sent as the system text";
+    const why = this.questionsError() ?? this.stateError();
+    run.textContent = this.running ? "Judging…" : loading ?? "Judge";
+    run.disabled = Boolean(this.running) || !this.host.runtimeReady() || Boolean(why);
+    run.title = why ?? "";
+    $("judge-state-error").hidden = !(this.spec.shape === "fields" && this.objectError);
+    $("judge-state-error").textContent = this.objectError ?? "";
     $<HTMLButtonElement>("judge-stop").disabled = !this.running;
-    $<HTMLButtonElement>("judge-run-again").disabled = run.disabled;
-    $("judge-in-count").textContent = `${n} · ${this.spec.shape === "text" ? "one text each" : this.spec.shape === "fields" ? "one object each" : "one transcript each"}`;
-    const judged = this.rows.filter((r) => r.verdict && !r.stale).length;
-    $("judge-out-count").textContent = `${judged} of ${n} judged`;
-    const method = this.rows.find((r) => r.verdict && !r.stale)?.verdict;
-    $("judge-method").textContent = method ? `${method.provider} · ${method.model} · ${method.method ? method.method.replace(/_/g, " ") : "pick only — this wire does not measure a distribution"}` : "";
-    const tokens = this.rows.reduce((sum, r) => sum + (r.verdict && !r.stale ? (r.verdict.inputTokens ?? 0) + (r.verdict.outputTokens ?? 0) : 0), 0);
-    $("judge-tally").textContent = `${judged} of ${n} judged · ${tokens.toLocaleString()} tokens`;
-    for (const b of document.querySelectorAll<HTMLButtonElement>("#judge-out-view button")) b.setAttribute("aria-pressed", String(b.dataset.view === this.outView));
-    const hasResults = this.rows.some((r) => r.verdict);
-    $<HTMLButtonElement>("judge-export-csv").disabled = !hasResults; $<HTMLButtonElement>("judge-export-json").disabled = !hasResults; $<HTMLButtonElement>("judge-clear-results").disabled = !hasResults;
-  }
-
-  /** On Jev the instructions become a state key; a field of that name has nowhere to go (D4). */
-  private stateError(): string | undefined {
-    if (this.host.connection.provider !== "typesafe") return undefined;
-    for (const row of this.rows) { try { jevState(this.spec, row.value); } catch (e) { return (e as Error).message; } }
-    return undefined;
+    const v = this.verdict;
+    const tokens = v && (v.inputTokens !== undefined || v.outputTokens !== undefined) ? ` · input ${v.inputTokens ?? "unreported"} · output ${v.outputTokens ?? "unreported"}` : "";
+    $("judge-usage").textContent = v && !this.stale ? `judged${tokens} · ${v.ms} ms · ${v.runtime}` : "";
   }
 
   private showAlert(text = ""): void { const el = $("judge-alert"); el.textContent = text; el.hidden = !text; }
 
-  /** Judge the changed inputs, or — `all`, or when nothing changed — every input again. */
-  async run(all = false): Promise<void> {
-    if (this.running || !this.host.runtimeReady() || this.stateError()) return;
-    const error = this.questionsError();
-    if (error) { this.showAlert(error); return; }
+  /** One call over the state. */
+  async run(): Promise<void> {
+    if (this.running || !this.host.runtimeReady()) return;
+    const why = this.questionsError() ?? this.stateError();
+    if (why) { this.showAlert(why); return; }
     if (!this.host.requireKey()) return;
     if (!this.host.connection.model.trim()) { this.showAlert("Choose a model first."); return; }
-    const pending = this.pending();
-    const todo = all || pending.length === 0 ? this.runnable() : pending;
-    if (!todo.length) return;
-    for (const row of todo) row.stale = true;
-    this.renderRows();
     const controller = new AbortController();
     const generation = ++this.generation;
-    this.running = controller; this.host.onBusy(true); this.showAlert(); this.renderCounts();
+    this.running = controller; this.host.onBusy(true); this.showAlert(); this.error = undefined; this.renderRun();
     const runtime = this.host.runtimes[this.host.runtime()];
     const connection = { ...this.host.connection };
+    const value = this.state, spec = this.spec;
+    const request = judgeRequest(connection, spec, value);
+    const started = performance.now();
     try {
-      for (const row of todo) {
-        if (controller.signal.aborted || generation !== this.generation) break;
-        const request = judgeRequest(connection, this.spec, row.value);
-        const started = performance.now();
-        try {
-          const response = await runtime.judge(connection, this.host.key(), request, controller.signal, { spec: this.spec, value: row.value });
-          if (generation !== this.generation) return;
-          row.verdict = verdictOf(response, { ms: Math.round(performance.now() - started), provider: connection.provider, model: connection.model, runtime: runtime.label });
-          row.stale = false; delete row.error;
-        } catch (e) {
-          if (generation !== this.generation) return;
-          if (controller.signal.aborted) { this.showAlert("Stopped. Inputs not yet judged stay pending."); break; }
-          if (looksBrowserBlocked(e) && !relayed(connection.provider) && !keyless(connection.provider) && await this.host.offerRelay()) {
-            // Allowed: the same input again, through the relay; the loop then goes on.
-            row.stale = true; this.running = undefined; this.host.onBusy(false); this.renderCounts();
-            return void this.run(all);
-          }
-          row.error = this.host.errorMessage(e);
-          this.showAlert(`Input ${this.rows.indexOf(row) + 1}: ${row.error}\nThe run stopped here; fix the cause and run the pending inputs again.`);
-          break;
-        } finally {
-          this.persist(); this.renderOutput(row); this.renderCounts();
-        }
+      const response = await runtime.judge(connection, this.host.key(), request, controller.signal, { spec, value });
+      if (generation !== this.generation) return;
+      this.verdict = verdictOf(response, { ms: Math.round(performance.now() - started), provider: connection.provider, model: connection.model, runtime: runtime.label });
+      this.stale = false; this.error = undefined;
+    } catch (e) {
+      if (generation !== this.generation) return;
+      if (controller.signal.aborted) { this.showAlert("Stopped."); return; }
+      if (looksBrowserBlocked(e) && !relayed(connection.provider) && !keyless(connection.provider) && await this.host.offerRelay()) {
+        // Allowed: the same call again, through the relay.
+        this.running = undefined; this.host.onBusy(false); this.renderRun();
+        return void this.run();
       }
+      this.error = this.host.errorMessage(e);
+      this.showAlert(this.error);
     } finally {
-      if (generation === this.generation) { this.running = undefined; this.host.onBusy(false); this.renderCounts(); }
+      if (generation === this.generation) { this.running = undefined; this.host.onBusy(false); this.renderResult(); this.renderRun(); this.host.codeChanged(); }
     }
-  }
-
-  private download(name: string, type: string, text: string): void {
-    const url = URL.createObjectURL(new Blob([text], { type }));
-    const a = document.createElement("a"); a.href = url; a.download = name; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
-  private toggleResults(open: boolean): void {
-    const b = $("judge-toggle-results"); b.setAttribute("aria-expanded", String(open)); b.textContent = open ? "Hide ▾" : "Show ▴";
-    document.body.dataset.judgeResults = String(open);
   }
 
   // ─── Wiring ──────────────────────────────────────────────────────
 
   private renderAll(): void {
     for (const b of document.querySelectorAll<HTMLButtonElement>("#judge-shape button")) b.setAttribute("aria-pressed", String(b.dataset.shape === this.spec.shape));
-    $<HTMLTextAreaElement>("judge-instructions").value = this.spec.instructions;
     $<HTMLTextAreaElement>("judge-raw-json").value = this.rawText;
-    this.renderQuestions(); this.renderFieldDefs(); this.renderAdd(); this.renderRows(); this.renderCounts();
+    this.renderQuestions(); this.renderState(); this.renderHint(); this.renderResult(); this.renderRun();
   }
 
   private wire(): void {
     $("judge-run").addEventListener("click", () => void this.run());
-    $("judge-run-again").addEventListener("click", () => void this.run(true));
     $("judge-stop").addEventListener("click", () => this.running?.abort());
     $("judge-provider-button").addEventListener("click", () => this.host.pickProvider());
     $("judge-model-button").addEventListener("click", () => this.host.pickModel());
     $("judge-shape").addEventListener("click", (e) => { const b = (e.target as Element).closest<HTMLButtonElement>("button[data-shape]"); if (b) this.setShape(b.dataset.shape as Shape); });
-    $("judge-out-view").addEventListener("click", (e) => { const b = (e.target as Element).closest<HTMLButtonElement>("button[data-view]"); if (b) { this.outView = b.dataset.view as "answers" | "json"; this.renderRows(); this.renderCounts(); } });
-    $("judge-toggle-results").addEventListener("click", () => { this.toggleResults($("judge-toggle-results").getAttribute("aria-expanded") === "false"); this.persist(); });
+    $("judge-out-view").addEventListener("click", (e) => { const b = (e.target as Element).closest<HTMLButtonElement>("button[data-view]"); if (b) { this.outView = b.dataset.view as "answers" | "json"; this.renderResult(); } });
     $("judge-raw-toggle").addEventListener("click", () => {
       if (this.rawMode) {
         // Leaving JSON: the text must parse, or the form would show a stale schema.
@@ -696,34 +513,12 @@ export class JudgeView {
     const raw = $<HTMLTextAreaElement>("judge-raw-json");
     raw.addEventListener("input", () => {
       this.rawText = raw.value; this.renderRawStatus();
-      try { const properties = parseProperties(this.rawText); if (stringifyJson(properties) !== stringifyJson(this.spec.properties)) { this.spec = { ...this.spec, properties }; for (const r of this.rows) r.stale = true; this.persist(); this.renderCounts(); this.renderRows(); } } catch { /* the status line says why; the last valid schema stands */ }
+      try { const properties = parseProperties(this.rawText); if (stringifyJson(properties) !== stringifyJson(this.spec.properties)) { this.spec = { ...this.spec, properties }; if (this.verdict) this.stale = true; this.persist(); this.renderResult(); this.renderRun(); } } catch { /* the status line says why; the last valid schema stands */ }
       this.host.codeChanged();
     });
     $("judge-raw-format").addEventListener("click", () => { try { this.rawText = stringifyJson(parseProperties(this.rawText), { indent: 2 }); raw.value = this.rawText; this.renderRawStatus(); } catch { /* status shows the error */ } });
     $<HTMLSelectElement>("judge-add-question").addEventListener("change", (e) => { const select = e.target as HTMLSelectElement; if (select.value) this.addQuestion(select.value as QuestionKind); select.value = ""; });
-    $<HTMLTextAreaElement>("judge-instructions").addEventListener("input", (e) => { this.spec = { ...this.spec, instructions: (e.target as HTMLTextAreaElement).value }; for (const r of this.rows) r.stale = true; this.changed(); this.renderQuestions(); });
-    $("judge-export-csv").addEventListener("click", () => this.download("judgments.csv", "text/csv", toCsv(this.spec, this.rows.map((r) => ({ value: r.value, ...(r.verdict && !r.stale ? { verdict: r.verdict } : {}) })))));
-    $("judge-export-json").addEventListener("click", () => this.download("judgments.json", "application/json", toJsonExport(this.spec, this.rows.map((r) => ({ value: r.value, ...(r.verdict && !r.stale ? { verdict: r.verdict } : {}) })))));
-    $("judge-clear-results").addEventListener("click", () => { for (const r of this.rows) { delete r.verdict; delete r.error; r.stale = true; } this.showAlert(); this.changed(); });
-    $("judge-paste-add").addEventListener("click", () => this.pasteInputs());
-    $("judge-paste-cancel").addEventListener("click", () => $<HTMLDialogElement>("judge-paste").close());
-    $("judge-paste-close").addEventListener("click", () => $<HTMLDialogElement>("judge-paste").close());
-    $("judge-io").addEventListener("scroll", () => this.hidePop(), { passive: true });
     document.addEventListener("click", (e) => { if (!(e.target instanceof Element && e.target.closest(".spark, #judge-pop"))) this.hidePop(); });
-    // The divider: drag to give the code or the results more room; the split is remembered for the visit.
-    const divider = document.querySelector<HTMLElement>(".judge-divider")!;
-    const right = document.querySelector<HTMLElement>(".judge-right")!;
-    const setSplit = (fraction: number) => { right.style.setProperty("--judge-split", `${Math.min(0.85, Math.max(0.15, fraction))}`); };
-    divider.addEventListener("pointerdown", (e) => {
-      e.preventDefault(); divider.setPointerCapture(e.pointerId);
-      const move = (ev: PointerEvent) => { const box = right.getBoundingClientRect(); setSplit((ev.clientY - box.top) / box.height); };
-      const up = () => { divider.removeEventListener("pointermove", move); divider.removeEventListener("pointerup", up); };
-      divider.addEventListener("pointermove", move); divider.addEventListener("pointerup", up);
-    });
-    divider.addEventListener("keydown", (e) => {
-      const current = Number(right.style.getPropertyValue("--judge-split") || 0.45);
-      if (e.key === "ArrowUp") { setSplit(current - 0.05); e.preventDefault(); }
-      if (e.key === "ArrowDown") { setSplit(current + 0.05); e.preventDefault(); }
-    });
+    $("judge-panel").querySelector(".chat-scroll")!.addEventListener("scroll", () => this.hidePop(), { passive: true });
   }
 }

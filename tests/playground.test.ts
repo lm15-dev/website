@@ -144,8 +144,8 @@ function sse(url: URL): string {
   return frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("");
 }
 
-/** TypeSafe answers in one piece: the three example judgments over the message. */
-const JEV_ANSWER = { model: "jev-test", answers: { quality: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } }, style: { type: "choice", choice: "fruit", probabilities: { fruit: 0.9, oak: 0.1, mineral: 0 } }, ageing: { type: "noul", noul: 0.97 } }, usage: { input_tokens: 40, output_tokens: 9 } };
+/** TypeSafe answers the example's one judgment over the state. */
+const JEV_ANSWER = { model: "jev-test", answers: { quality: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } } }, usage: { input_tokens: 40, output_tokens: 9 } };
 
 test("ten local keys load privately; each provider receives only its key; manual keys, clearing, and reload work", { timeout: 120_000 }, async () => {
   const installed = findBrowsers().find((b) => b.name === "chromium");
@@ -256,9 +256,9 @@ test("ten local keys load privately; each provider receives only its key; manual
       assert.equal(await page.getByRole("button", { name: "Chat", exact: true }).isDisabled(), false, "Chat restores its own model");
       await useKey(page, "TypeSafe (Jev)", expectedKey);
       await waitKeyState(page, "Key ready (this tab)");
-      await page.getByRole("button", { name: "Run all", exact: true }).click();
-      await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "3 of 3 judged");
-      assert.equal(sent, 13);
+      await page.locator("#judge-run").click();
+      await page.waitForFunction(() => document.getElementById("judge-usage")?.textContent?.startsWith("judged"));
+      assert.equal(sent, 11);
       await page.reload();
       await waitKeyState(page, "");
       assert.equal(await page.locator("#loaded").textContent(), "None");
@@ -764,8 +764,8 @@ test("the relay: a provider that blocks the browser fails first, the page asks i
     assert.match(await page.locator("#code").textContent() ?? "", /judgments\(\{/);
     assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /baseUrl/);
 
-    // No relay deployed: the dialog explains, offers nothing, and no key went anywhere but the provider. The run stops at the first input.
-    await page.getByRole("button", { name: "Run all", exact: true }).click();
+    // No relay deployed: the dialog explains, offers nothing, and no key went anywhere but the provider.
+    await page.locator("#judge-run").click();
     await page.locator("#relay-dialog[open]").waitFor();
     assert.equal(await page.locator("#relay-provider").textContent(), "TypeSafe (Jev)");
     assert.equal(await page.locator("#relay-unavailable").isVisible(), true);
@@ -773,18 +773,18 @@ test("the relay: a provider that blocks the browser fails first, the page asks i
     await page.getByRole("button", { name: "Not now" }).click();
     await page.waitForFunction(() => !document.getElementById("judge-alert")?.hidden);
     assert.deepEqual(seen, ["https://api.typesafe.ai/v1/systemone"]);
-    assert.match(await page.locator("#judge-alert").textContent() ?? "", /Input 1: .*block browser access/s);
-    assert.equal(await page.locator("#judge-out-count").textContent(), "0 of 3 judged");
+    assert.match(await page.locator("#judge-alert").textContent() ?? "", /block browser access/s);
+    assert.equal(await page.locator("#judge-usage").textContent(), "");
 
-    // A relay is configured (loopback override): the same failure now offers it; allowing resumes the run through it, input 1 first.
+    // A relay is configured (loopback override): the same failure now offers it; allowing sends the same call through it.
     await page.evaluate((url) => localStorage.setItem("lm15.playground.relay-url", url), relay);
-    await page.getByRole("button", { name: "Run all", exact: true }).click();
+    await page.locator("#judge-run").click();
     await page.locator("#relay-dialog[open]").waitFor();
     assert.equal(await page.locator("#relay-unavailable").isVisible(), false);
     await page.getByLabel("Remember this choice on this device").check();
     await page.getByRole("button", { name: "Allow the relay and resend" }).click();
-    await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "3 of 3 judged");
-    assert.deepEqual(seen, ["https://api.typesafe.ai/v1/systemone", "https://api.typesafe.ai/v1/systemone", `${relay}/api.typesafe.ai/v1/systemone`, `${relay}/api.typesafe.ai/v1/systemone`, `${relay}/api.typesafe.ai/v1/systemone`]);
+    await page.waitForFunction(() => document.getElementById("judge-usage")?.textContent?.startsWith("judged"));
+    assert.deepEqual(seen, ["https://api.typesafe.ai/v1/systemone", "https://api.typesafe.ai/v1/systemone", `${relay}/api.typesafe.ai/v1/systemone`]);
     assert.match(await page.locator("#code").textContent() ?? "", new RegExp(`baseUrl: "${relay}/api.typesafe.ai"`));
     assert.match(await keyState(page), /via the relay/);
     await openProviders(page);

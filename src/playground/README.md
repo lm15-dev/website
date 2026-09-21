@@ -119,54 +119,41 @@ technical status paragraph.
 
 ## Judge mode
 
-Judge applies one question set to many inputs, one call per input (MAP-14:
-declared keys in, a distribution out). The question set is the JSON Schema
-`properties` object that `judgments({...})` takes; the form on the left is a
-view over it, reading with the SDK's `judgmentsInSchema` and writing with its
-`choice`, `yesNo` and `score`. **{ } JSON** edits the same object directly; a
-property the form cannot show is kept verbatim and named.
+Judge asks one question set about one state, in one call (MAP-14: declared
+keys in, a distribution out). The layout is the chat's: on the left the
+**State** (a Text / Fields / Conversation switch on its header; a text box, a
+JSON object, or a transcript of turns) above the **Questions**; on the right
+the code for that one call. **Judge** beside the provider and model chips makes
+the call; the **Result** then appears under the questions — the pick per
+question with a sparkline where the provider measured a distribution (hover or
+tap for the numbers), or the JSON — and the answer is echoed under the program
+as `// →` comments. Editing the state or a question after a call greys the
+result and takes the echo out of the code until the next call. Hovering the
+state, a question or the result lights its code, and the other way round.
 
-Inputs have a shape: **Text** (one string each), **Fields** (one JSON object
-each, sent as a data part — Jev reads it as structured state; a chat wire
-gets it as JSON text) or **Conversation** (one transcript each). Each shape
-keeps its own inputs. A question can point at a piece of a structured input
-with backticks; the hint above the questions names the path. The code panel
-is the whole set as one loop, in the SDK's own spelling; Python executes that
-program with one input, the loop body unchanged (`judgeProgram`, given the
-spec and input it was built from).
+The question set is the JSON Schema `properties` object that
+`judgments({...})` takes; the form is a view over it, reading with the SDK's
+`judgmentsInSchema` and writing with its `choice`, `yesNo` and `score`.
+**{ } JSON** edits the same object directly; a property the form cannot show
+is kept verbatim and named. The example is one question (the wine `quality`
+scale) over one tasting note; nothing is pre-run.
 
-The example set starts with no instructions, so the default request is the
-docs' quick start: a string state and the questions, nothing else. On Jev the
-state is the one user part, verbatim (contract 2026-09-19-jev-state, D1): Jev
-has no system prompt and no conversation, so when instructions are added the
-page writes what a caller would — the instructions as the state key
-`instructions` (a bare text goes beside it as `text`), a transcript as the
-state's `messages` array — and the shown code does exactly that
-(`jevState`). A field named `instructions` is refused by name. On a chat
-wire the instructions are the system prompt and the turns are the
-conversation.
+On Jev the state is the one user part, verbatim (contract 2026-09-19-jev-state,
+D1): a text as a string, an object as structured state, a transcript as the
+state's `messages` array — and the shown code does exactly that. There is no
+instructions box: Jev has no system prompt, and the state is the whole input.
+A question can point at a piece of a structured state with backticks; the hint
+under the state names the path. On a chat wire the same set goes as the
+system-less request with the text, the data part, or the turns as messages;
+it answers the pick and the result records `config.probabilities dropped`.
+Z.AI's wire takes no schema at all: the result says the questions never
+reached the model. All four SDKs execute Judge using `complete`, never a
+simulated stream.
 
-Every provider judges: TypeSafe measures the probability of every declared
-key and the outputs draw the distribution (a sparkline per question; hover or
-tap for the numbers); a chat wire answers the pick and the row records
-`config.probabilities dropped`. Z.AI's wire takes no schema at all: the row
-says the questions never reached the model. All four SDKs execute Judge using
-complete, never a simulated TypeSafe stream. The custom OpenAI-chat connection
-uses the default compatibility capabilities; it does not claim token-trie scoring.
-
-The run is sequential (the shown loop), stops at the first failure with the
-input named, offers the relay on a browser-blocked provider and resumes
-through it, and judges only inputs that changed since their last verdict.
-The set, its verdicts and the chosen mode are remembered on the device
-(`lm15.playground.judge`, `lm15.playground.mode`); nothing is written until
-the person changes something. **Export CSV** writes one column per declared
-key only when something was measured; **Export JSON** is the verdicts as the
-SDK returned them.
-
+The state and the questions are remembered on the device
+(`lm15.playground.judge`); a result never is. Reset restores the example.
 TypeSafe answers judgments only: choosing it from Chat opens Judge. The Chat
-button remains available and restores the previous chat provider rather than
-trying to chat with Jev. The former **Ask for judgments** switch in
-Chat is gone; judgments are Judge mode.
+button restores the previous chat provider rather than trying to chat with Jev.
 
 ## Error diagnostics
 

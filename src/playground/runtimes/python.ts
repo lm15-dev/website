@@ -96,13 +96,6 @@ function split(request: Request): { messages: Message[]; prompt: string } {
 }
 function splitArgs(request: Request): [Message[], string] { const { messages, prompt } = split(request); return [messages, prompt]; }
 
-/** The judge program up to its loop, then the loop body once with `x = inputs[0]`, stopping before the call. */
-function unrollOne(source: string): string {
-  const [head, body] = source.split("\nfor x in inputs:\n");
-  const built = body!.split("\n    response = await lm.complete(request)")[0]!;
-  return `${head}\nx = inputs[0]\n${built.replace(/^    /gm, "")}`;
-}
-
 export const pythonRuntime: Runtime = {
   id: "python",
   label: "Python",
@@ -114,12 +107,11 @@ export const pythonRuntime: Runtime = {
     const py = await boot(() => {});
     // The same construction with the sync class (no transport needed) and its
     // build_request: the bytes, no network. Public API only. A judge request
-    // is the shown loop's program with this one input; the request is built
-    // in the loop body, so the head runs up to it and one iteration is unrolled.
+    // is the shown program's; the head runs up to the call.
     const judged = isJudgeRequest(request);
     const from = source ?? (judged ? specOfRequest(request) : undefined);
-    const shown = (from ? judgePython(connection, from.spec, [from.value]) : examplePython(connection, settingsOf(request), ...splitArgs(request))).text;
-    const head = (from ? unrollOne(shown) : shown.split(/\n(?:result = AsyncResponseStream|response = await lm\.complete)/)[0]!)
+    const shown = (from ? judgePython(connection, from.spec, from.value) : examplePython(connection, settingsOf(request), ...splitArgs(request))).text;
+    const head = shown.split(/\n(?:result = AsyncResponseStream|response = await lm\.complete)/)[0]!
       .replace(/\bAsync(OpenAILM|OpenAIChatLM|AnthropicLM|GeminiLM|TypeSafeLM)\b/g, "$1")
       .replace(/^from lm15\.transports import FetchTransport.*\n/m, "")
       .replace(/^    transport=FetchTransport\(\),\n/m, "");
@@ -181,15 +173,10 @@ function settingsOf(request: Request): Settings {
   };
 }
 
-/**
- * The Python the page shows for a judge set, with this one input in the
- * `inputs` list, plus the JSON of the loop's last response: the loop body
- * runs unchanged (judge.ts pins that the displayed program and this one
- * differ only in the list).
- */
+/** The Python the page shows for a judge call, as is, plus the JSON of its response. */
 export function judgeProgram(connection: Connection, request: Request, source?: JudgeSource): string {
   const { spec, value } = source ?? specOfRequest(request);
-  return `${judgePython(connection, spec, [value]).text}
+  return `${judgePython(connection, spec, value).text}
 import json
 from lm15.serde import response_to_dict
 json.dumps(response_to_dict(response))

@@ -1,5 +1,5 @@
 /**
- * Judge mode: one question set, many inputs, one call per input (MAP-14).
+ * Judge mode: one state, one question set, one call (MAP-14).
  *
  * The question set is the JSON Schema `properties` object that
  * `judgments({...})` takes — the SDK's own contract, kept verbatim. The
@@ -7,36 +7,31 @@
  * `judgmentsInSchema` and writes them back with the SDK's `choice`,
  * `yesNo` and `score`, so nothing here invents a second schema format.
  *
- * Inputs have a shape — a text, a JSON object of fields, or a whole
- * conversation — because Jev reads all three (contract D6: a string, a
- * data part's value, or `{system, messages}`), and a question can point
- * at a piece of a structured input with backticks (`` `note` ``,
- * `` `messages[1].content` ``). The same request goes to any chat
- * provider, which answers the pick without the numbers.
+ * The state has a shape — a text, a JSON object, or a conversation —
+ * because Jev reads all three (contract D6: a string, a data part's value,
+ * or `{messages}`), and a question can point at a piece of a structured
+ * state with backticks (`` `note` ``, `` `messages[1].content` ``). The
+ * same request goes to any chat provider, which answers the pick without
+ * the numbers.
  *
  * The rendered code is what runs (runtimes/): the JavaScript is this
- * page's client, the Python executes under Pyodide with one input, the
- * loop body unchanged. Nothing here touches the DOM or the network.
+ * page's client, the Python executes under Pyodide as shown. Nothing here
+ * touches the DOM or the network.
  */
 
-import { Message, RawNumber, Request as RequestNs, choice, isJsonObject, judgments, judgmentsInSchema, lookup, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "lm15/browser";
-import { GO_ERR, GO_ERR_IN_LOOP, goProgram, jsClient, judgmentsOnly, pyClient, pyImports, rustClient, rustString, rv, type Connection } from "./experience.ts";
-import { api, comment, dim, finish, plain, quotedValue, val, type Code } from "./marks.ts";
+import { Message, RawNumber, Request as RequestNs, choice, isJsonObject, judgments, judgmentsInSchema, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "lm15/browser";
+import { GO_ERR, goProgram, jsClient, judgmentsOnly, pyClient, pyImports, rustClient, rustString, rv, type Connection } from "./experience.ts";
+import { api, comment, dim, finish, group, mark, plain, quotedValue, val, type Code } from "./marks.ts";
 
 export type Shape = "text" | "fields" | "conversation";
-export interface FieldDef { readonly name: string; readonly type: "text" | "number" | "json" }
 export interface Turn { readonly role: "user" | "assistant"; readonly content: string }
-/** One input, in the set's shape: a text, an object of fields, or a transcript. */
-export type InputValue = string | Readonly<Record<string, JsonValue>> | readonly Turn[];
+/** The state, in the set's shape: a text, a JSON object, or a transcript. */
+export type StateValue = string | Readonly<Record<string, JsonValue>> | readonly Turn[];
 
 export interface JudgeSpec {
   /** The `properties` of the judgments schema, verbatim (what `judgments(...)` takes). */
   readonly properties: JsonObject;
-  /** How to read each input; sent as the system text (Jev takes it as context, chat wires as the system prompt). */
-  readonly instructions: string;
   readonly shape: Shape;
-  /** The fields of a `fields` set: the keys every input object carries. */
-  readonly fields: readonly FieldDef[];
 }
 
 // ─── The question form: a view over the schema ───────────────────────
@@ -110,130 +105,44 @@ export function parseProperties(text: string): JsonObject {
   return value;
 }
 
-// ─── Inputs ──────────────────────────────────────────────────────────
+// ─── The state ───────────────────────────────────────────────────────
 
-export function emptyInput(shape: Shape, fields: readonly FieldDef[]): InputValue {
+export function emptyState(shape: Shape): StateValue {
   if (shape === "text") return "";
-  if (shape === "fields") return Object.fromEntries(fields.map((f) => [f.name, f.type === "number" ? 0 : f.type === "json" ? null : ""]));
+  if (shape === "fields") return {};
   return [{ role: "user", content: "" }];
 }
 
-/** A field value as the person typed it, in the field's type: numbers parse, JSON parses, text stays. Throws on a value the type cannot hold. */
-export function fieldValue(field: FieldDef, typed: string): JsonValue {
-  if (field.type === "text") return typed;
-  const trimmed = typed.trim();
-  if (field.type === "number") {
-    if (trimmed === "") return null;
-    const n = Number(trimmed);
-    if (!Number.isFinite(n)) throw new Error(`${field.name}: not a number`);
-    return n;
-  }
-  if (trimmed === "") return null;
-  try { return parseJson(trimmed); } catch (e) { throw new Error(`${field.name}: ${(e as Error).message}`); }
-}
-
-export function fieldText(value: JsonValue | undefined): string {
-  if (value === undefined || value === null) return "";
-  if (typeof value === "string") return value;
-  return stringifyJson(value);
-}
-
-/** One line that says what an input is (the results table's preview, the CSV's first column). */
-export function inputSummary(value: InputValue): string {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return (value as readonly Turn[]).map((t) => `${t.role}: ${t.content}`).join(" ▸ ");
-  return Object.entries(value as Record<string, JsonValue>).map(([k, v]) => `${k}: ${fieldText(v)}`).join(" · ");
-}
-
-export function inputIsBlank(value: InputValue): boolean {
+export function stateIsBlank(value: StateValue): boolean {
   if (typeof value === "string") return !value.trim();
   if (Array.isArray(value)) return (value as readonly Turn[]).every((t) => !t.content.trim());
-  return Object.values(value as Record<string, JsonValue>).every((v) => v === null || v === "" );
+  return Object.keys(value as Record<string, JsonValue>).length === 0;
 }
 
-/** Texts pasted one per line; a JSON array pasted as objects or transcripts. */
-export function parseInputs(shape: Shape, text: string, fields: readonly FieldDef[]): InputValue[] {
-  if (shape === "text") return text.split("\n").map((s) => s.trim()).filter(Boolean);
-  const value = parseJson(text.trim());
-  if (!Array.isArray(value) || value.length === 0) throw new Error("Paste a JSON array: one item per input.");
-  if (shape === "fields") return value.map((item, i) => {
-    if (!isJsonObject(item)) throw new Error(`Item ${i + 1} is not an object.`);
-    return Object.fromEntries(fields.map((f) => [f.name, item[f.name] ?? null]));
-  });
-  return value.map((item, i) => {
-    const turns = isJsonObject(item) && Array.isArray(item["messages"]) ? item["messages"] : Array.isArray(item) ? item : undefined;
-    if (!turns) throw new Error(`Item ${i + 1} is not a conversation: give { "messages": [{ "role", "content" }] } or an array of turns.`);
-    return turns.map((t, k): Turn => {
-      if (!isJsonObject(t) || (t["role"] !== "user" && t["role"] !== "assistant") || typeof t["content"] !== "string") throw new Error(`Item ${i + 1}, turn ${k + 1}: a turn is { "role": "user" | "assistant", "content": text }.`);
-      return { role: t["role"], content: t["content"] };
-    });
-  });
-}
-
-/** CSV with a header row: field names, or `text`; one row per input. */
-export function parseCsv(text: string, fields: readonly FieldDef[]): InputValue[] {
-  const rows = csvRows(text);
-  if (rows.length < 2) throw new Error("Paste CSV with a header row and at least one data row.");
-  const header = rows[0]!.map((h) => h.trim());
-  return rows.slice(1).filter((r) => r.some((c) => c.trim())).map((r, i) => {
-    const object: Record<string, JsonValue> = {};
-    for (const f of fields) {
-      const at = header.indexOf(f.name);
-      if (at === -1) throw new Error(`The CSV has no "${f.name}" column (header: ${header.join(", ")}).`);
-      try { object[f.name] = fieldValue(f, r[at] ?? ""); } catch (e) { throw new Error(`Row ${i + 1}: ${(e as Error).message}`); }
-    }
-    return object;
-  });
-}
-
-function csvRows(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [], cell = "", quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i]!;
-    if (quoted) {
-      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
-      else if (c === '"') quoted = false;
-      else cell += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ",") { row.push(cell); cell = ""; }
-    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
-    else cell += c;
-  }
-  if (cell || row.length) { row.push(cell); rows.push(row); }
-  return rows;
+/** The JSON object a person typed for a `fields` state, validated: an object, nothing else. */
+export function parseStateObject(text: string): Readonly<Record<string, JsonValue>> {
+  let value: unknown;
+  try { value = parseJson(text); } catch (e) { throw new Error(`The state must be a JSON object: ${(e as Error).message}`); }
+  if (!isJsonObject(value)) throw new Error("The state must be a JSON object ({ … }).");
+  return value;
 }
 
 // ─── The request ─────────────────────────────────────────────────────
 
-/** The key under which the instructions ride in Jev's state, and the key a bare text takes beside them. */
-export const JEV_INSTRUCTIONS_KEY = "instructions";
-export const JEV_TEXT_KEY = "text";
-
 /**
- * Jev's state for an input (changes/2026-09-19-jev-state.md D1/D4): the
- * one user part, verbatim. Jev has no system prompt and no conversation,
- * so the page writes what a caller would: the instructions as a named key
- * of the state, a transcript as the caller's own `messages` array. The
- * shown code does exactly this; no adapter does anything.
+ * Jev's state (changes/2026-09-19-jev-state.md D1): the one user part,
+ * verbatim. Jev has no conversation, so a transcript goes as the caller's
+ * own `messages` array. The shown code does exactly this; no adapter does anything.
  */
-export function jevState(spec: JudgeSpec, value: InputValue): JsonValue {
-  const instructions = spec.instructions.trim();
-  if (Array.isArray(value)) {
-    const messages = (value as readonly Turn[]).map((t) => ({ role: t.role, content: t.content }));
-    return instructions ? { [JEV_INSTRUCTIONS_KEY]: instructions, messages } : { messages };
-  }
-  if (typeof value === "string") return instructions ? { [JEV_INSTRUCTIONS_KEY]: instructions, [JEV_TEXT_KEY]: value } : value;
-  const object = value as Record<string, JsonValue>;
-  if (!instructions) return object;
-  if (JEV_INSTRUCTIONS_KEY in object) throw new Error(`A field is already named ${JEV_INSTRUCTIONS_KEY}: on Jev the instructions go into the state under that key. Rename the field, or clear the instructions.`);
-  return { [JEV_INSTRUCTIONS_KEY]: instructions, ...object };
+export function jevState(value: StateValue): JsonValue {
+  if (Array.isArray(value)) return { messages: (value as readonly Turn[]).map((t) => ({ role: t.role, content: t.content })) };
+  return value as JsonValue;
 }
 
-/** The messages an input makes: on Jev the one user part holding the state; on a chat wire the text, the data part, or the transcript, with the instructions as the system prompt. */
-export function judgeMessages(connection: Connection, spec: JudgeSpec, value: InputValue): Message[] {
+/** The messages the state makes: on Jev the one user part holding it; on a chat wire the text, the data part, or the transcript. */
+export function judgeMessages(connection: Connection, value: StateValue): Message[] {
   if (judgmentsOnly(connection.provider)) {
-    const state = jevState(spec, value);
+    const state = jevState(value);
     return [typeof state === "string" ? Message.user(state) : Message.user({ type: "data", value: state })];
   }
   if (typeof value === "string") return [Message.user(value)];
@@ -241,20 +150,14 @@ export function judgeMessages(connection: Connection, spec: JudgeSpec, value: In
   return [Message.user({ type: "data", value: value as Record<string, JsonValue> })];
 }
 
-/** The one Request an input makes: its messages, the instructions (a system prompt on a chat wire; part of the state on Jev), the declared judgments, probabilities if the wire measures them. */
-export function judgeRequest(connection: Connection, spec: JudgeSpec, value: InputValue): Request {
+/** The one Request: the state's messages, the declared judgments, probabilities if the wire measures them. */
+export function judgeRequest(connection: Connection, spec: JudgeSpec, value: StateValue): Request {
   const config: Config = { responseFormat: judgments(parseProperties(stringifyJson(spec.properties)) as Record<string, JsonObject>), probabilities: "if_available" };
-  const jev = judgmentsOnly(connection.provider);
-  return RequestNs.create({
-    model: connection.model.trim(),
-    ...(spec.instructions.trim() && !jev ? { system: spec.instructions.trim() } : {}),
-    messages: judgeMessages(connection, spec, value),
-    config,
-  });
+  return RequestNs.create({ model: connection.model.trim(), messages: judgeMessages(connection, value), config });
 }
 
-/** What the page executed a judge request from: the spec and the input. Runtimes that re-render the shown program take it beside the request. */
-export interface JudgeSource { readonly spec: JudgeSpec; readonly value: InputValue }
+/** What the page executed a judge request from: the spec and the state. Runtimes that re-render the shown program take it beside the request. */
+export interface JudgeSource { readonly spec: JudgeSpec; readonly value: StateValue }
 
 /** A judge request: a json_schema response format declaring at least one judgment. It is sent with `complete`, never streamed. */
 export function isJudgeRequest(request: Request): boolean {
@@ -263,7 +166,7 @@ export function isJudgeRequest(request: Request): boolean {
 }
 
 /**
- * The spec and input a chat-wire judge Request carries, read back off it —
+ * The spec and state a chat-wire judge Request carries, read back off it —
  * the fallback for a runtime that re-renders its program without a
  * JudgeSource (runtimes/python.ts). A Jev request is not read back: its
  * state is the caller's object and the page passes the source instead.
@@ -272,22 +175,19 @@ export function specOfRequest(request: Request): JudgeSource {
   const format = request.config?.responseFormat;
   if (format?.type !== "json_schema" || !isJsonObject(format.schema["properties"])) throw new Error("Not a judge request: no judgments schema.");
   const properties = format.schema["properties"];
-  const instructions = typeof request.system === "string" ? request.system : "";
   const parts = request.messages[0]?.parts ?? [];
   if (request.messages.length === 1 && request.messages[0]!.role === "user" && parts.length === 1 && parts[0]!.type === "data" && isJsonObject(parts[0]!.value)) {
-    const object = parts[0]!.value;
-    const fields: FieldDef[] = Object.entries(object).map(([name, v]) => ({ name, type: typeof v === "number" ? "number" : typeof v === "string" || v === null ? "text" : "json" }));
-    return { spec: { properties, instructions, shape: "fields", fields }, value: object };
+    return { spec: { properties, shape: "fields" }, value: parts[0]!.value };
   }
   if (request.messages.length === 1 && request.messages[0]!.role === "user" && parts.length === 1 && parts[0]!.type === "text") {
-    return { spec: { properties, instructions, shape: "text", fields: [] }, value: parts[0]!.text };
+    return { spec: { properties, shape: "text" }, value: parts[0]!.text };
   }
   const turns: Turn[] = request.messages.map((m) => {
     const text = m.parts.map((p) => p.type === "text" ? p.text : "").join("");
     if (m.role !== "user" && m.role !== "assistant") throw new Error(`Not a judge conversation: a ${m.role} message.`);
     return { role: m.role, content: text };
   });
-  return { spec: { properties, instructions, shape: "conversation", fields: [] }, value: turns };
+  return { spec: { properties, shape: "conversation" }, value: turns };
 }
 
 // ─── Results ─────────────────────────────────────────────────────────
@@ -348,50 +248,13 @@ export function expectedLevel(j: Judgment, verdict: Verdict): number | undefined
   return j.keys.reduce((sum, key, i) => sum + (dist[key] ?? 0) * i, 0);
 }
 
-/** Every judgment, one row per input; the distribution's keys as columns where measured. RFC 4180 quoting. */
-export function toCsv(spec: JudgeSpec, rows: ReadonlyArray<{ value: InputValue; verdict?: Verdict }>): string {
-  const found = [...judgmentsInSchema({ type: "object", properties: spec.properties }).values()];
-  const measured = rows.some((r) => r.verdict?.probabilities);
-  const head = ["input", ...found.flatMap((j) => [j.name, ...(measured ? j.keys.map((k) => `${j.name}:${keyLabel(j, k)}`) : [])]), "method", "provider", "model", "adaptations"];
-  const cell = (v: unknown) => { const s = v === undefined || v === null ? "" : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const lines = [head.map(cell).join(",")];
-  for (const { value, verdict } of rows) {
-    const cells: unknown[] = [inputSummary(value)];
-    for (const j of found) {
-      cells.push(verdict ? pickLabel(j, verdict.data[j.name]) : "");
-      // Twelve significant digits: the value the wire gave without binary float noise (1 − 0.97 is not 0.030000000000000027).
-      if (measured) for (const k of j.keys) { const p = verdict?.probabilities?.[j.name]?.[k]; cells.push(p === undefined ? "" : Number(p.toPrecision(12))); }
-    }
-    cells.push(verdict?.method ?? "", verdict?.provider ?? "", verdict?.model ?? "", verdict?.adaptations.map((a) => `${a.field} ${a.action}`).join("; ") ?? "");
-    lines.push(cells.map(cell).join(","));
-  }
-  return lines.join("\r\n") + "\r\n";
-}
-
-export function toJsonExport(spec: JudgeSpec, rows: ReadonlyArray<{ value: InputValue; verdict?: Verdict }>): string {
-  const results = rows.map(({ value, verdict }) => {
-    const row: JsonObject = { input: value as JsonValue };
-    if (verdict) {
-      row["data"] = verdict.data as JsonObject;
-      if (verdict.probabilities) row["probabilities"] = verdict.probabilities as unknown as JsonObject;
-      if (verdict.method) row["method"] = verdict.method;
-      row["adaptations"] = verdict.adaptations.map((a) => ({ ...a }));
-      row["provider"] = verdict.provider;
-      row["model"] = verdict.model;
-      row["runtime"] = verdict.runtime;
-    }
-    return row;
-  });
-  return stringifyJson({ questions: spec.properties, instructions: spec.instructions, shape: spec.shape, results }, { indent: 2 });
-}
-
 // ─── Code ────────────────────────────────────────────────────────────
 //
 // Each program is written with its meaning marked (marks.ts): the
 // person's questions, options and inputs as values, LM15's calls as api.
 
 const q = JSON.stringify;
-const qv = (text: string): string => quotedValue(q(text));
+const qv = (text: string, source?: string): string => quotedValue(q(text), source);
 const nv = (n: number): string => val(String(n));
 
 /** The question the SDK's sugar spells, when the sugar reproduces the property exactly (MAP-14 §4 is one convention in every language); otherwise the schema goes verbatim. */
@@ -461,8 +324,8 @@ function questionsCode(spec: JudgeSpec, lang: "javascript" | "python"): { lines:
   for (const [name, prop] of Object.entries(spec.properties)) {
     const call = sugar(name, prop, lang);
     const key = val(lang === "python" ? name : identifier(name));
-    if (call) { uses.add(plain(call).slice(0, plain(call).indexOf("("))); lines.push(`${pad}${key}${sep}${call},`); }
-    else lines.push(`${pad}${key}${sep}${lang === "python" ? pyLiteral(prop, 1) : jsLiteral(prop, 1)},`);
+    if (call) { uses.add(plain(call).slice(0, plain(call).indexOf("("))); lines.push(`${pad}${group(`${key}${sep}${call}`, questionSource(name))},`); }
+    else lines.push(`${pad}${group(`${key}${sep}${lang === "python" ? pyLiteral(prop, 1) : jsLiteral(prop, 1)}`, questionSource(name))},`);
   }
   return { lines, uses };
 }
@@ -475,84 +338,105 @@ function turnsLiteral(turns: readonly Turn[], level: number, lang: "javascript" 
   return `[\n${turns.map((t) => `${inner}${turn(t)}`).join(",\n")},\n${pad}]`;
 }
 
-function jsInput(value: InputValue, level: number, jev: boolean): string {
+function jsState(value: StateValue, level: number, jev: boolean): string {
   if (typeof value === "string") return qv(value);
   if (Array.isArray(value)) {
     const turns = value as readonly Turn[];
-    return jev ? turnsLiteral(turns, level, "javascript") : `[${turns.map((t) => `${api(`Message.${t.role}`)}(${qv(t.content)})`).join(", ")}]`;
+    return jev ? turnsLiteral(turns, level, "javascript") : `[\n${turns.map((t) => `  ${api(`Message.${t.role}`)}(${qv(t.content)}),`).join("\n")}\n]`;
   }
   return jsLiteral(value as JsonValue, level, true);
 }
 
-function pyInput(value: InputValue, level: number, jev: boolean): string {
+function pyState(value: StateValue, level: number, jev: boolean): string {
   if (typeof value === "string") return qv(value);
   if (Array.isArray(value)) {
     const turns = value as readonly Turn[];
-    return jev ? turnsLiteral(turns, level, "python") : `[${turns.map((t) => `${api(`Message.${t.role}`)}(${qv(t.content)})`).join(", ")}]`;
+    return jev ? turnsLiteral(turns, level, "python") : `[\n${turns.map((t) => `    ${api(`Message.${t.role}`)}(${qv(t.content)}),`).join("\n")}\n]`;
   }
   return pyLiteral(value as JsonValue, level, true);
 }
 
 const SHAPE_NOTE: Record<Shape, string> = {
-  text: "one text per call",
-  fields: "one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text",
-  conversation: "one transcript per call",
-};
-/** On Jev the state is the one user part: the page writes the instructions and the transcript into it as a caller would (2026-09-19 D4). */
-const JEV_STATE_NOTE: Record<Shape, string> = {
-  text: `Jev has no system prompt: the instructions ride in the state as \`${JEV_INSTRUCTIONS_KEY}\`, the text as \`${JEV_TEXT_KEY}\``,
-  fields: `Jev has no system prompt: the instructions ride in the state as \`${JEV_INSTRUCTIONS_KEY}\` beside the fields`,
-  conversation: `Jev has no conversation: the transcript is the state's \`messages\` array, and a question can point at a turn (\`messages[1].content\`)`,
+  text: "The state: a text",
+  fields: "The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text",
+  conversation: "The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation",
 };
 const DATA_NOTE = "the picked key per judgment";
 const PROBABILITIES_NOTE = "one distribution per judgment where the provider measures one; else %s and recorded";
 const ADAPTATIONS_NOTE = "MAP-13: what this wire could not take as asked";
+/** The source names the panel lights: the state, each question by name, the echoed result. */
+export const STATE_SOURCE = "state";
+export const RESULT_SOURCE = "result";
+export const questionSource = (name: string): string => `question:${name}`;
 
-/** The JavaScript that judges every input in turn: this page's client, loaded as `lm15/browser`. */
-export function judgeJavascript(connection: Connection, spec: JudgeSpec, inputs: readonly InputValue[]): Code {
+/** What the call answered, echoed under the program as comments (like a REPL), three significant digits for a probability. */
+export interface Echo { readonly data: Readonly<Record<string, JsonValue>>; readonly probabilities?: Readonly<Record<string, Readonly<Record<string, number>>>>; readonly adaptations: ReadonlyArray<{ readonly field: string; readonly action: string }> }
+function tidy(value: JsonValue): JsonValue {
+  if (typeof value === "number") return Number(value.toPrecision(3));
+  if (Array.isArray(value)) return value.map(tidy);
+  if (isJsonObject(value)) return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, tidy(v)]));
+  return value;
+}
+/** One echoed value in the language's own spelling of what `print` shows: a JS literal, a Python repr, JSON for Go and Rust. */
+function echoValue(value: JsonValue | undefined, lang: "javascript" | "python" | "go" | "rust"): string {
+  if (value === undefined) return lang === "python" ? "None" : lang === "go" ? "map[]" : lang === "rust" ? "None" : "undefined";
+  const walk = (v: JsonValue): string => {
+    if (v === null) return lang === "python" ? "None" : "null";
+    if (typeof v === "boolean") return lang === "python" ? (v ? "True" : "False") : String(v);
+    if (typeof v === "number") return String(v);
+    if (typeof v === "string") return lang === "python" ? `'${v.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'` : q(v);
+    if (Array.isArray(v)) return v.length ? `[${v.map(walk).join(", ")}]` : "[]";
+    const entries = Object.entries(v as Record<string, JsonValue>);
+    if (!entries.length) return "{}";
+    const key = (k: string) => (lang === "javascript" ? (/^[A-Za-z_$][\w$]*$/.test(k) ? k : q(k)) : lang === "python" ? `'${k}'` : q(k));
+    return `{ ${entries.map(([k, x]) => `${key(k)}: ${walk(x)}`).join(", ")} }`;
+  };
+  return walk(tidy(value));
+}
+function echoLines(echo: Echo | undefined, lang: "javascript" | "python" | "go" | "rust", lead: string): [string[], string[], string[]] {
+  if (!echo) return [[], [], []];
+  const line = (text: string) => mark("comment", `${lead} → ${text}`, RESULT_SOURCE);
+  return [[line(echoValue(echo.data as JsonValue, lang))], [line(echoValue(echo.probabilities as JsonValue | undefined, lang))], [line(echoValue(echo.adaptations.map((a) => ({ field: a.field, action: a.action })), lang))]];
+}
+
+/** The JavaScript of one call: this page's client, loaded as `lm15/browser`. */
+export function judgeJavascript(connection: Connection, spec: JudgeSpec, value: StateValue, echo?: Echo): Code {
   const { lines: questionLines, uses } = questionsCode(spec, "javascript");
   const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", ...(connection.provider === "anthropic" ? ["access"] : []), "Message", "Request", "judgments", ...[...uses].sort()];
   const jev = judgmentsOnly(connection.provider);
-  const lines = [dim(`import { ${imports.join(", ")} } from "lm15/browser";`), "", ...jsClient(connection)];
+  const lines = [dim(`import { ${imports.join(", ")} } from "lm15/browser";`), "", ...jsClient(connection), `const model = ${qv(connection.model, "model")};`];
   lines.push("", comment("// Declared keys in, a distribution out (MAP-14)."), `const questions = ${api("judgments")}({`, ...questionLines, "});", "");
-  lines.push(comment(`// ${SHAPE_NOTE[spec.shape]}.`), "const inputs = [", ...inputs.map((v) => `  ${jsInput(v, 1, jev)},`), "];", "");
-  const instructions = spec.instructions.trim();
-  let messages: string;
-  if (jev) {
-    // The state, as the caller writes it (D4): verbatim, with the instructions as a named key.
-    const state = spec.shape === "conversation" ? (instructions ? `{ ${JEV_INSTRUCTIONS_KEY}: ${qv(instructions)}, messages: input }` : "{ messages: input }")
-      : spec.shape === "fields" ? (instructions ? `{ ${JEV_INSTRUCTIONS_KEY}: ${qv(instructions)}, ...input }` : "input")
-      : instructions ? `{ ${JEV_INSTRUCTIONS_KEY}: ${qv(instructions)}, ${JEV_TEXT_KEY}: input }` : "input";
-    messages = spec.shape === "text" && !instructions ? `[${api("Message.user")}(input)]` : `[${api("Message.user")}({ type: "data", value: ${state} })]`;
-    if (instructions || spec.shape === "conversation") lines.push(comment(`// ${JEV_STATE_NOTE[spec.shape]}.`));
-  } else messages = spec.shape === "conversation" ? "input" : spec.shape === "fields" ? `[${api("Message.user")}({ type: "data", value: input })]` : `[${api("Message.user")}(input)]`;
-  lines.push("for (const input of inputs) {", `  const request = ${api("Request.create")}({`, `    model: ${qv(connection.model)},`);
-  if (instructions && !jev) lines.push(`    system: ${qv(instructions)},`);
-  lines.push(`    messages: ${messages},`, `    config: { responseFormat: questions, probabilities: ${api('"if_available"')} },`, "  });", `  const response = await ${api("lm.complete")}(request);`, `  console.log(${api("response.data")}); ${comment(`// ${DATA_NOTE}`)}`, `  console.log(${api("response.probabilities")}); ${comment(`// ${PROBABILITIES_NOTE.replace("%s", "absent")}`)}`, `  console.log(${api("response.adaptations")}); ${comment(`// ${ADAPTATIONS_NOTE}`)}`, "}");
+  lines.push(comment(`// ${SHAPE_NOTE[spec.shape]}.`), `const state = ${group(jsState(value, 0, jev), STATE_SOURCE)};`, "");
+  const messages = jev
+    ? (spec.shape === "text" ? `[${api("Message.user")}(state)]` : spec.shape === "fields" ? `[${api("Message.user")}({ type: "data", value: state })]` : `[${api("Message.user")}({ type: "data", value: { messages: state } })]`)
+    : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `[${api("Message.user")}({ type: "data", value: state })]` : `[${api("Message.user")}(state)]`);
+  const [data, probabilities, adaptations] = echoLines(echo, "javascript", "//");
+  lines.push(`const request = ${api("Request.create")}({`, "  model,", `  messages: ${messages},`, `  config: { responseFormat: questions, probabilities: ${api('"if_available"')} },`, "});",
+    `const response = await ${api("lm.complete")}(request);`,
+    `console.log(${api("response.data")}); ${comment(`// ${DATA_NOTE}`)}`, ...data,
+    `console.log(${api("response.probabilities")}); ${comment(`// ${PROBABILITIES_NOTE.replace("%s", "absent")}`)}`, ...probabilities,
+    `console.log(${api("response.adaptations")}); ${comment(`// ${ADAPTATIONS_NOTE}`)}`, ...adaptations);
   return finish(lines.join("\n"));
 }
 
-/** The Python of the same loop: under Pyodide in this page, on CPython without the transport line. */
-export function judgePython(connection: Connection, spec: JudgeSpec, inputs: readonly InputValue[]): Code {
+/** The Python of the same call: under Pyodide in this page, on CPython without the transport line. */
+export function judgePython(connection: Connection, spec: JudgeSpec, value: StateValue, echo?: Echo): Code {
   const client = pyClient(connection);
   const { lines: questionLines, uses } = questionsCode(spec, "python");
   const jev = judgmentsOnly(connection.provider);
-  const instructions = spec.instructions.trim();
-  const usesData = spec.shape === "fields" || (jev && (Boolean(instructions) || spec.shape === "conversation"));
+  const usesData = spec.shape === "fields" || (jev && spec.shape === "conversation");
   const lines = pyImports([client.cls, "Config", "Message", "Request", "judgments", ...(usesData ? ["data"] : []), ...uses], connection);
-  lines.push("", ...client.lines, "", comment("# Declared keys in, a distribution out (MAP-14)."), `questions = ${api("judgments")}(`, ...questionLines, ")", "");
-  lines.push(comment(`# ${SHAPE_NOTE[spec.shape]}.`), "inputs = [", ...inputs.map((v) => `    ${pyInput(v, 1, jev)},`), "]", "");
-  let messages: string;
-  if (jev) {
-    const state = spec.shape === "conversation" ? (instructions ? `{${q(JEV_INSTRUCTIONS_KEY)}: ${qv(instructions)}, "messages": x}` : `{"messages": x}`)
-      : spec.shape === "fields" ? (instructions ? `{${q(JEV_INSTRUCTIONS_KEY)}: ${qv(instructions)}, **x}` : "x")
-      : instructions ? `{${q(JEV_INSTRUCTIONS_KEY)}: ${qv(instructions)}, ${q(JEV_TEXT_KEY)}: x}` : "x";
-    messages = spec.shape === "text" && !instructions ? `[${api("Message.user")}(x)]` : `[${api("Message.user")}(${api("data")}(${state}))]`;
-    if (instructions || spec.shape === "conversation") lines.push(comment(`# ${JEV_STATE_NOTE[spec.shape]}.`));
-  } else messages = spec.shape === "conversation" ? "x" : spec.shape === "fields" ? `[${api("Message.user")}(${api("data")}(x))]` : `[${api("Message.user")}(x)]`;
-  lines.push("for x in inputs:", `    request = ${api("Request")}(`, `        model=${qv(connection.model)},`);
-  if (instructions && !jev) lines.push(`        system=${qv(instructions)},`);
-  lines.push(`        messages=${messages},`, `        config=${api("Config")}(response_format=questions, probabilities=${api('"if_available"')}),`, "    )", `    response = await ${api("lm.complete")}(request)`, `    print(${api("response.data")})  ${comment(`# ${DATA_NOTE}`)}`, `    print(${api("response.probabilities")})  ${comment(`# ${PROBABILITIES_NOTE.replace("%s", "None")}`)}`, `    print(${api("response.adaptations")})  ${comment(`# ${ADAPTATIONS_NOTE}`)}`);
+  lines.push("", ...client.lines, `model = ${qv(connection.model, "model")}`, "", comment("# Declared keys in, a distribution out (MAP-14)."), `questions = ${api("judgments")}(`, ...questionLines, ")", "");
+  lines.push(comment(`# ${SHAPE_NOTE[spec.shape]}.`), `state = ${group(pyState(value, 0, jev), STATE_SOURCE)}`, "");
+  const messages = jev
+    ? (spec.shape === "text" ? `[${api("Message.user")}(state)]` : spec.shape === "fields" ? `[${api("Message.user")}(${api("data")}(state))]` : `[${api("Message.user")}(${api("data")}({"messages": state}))]`)
+    : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `[${api("Message.user")}(${api("data")}(state))]` : `[${api("Message.user")}(state)]`);
+  const [data, probabilities, adaptations] = echoLines(echo, "python", "#");
+  lines.push(`request = ${api("Request")}(`, "    model=model,", `    messages=${messages},`, `    config=${api("Config")}(response_format=questions, probabilities=${api('"if_available"')}),`, ")",
+    `response = await ${api("lm.complete")}(request)`,
+    `print(${api("response.data")})  ${comment(`# ${DATA_NOTE}`)}`, ...data,
+    `print(${api("response.probabilities")})  ${comment(`# ${PROBABILITIES_NOTE.replace("%s", "None")}`)}`, ...probabilities,
+    `print(${api("response.adaptations")})  ${comment(`# ${ADAPTATIONS_NOTE}`)}`, ...adaptations);
   return finish(lines.join("\n"));
 }
 
@@ -571,12 +455,7 @@ function goJson(value: JsonValue, level: number, values = false): string {
   return entries.length ? `lm15.JSONObject{\n${entries.map(([k, v]) => `${inner}${q(k)}: ${goJson(v, level + 1, values)},`).join("\n")}\n${pad}}` : "lm15.JSONObject{}";
 }
 
-/** One input object as the element of a `[]lm15.JSONObject` literal: the type elided, as Go allows; the leaves the person's. */
-function goElement(value: Readonly<Record<string, JsonValue>>): string {
-  return `{${Object.entries(value).map(([k, v]) => `${q(k)}: ${goJson(v, 0, true)}`).join(", ")}}`;
-}
-
-const GO_RESERVED = new Set(["break", "case", "chan", "const", "continue", "default", "defer", "else", "fallthrough", "for", "func", "go", "goto", "if", "import", "interface", "map", "package", "range", "return", "select", "struct", "switch", "type", "var", "lm", "lm15", "ctx", "cancel", "err", "questions", "inputs", "input", "state", "request", "response", "main", "run"]);
+const GO_RESERVED = new Set(["break", "case", "chan", "const", "continue", "default", "defer", "else", "fallthrough", "for", "func", "go", "goto", "if", "import", "interface", "map", "package", "range", "return", "select", "struct", "switch", "type", "var", "lm", "lm15", "ctx", "cancel", "err", "questions", "state", "request", "response", "main", "run"]);
 
 /** One Go variable per question, named after it: `quality`, `is_good` → `isGood`, anything unspellable → `question1`. */
 function goIdentifiers(names: readonly string[]): string[] {
@@ -590,10 +469,9 @@ function goIdentifiers(names: readonly string[]): string[] {
   });
 }
 
-/** The Go of the same loop: the SDK's sugar for each question, one request per input, `Complete` (never streamed). */
-export function judgeGo(connection: Connection, spec: JudgeSpec, inputs: readonly InputValue[]): Code {
+/** The Go of the same call: the SDK's sugar for each question, one request, `Complete` (never streamed). */
+export function judgeGo(connection: Connection, spec: JudgeSpec, value: StateValue, echo?: Echo): Code {
   const jev = judgmentsOnly(connection.provider);
-  const instructions = spec.instructions.trim();
   const body: string[] = [`    ${comment("// Declared keys in, a distribution out (MAP-14).")}`];
   const entries = Object.entries(spec.properties);
   const names = goIdentifiers(entries.map(([name]) => name));
@@ -601,40 +479,35 @@ export function judgeGo(connection: Connection, spec: JudgeSpec, inputs: readonl
   entries.forEach(([name, prop], i) => {
     const question = sugarQuestion(name, prop);
     const text = qv(question?.question.trim() || name);
-    if (!question) { properties.push(`${api("lm15.JudgmentProperty")}{Name: ${qv(name)}, Schema: ${goJson(prop, 2)}}`); return; }
-    if (question.kind === "yesNo") { properties.push(`${api("lm15.JudgmentProperty")}{Name: ${qv(name)}, Schema: ${api("lm15.YesNo")}(${text})}`); return; }
-    properties.push(`${api("lm15.JudgmentProperty")}{Name: ${qv(name)}, Schema: ${names[i]}}`);
+    const source = questionSource(name);
+    if (!question) { properties.push(group(`${api("lm15.JudgmentProperty")}{Name: ${qv(name)}, Schema: ${goJson(prop, 2)}}`, source)); return; }
+    if (question.kind === "yesNo") { properties.push(group(`${api("lm15.JudgmentProperty")}{Name: ${qv(name)}, Schema: ${api("lm15.YesNo")}(${text})}`, source)); return; }
+    properties.push(group(`${api("lm15.JudgmentProperty")}{Name: ${qv(name)}, Schema: ${names[i]}}`, source));
+    const declared: string[] = [];
     if (question.kind === "choice") {
-      if (question.options.every((o) => !o.description)) body.push(`    ${names[i]}, err := ${api("lm15.Choice")}(${text}, ${api("lm15.Options")}(${question.options.map((o) => qv(o.key)).join(", ")})...)`);
-      else body.push(`    ${names[i]}, err := ${api("lm15.Choice")}(${text},`, ...question.options.map((o) => `        ${api("lm15.ChoiceOption")}{Key: ${qv(o.key)}${o.description ? `, Description: ${qv(o.description)}` : ""}},`), "    )");
+      if (question.options.every((o) => !o.description)) declared.push(`    ${names[i]}, err := ${api("lm15.Choice")}(${text}, ${api("lm15.Options")}(${question.options.map((o) => qv(o.key)).join(", ")})...)`);
+      else declared.push(`    ${names[i]}, err := ${api("lm15.Choice")}(${text},`, ...question.options.map((o) => `        ${api("lm15.ChoiceOption")}{Key: ${qv(o.key)}${o.description ? `, Description: ${qv(o.description)}` : ""}},`), "    )");
     } else {
-      body.push(`    ${names[i]}, err := ${api("lm15.Score")}(${text}, ${comment("// levels, worst to best")}`, ...question.options.map((o) => `        ${api("lm15.ScoreLevel")}{${[...(o.key ? [`Name: ${qv(o.key)}`] : []), ...(o.description ? [`Description: ${qv(o.description)}`] : [])].join(", ")}},`), "    )");
+      declared.push(`    ${names[i]}, err := ${api("lm15.Score")}(${text}, ${comment("// levels, worst to best")}`, ...question.options.map((o) => `        ${api("lm15.ScoreLevel")}{${[...(o.key ? [`Name: ${qv(o.key)}`] : []), ...(o.description ? [`Description: ${qv(o.description)}`] : [])].join(", ")}},`), "    )");
     }
-    body.push(GO_ERR);
+    body.push(group(declared.join("\n"), source), GO_ERR);
   });
   body.push(`    questions, err := ${api("lm15.Judgments")}("judgments", true,`, ...properties.map((p) => `        ${p},`), "    )", GO_ERR, "");
-  // The inputs, typed by shape: texts, field objects, or transcripts (Jev takes a transcript as its own `messages` array).
+  // The state, typed by shape: a text, an object, or a transcript (Jev takes a transcript as its own `messages` array).
   body.push(`    ${comment(`// ${SHAPE_NOTE[spec.shape]}.`)}`);
-  if (spec.shape === "text") body.push("    inputs := []string{", ...inputs.map((v) => `        ${qv(v as string)},`), "    }");
-  else if (spec.shape === "fields") body.push("    inputs := []lm15.JSONObject{", ...inputs.map((v) => `        ${goElement(v as Readonly<Record<string, JsonValue>>)},`), "    }");
-  else if (jev) body.push("    inputs := [][]lm15.JSONObject{", ...inputs.map((v) => `        {${(v as readonly Turn[]).map((t) => `{"role": ${q(t.role)}, "content": ${qv(t.content)}}`).join(", ")}},`), "    }");
-  else body.push("    inputs := [][]lm15.Message{", ...inputs.map((v) => `        {${(v as readonly Turn[]).map((t) => `${api(t.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(t.content)})`).join(", ")}},`), "    }");
-  body.push("    for _, input := range inputs {");
-  let messages: string;
-  if (jev) {
-    const fieldNames = spec.shape === "fields" ? Object.keys((inputs[0] ?? {}) as Record<string, JsonValue>) : [];
-    const state = spec.shape === "conversation" ? (instructions ? `lm15.JSONObject{${q(JEV_INSTRUCTIONS_KEY)}: ${qv(instructions)}, "messages": input}` : `lm15.JSONObject{"messages": input}`)
-      : spec.shape === "fields" ? (instructions ? `lm15.JSONObject{\n${[`${q(JEV_INSTRUCTIONS_KEY)}: ${qv(instructions)}`, ...fieldNames.map((f) => `${q(f)}: input[${q(f)}]`)].map((e) => `            ${e},`).join("\n")}\n        }` : "input")
-      : instructions ? `lm15.JSONObject{${q(JEV_INSTRUCTIONS_KEY)}: ${qv(instructions)}, ${q(JEV_TEXT_KEY)}: input}` : "input";
-    if (spec.shape === "text" && !instructions) messages = `[]lm15.Message{${api("lm15.UserMessage")}(input)}`;
-    else {
-      body.push(`        ${comment(`// ${JEV_STATE_NOTE[spec.shape]}.`)}`, `        state := ${state}`);
-      messages = `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(state))}`;
-    }
-  } else messages = spec.shape === "conversation" ? "input" : spec.shape === "fields" ? `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(input))}` : `[]lm15.Message{${api("lm15.UserMessage")}(input)}`;
-  body.push(`        request, err := ${api("lm15.NewRequest")}(`, `            ${qv(connection.model)},`, `            ${messages},`);
-  if (instructions && !jev) body.push(`            ${api("lm15.WithSystem")}(${qv(instructions)}),`);
-  body.push(`            ${api("lm15.WithConfig")}(${api("lm15.Config")}{ResponseFormat: questions, Probabilities: ${api("lm15.ProbabilitiesIfAvailable")}}),`, "        )", GO_ERR_IN_LOOP, `        response, err := ${api("lm.Complete")}(ctx, request)`, GO_ERR_IN_LOOP, `        fmt.Println(${api("response.Data")}())          ${comment(`// ${DATA_NOTE}`)}`, `        fmt.Println(${api("response.Probabilities")}()) ${comment(`// ${PROBABILITIES_NOTE.replace("%s", "nil")}`)}`, `        fmt.Println(${api("response.Adaptations")})     ${comment(`// ${ADAPTATIONS_NOTE}`)}`, "    }");
+  if (spec.shape === "text") body.push(`    state := ${group(qv(value as string), STATE_SOURCE)}`);
+  else if (spec.shape === "fields") body.push(`    state := ${group(goJson(value as JsonValue, 1, true), STATE_SOURCE)}`);
+  else if (jev) body.push(`    state := ${group(`[]lm15.JSONObject{\n${(value as readonly Turn[]).map((t) => `        {"role": ${q(t.role)}, "content": ${qv(t.content)}},`).join("\n")}\n    }`, STATE_SOURCE)}`);
+  else body.push(`    state := ${group(`[]lm15.Message{\n${(value as readonly Turn[]).map((t) => `        ${api(t.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(t.content)}),`).join("\n")}\n    }`, STATE_SOURCE)}`);
+  const messages = jev
+    ? (spec.shape === "text" ? `[]lm15.Message{${api("lm15.UserMessage")}(state)}` : spec.shape === "fields" ? `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(state))}` : `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(lm15.JSONObject{"messages": state}))}`)
+    : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(state))}` : `[]lm15.Message{${api("lm15.UserMessage")}(state)}`);
+  const [data, probabilities, adaptations] = echoLines(echo, "go", "    //");
+  body.push("", `    request, err := ${api("lm15.NewRequest")}(`, `        ${qv(connection.model, "model")},`, `        ${messages},`, `        ${api("lm15.WithConfig")}(${api("lm15.Config")}{ResponseFormat: questions, Probabilities: ${api("lm15.ProbabilitiesIfAvailable")}}),`, "    )", GO_ERR,
+    `    response, err := ${api("lm.Complete")}(ctx, request)`, GO_ERR,
+    `    fmt.Println(${api("response.Data")}())          ${comment(`// ${DATA_NOTE}`)}`, ...data,
+    `    fmt.Println(${api("response.Probabilities")}()) ${comment(`// ${PROBABILITIES_NOTE.replace("%s", "nil")}`)}`, ...probabilities,
+    `    fmt.Println(${api("response.Adaptations")})     ${comment(`// ${ADAPTATIONS_NOTE}`)}`, ...adaptations);
   return goProgram(connection, ["fmt"], body);
 }
 
@@ -665,10 +538,9 @@ function rustPairs(pairs: readonly string[], level: number): string {
   return `[\n${pairs.map((p) => `${inner}${p},`).join("\n")}\n${pad}]`;
 }
 
-/** The Rust of the same loop: the SDK's sugar for each question, one `Request` per input, `complete` (never streamed). */
-export function judgeRust(connection: Connection, spec: JudgeSpec, inputs: readonly InputValue[]): Code {
+/** The Rust of the same call: the SDK's sugar for each question, one `Request`, `complete` (never streamed). */
+export function judgeRust(connection: Connection, spec: JudgeSpec, value: StateValue, echo?: Echo): Code {
   const jev = judgmentsOnly(connection.provider);
-  const instructions = spec.instructions.trim();
   const uses = new Set<string>(["judgments", "Config", "JsonObject", "Message", "ProbabilityPolicy", "Request"]);
   let json = false;
   const questions: string[] = [];
@@ -676,68 +548,56 @@ export function judgeRust(connection: Connection, spec: JudgeSpec, inputs: reado
     const question = sugarQuestion(name, prop);
     const text = rv(question?.question.trim() || name);
     const key = `${rv(name)}.into()`;
-    if (!question) { json = true; questions.push(`questions.insert(${key}, json!(${rustJson(prop, 0)}));`); continue; }
-    if (question.kind === "yesNo") { uses.add("yes_no"); questions.push(`questions.insert(${key}, ${api("yes_no")}(${text}).into());`); continue; }
+    const push = (line: string) => questions.push(group(line, questionSource(name)));
+    if (!question) { json = true; push(`questions.insert(${key}, json!(${rustJson(prop, 0)}));`); continue; }
+    if (question.kind === "yesNo") { uses.add("yes_no"); push(`questions.insert(${key}, ${api("yes_no")}(${text}).into());`); continue; }
     if (question.kind === "choice") {
-      if (question.options.every((o) => !o.description)) { uses.add("choice"); questions.push(`questions.insert(${key}, ${api("choice")}(${text}, ${rustPairs(question.options.map((o) => rv(o.key)), 0)})?.into());`); }
-      else { uses.add("choice_described"); questions.push(`questions.insert(${key}, ${api("choice_described")}(${text}, ${rustPairs(question.options.map((o) => `(${rv(o.key)}.into(), ${o.description ? `Some(${rv(o.description)}.into())` : "None"})`), 0)})?.into());`); }
-    } else if (question.options.every((o) => !o.key)) { uses.add("score"); questions.push(`questions.insert(${key}, ${api("score")}(${text}, ${rustPairs(question.options.map((o) => rv(o.description)), 0)})?.into()); ${comment("// levels, worst to best")}`); }
-    else { uses.add("score_named"); questions.push(`questions.insert(${key}, ${api("score_named")}(${text}, ${rustPairs(question.options.map((o) => `(${o.key ? `Some(${rv(o.key)}.into())` : "None"}, ${rv(o.description)}.into())`), 0)})?.into()); ${comment("// levels, worst to best")}`); }
+      if (question.options.every((o) => !o.description)) { uses.add("choice"); push(`questions.insert(${key}, ${api("choice")}(${text}, ${rustPairs(question.options.map((o) => rv(o.key)), 0)})?.into());`); }
+      else { uses.add("choice_described"); push(`questions.insert(${key}, ${api("choice_described")}(${text}, ${rustPairs(question.options.map((o) => `(${rv(o.key)}.into(), ${o.description ? `Some(${rv(o.description)}.into())` : "None"})`), 0)})?.into());`); }
+    } else if (question.options.every((o) => !o.key)) { uses.add("score"); push(`questions.insert(${key}, ${api("score")}(${text}, ${rustPairs(question.options.map((o) => rv(o.description)), 0)})?.into()); ${comment("// levels, worst to best")}`); }
+    else { uses.add("score_named"); push(`questions.insert(${key}, ${api("score_named")}(${text}, ${rustPairs(question.options.map((o) => `(${o.key ? `Some(${rv(o.key)}.into())` : "None"}, ${rv(o.description)}.into())`), 0)})?.into()); ${comment("// levels, worst to best")}`); }
   }
-  // The inputs, typed by shape: texts, `json!` objects, or transcripts (Jev takes a transcript as its own `messages` array).
-  const inputLines: string[] = [];
-  if (spec.shape === "text") inputLines.push(...inputs.map((v) => `    ${rv(v as string)},`));
-  else if (spec.shape === "fields") { json = true; inputLines.push(...inputs.map((v) => `    json!(${rustJson(v as JsonValue, 1, true)}),`)); }
-  else if (jev) { json = true; inputLines.push(...inputs.map((v) => `    json!([\n${(v as readonly Turn[]).map((t) => `        { "role": ${q(t.role)}, "content": ${rv(t.content)} },`).join("\n")}\n    ]),`)); }
-  else inputLines.push(...inputs.map((v) => `    vec![${(v as readonly Turn[]).map((t) => `${api(`Message::${t.role}`)}(${rv(t.content)})?`).join(", ")}],`));
-  const loop: string[] = [];
+  // The state, typed by shape: a text, a `json!` object, or a transcript (Jev takes a transcript as its own `messages` array).
+  let state: string;
+  if (spec.shape === "text") state = rv(value as string);
+  else if (spec.shape === "fields") { json = true; state = `json!(${rustJson(value as JsonValue, 0, true)})`; }
+  else if (jev) { json = true; state = `json!([\n${(value as readonly Turn[]).map((t) => `    { "role": ${q(t.role)}, "content": ${rv(t.content)} },`).join("\n")}\n])`; }
+  else state = `vec![\n${(value as readonly Turn[]).map((t) => `    ${api(`Message::${t.role}`)}(${rv(t.content)})?,`).join("\n")}\n]`;
   let messages: string;
   if (jev) {
-    const fieldNames = spec.shape === "fields" ? Object.keys((inputs[0] ?? {}) as Record<string, JsonValue>) : [];
-    const state = spec.shape === "conversation" ? (instructions ? `json!({ ${q(JEV_INSTRUCTIONS_KEY)}: ${rv(instructions)}, "messages": input })` : `json!({ "messages": input })`)
-      : spec.shape === "fields" ? (instructions ? `json!({\n${[`${q(JEV_INSTRUCTIONS_KEY)}: ${rv(instructions)}`, ...fieldNames.map((f) => `${q(f)}: input[${q(f)}]`)].map((e) => `        ${e},`).join("\n")}\n    })` : "input")
-      : instructions ? `json!({ ${q(JEV_INSTRUCTIONS_KEY)}: ${rv(instructions)}, ${q(JEV_TEXT_KEY)}: input })` : "input";
-    if (spec.shape === "text" && !instructions) messages = `vec![${api("Message::user")}(input)?]`;
-    else {
-      uses.add("Part");
-      if (state !== "input") { json = true; loop.push(`    ${comment(`// ${JEV_STATE_NOTE[spec.shape]}.`)}`, `    let state = ${state};`); }
-      messages = `vec![${api("Message::user")}(${api("Part::data")}(${state === "input" ? "input" : "state"}))?]`;
-    }
-  } else if (spec.shape === "conversation") messages = "input";
-  else if (spec.shape === "fields") { uses.add("Part"); messages = `vec![${api("Message::user")}(${api("Part::data")}(input))?]`; }
-  else messages = `vec![${api("Message::user")}(input)?]`;
+    if (spec.shape === "text") messages = `vec![${api("Message::user")}(state)?]`;
+    else { uses.add("Part"); if (spec.shape === "conversation") json = true; messages = `vec![${api("Message::user")}(${api("Part::data")}(${spec.shape === "fields" ? "state" : 'json!({ "messages": state })'}))?]`; }
+  } else if (spec.shape === "conversation") messages = "state";
+  else if (spec.shape === "fields") { uses.add("Part"); messages = `vec![${api("Message::user")}(${api("Part::data")}(state))?]`; }
+  else messages = `vec![${api("Message::user")}(state)?]`;
+  const [data, probabilities, adaptations] = echoLines(echo, "rust", "//");
   const lines = [dim("use lm15::{auth::Credential, registry::adapter_for};"), dim(`use lm15::{${rustUseOrder(uses).join(", ")}};`), ...(json ? [dim("use serde_json::json;")] : []), ""];
   lines.push(...rustClient(connection), "");
   lines.push(comment("// Declared keys in, a distribution out (MAP-14)."), "let mut questions = JsonObject::new();", ...questions, `let questions = ${api("judgments")}(questions)?;`, "");
-  lines.push(comment(`// ${SHAPE_NOTE[spec.shape]}.`), "let inputs = [", ...inputLines, "];", "");
-  lines.push("for input in inputs {", ...loop, `    let request = ${api("Request")} {`, `        model: ${rv(connection.model)}.into(),`);
-  if (instructions && !jev) lines.push(`        system: Some(${rv(instructions)}.into()),`);
-  lines.push(`        messages: ${messages},`, `        config: ${api("Config")} {`, "            response_format: Some(questions.clone()),", `            probabilities: Some(${api("ProbabilityPolicy::IfAvailable")}),`, dim("            ..Default::default()"), "        },", dim("        ..Default::default()"), "    };", `    let response = ${api("lm.complete")}(&request).await?;`, `    println!("{:?}", ${api("response.data")}()); ${comment(`// ${DATA_NOTE}`)}`, `    println!("{:?}", ${api("response.probabilities")}()); ${comment(`// ${PROBABILITIES_NOTE.replace("%s", "None")}`)}`, `    println!("{:?}", ${api("response.adaptations")}); ${comment(`// ${ADAPTATIONS_NOTE}`)}`, "}");
+  lines.push(comment(`// ${SHAPE_NOTE[spec.shape]}.`), `let state = ${group(state, STATE_SOURCE)};`, "");
+  lines.push(`let request = ${api("Request")} {`, `    model: ${rv(connection.model, "model")}.into(),`, `    messages: ${messages},`, `    config: ${api("Config")} {`, "        response_format: Some(questions),", `        probabilities: Some(${api("ProbabilityPolicy::IfAvailable")}),`, dim("        ..Default::default()"), "    },", dim("    ..Default::default()"), "};",
+    `let response = ${api("lm.complete")}(&request).await?;`,
+    `println!("{:?}", ${api("response.data")}()); ${comment(`// ${DATA_NOTE}`)}`, ...data,
+    `println!("{:?}", ${api("response.probabilities")}()); ${comment(`// ${PROBABILITIES_NOTE.replace("%s", "None")}`)}`, ...probabilities,
+    `println!("{:?}", ${api("response.adaptations")}); ${comment(`// ${ADAPTATIONS_NOTE}`)}`, ...adaptations);
   return finish(lines.join("\n"));
 }
 
-// ─── The example set ─────────────────────────────────────────────────
+// ─── The example ─────────────────────────────────────────────────────
 
-/** The contract's own receipted example: three judgments over a wine note. */
+/** One question over one state: the contract's receipted wine example, its `quality` scale. */
 export const EXAMPLE_SPEC: JudgeSpec = {
   properties: {
     quality: score("How good is this wine, according to the note?", { faulty: "Faulty or unpleasant", simple: "Simple and sound", good: "Good, well made", excellent: "Excellent, complex and structured", profound: "Profound, exceptional" }),
-    style: choice("What is the dominant style described?", { fruit: "Fruit-forward", oak: "Oak-driven", mineral: "Mineral, savoury" }),
-    ageing: yesNo("Does the note say the wine will improve with age?"),
   },
-  // No instructions by default: the request is the docs' quick start — a string state and the questions, nothing else.
-  instructions: "",
   shape: "text",
-  fields: [],
 };
 
-/** What a person might add as instructions; the example does not start with them. */
-export const EXAMPLE_INSTRUCTIONS = "These are tasting notes written by a sommelier. Judge the wine described, not the writing.";
+export const EXAMPLE_NOTE = "Ripe blackberry and cassis lead, framed by toasty oak and firm, fine-grained tannins. Long, layered finish; will reward a decade in the cellar.";
 
-export const EXAMPLE_INPUTS: readonly string[] = [
-  "Ripe blackberry and cassis lead, framed by toasty oak and firm, fine-grained tannins. Long, layered finish; will reward a decade in the cellar.",
-  "Thin, sour, faintly oxidised. Drink up.",
-  "Wet stone and lime zest, taut acidity, saline finish.",
-];
-
-export const EXAMPLE_FIELDS: readonly FieldDef[] = [{ name: "note", type: "text" }, { name: "price_eur", type: "number" }];
+/** What each shape starts with: the note as a text, as an object, as a conversation. */
+export function exampleState(shape: Shape): StateValue {
+  if (shape === "text") return EXAMPLE_NOTE;
+  if (shape === "fields") return { note: EXAMPLE_NOTE, price_eur: 48 };
+  return [{ role: "user", content: "Something to lay down for ten years?" }, { role: "assistant", content: `The 2019 Pauillac: ${EXAMPLE_NOTE}` }];
+}

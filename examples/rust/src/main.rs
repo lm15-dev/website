@@ -7,7 +7,7 @@
 
 mod openai_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai", Credential::api_key("sk-just-kidding")?,
@@ -23,42 +23,32 @@ mod openai_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "gpt-4.1-mini".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "gpt-4.1-mini".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod openai_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -75,45 +65,35 @@ mod openai_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "gpt-4.1-mini".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "gpt-4.1-mini".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod openai_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai", Credential::api_key("sk-just-kidding")?,
@@ -129,35 +109,27 @@ mod openai_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "gpt-4.1-mini".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "gpt-4.1-mini".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -169,7 +141,7 @@ mod openai_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -222,7 +194,7 @@ mod openai_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -433,7 +405,7 @@ mod openai_zero_temperature {
 
 mod anthropic_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "anthropic", Credential::api_key("sk-just-kidding")?,
@@ -449,42 +421,32 @@ mod anthropic_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "claude-haiku-4-5".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "claude-haiku-4-5".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod anthropic_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -501,45 +463,35 @@ mod anthropic_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "claude-haiku-4-5".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "claude-haiku-4-5".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod anthropic_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "anthropic", Credential::api_key("sk-just-kidding")?,
@@ -555,35 +507,27 @@ mod anthropic_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "claude-haiku-4-5".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "claude-haiku-4-5".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -595,7 +539,7 @@ mod anthropic_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -648,7 +592,7 @@ mod anthropic_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -859,7 +803,7 @@ mod anthropic_zero_temperature {
 
 mod gemini_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "gemini", Credential::api_key("sk-just-kidding")?,
@@ -875,42 +819,32 @@ mod gemini_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "gemini-2.5-flash".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "gemini-2.5-flash".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod gemini_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -927,45 +861,35 @@ mod gemini_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "gemini-2.5-flash".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "gemini-2.5-flash".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod gemini_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "gemini", Credential::api_key("sk-just-kidding")?,
@@ -981,35 +905,27 @@ mod gemini_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "gemini-2.5-flash".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "gemini-2.5-flash".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -1021,7 +937,7 @@ mod gemini_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -1074,7 +990,7 @@ mod gemini_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -1285,7 +1201,7 @@ mod gemini_zero_temperature {
 
 mod groq_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "groq", Credential::api_key("sk-just-kidding")?,
@@ -1301,42 +1217,32 @@ mod groq_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "llama-3.3-70b-versatile".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "llama-3.3-70b-versatile".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod groq_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -1353,45 +1259,35 @@ mod groq_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "llama-3.3-70b-versatile".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "llama-3.3-70b-versatile".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod groq_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "groq", Credential::api_key("sk-just-kidding")?,
@@ -1407,35 +1303,27 @@ mod groq_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "llama-3.3-70b-versatile".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "llama-3.3-70b-versatile".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -1447,7 +1335,7 @@ mod groq_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -1500,7 +1388,7 @@ mod groq_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -1711,7 +1599,7 @@ mod groq_zero_temperature {
 
 mod openrouter_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openrouter", Credential::api_key("sk-just-kidding")?,
@@ -1727,42 +1615,32 @@ mod openrouter_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "openai/gpt-4.1-mini".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "openai/gpt-4.1-mini".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod openrouter_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -1779,45 +1657,35 @@ mod openrouter_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "openai/gpt-4.1-mini".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "openai/gpt-4.1-mini".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod openrouter_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openrouter", Credential::api_key("sk-just-kidding")?,
@@ -1833,35 +1701,27 @@ mod openrouter_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "openai/gpt-4.1-mini".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "openai/gpt-4.1-mini".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -1873,7 +1733,7 @@ mod openrouter_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -1926,7 +1786,7 @@ mod openrouter_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -2137,7 +1997,7 @@ mod openrouter_zero_temperature {
 
 mod deepseek_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "deepseek", Credential::api_key("sk-just-kidding")?,
@@ -2153,42 +2013,32 @@ mod deepseek_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "deepseek-chat".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "deepseek-chat".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod deepseek_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -2205,45 +2055,35 @@ mod deepseek_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "deepseek-chat".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "deepseek-chat".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod deepseek_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "deepseek", Credential::api_key("sk-just-kidding")?,
@@ -2259,35 +2099,27 @@ mod deepseek_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "deepseek-chat".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "deepseek-chat".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -2299,7 +2131,7 @@ mod deepseek_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -2352,7 +2184,7 @@ mod deepseek_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -2563,7 +2395,7 @@ mod deepseek_zero_temperature {
 
 mod zai_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "zai", Credential::api_key("sk-just-kidding")?,
@@ -2579,42 +2411,32 @@ mod zai_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "glm-4.5".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "glm-4.5".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod zai_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -2631,45 +2453,35 @@ mod zai_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "glm-4.5".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "glm-4.5".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod zai_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "zai", Credential::api_key("sk-just-kidding")?,
@@ -2685,35 +2497,27 @@ mod zai_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "glm-4.5".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "glm-4.5".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -2725,7 +2529,7 @@ mod zai_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -2778,7 +2582,7 @@ mod zai_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -2989,7 +2793,7 @@ mod zai_zero_temperature {
 
 mod meta_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "meta", Credential::api_key("sk-just-kidding")?,
@@ -3005,42 +2809,32 @@ mod meta_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "muse-spark-1.3".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "muse-spark-1.3".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod meta_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -3057,45 +2851,35 @@ mod meta_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "muse-spark-1.3".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "muse-spark-1.3".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod meta_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "meta", Credential::api_key("sk-just-kidding")?,
@@ -3111,35 +2895,27 @@ mod meta_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "muse-spark-1.3".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "muse-spark-1.3".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -3151,7 +2927,7 @@ mod meta_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -3204,7 +2980,7 @@ mod meta_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -3415,7 +3191,7 @@ mod meta_zero_temperature {
 
 mod moonshotai_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "moonshotai", Credential::api_key("sk-just-kidding")?,
@@ -3431,42 +3207,32 @@ mod moonshotai_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "kimi-k2.5".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "kimi-k2.5".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod moonshotai_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -3483,45 +3249,35 @@ mod moonshotai_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "kimi-k2.5".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "kimi-k2.5".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod moonshotai_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "moonshotai", Credential::api_key("sk-just-kidding")?,
@@ -3537,35 +3293,27 @@ mod moonshotai_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "kimi-k2.5".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "kimi-k2.5".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -3577,7 +3325,7 @@ mod moonshotai_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -3630,7 +3378,7 @@ mod moonshotai_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -3841,7 +3589,7 @@ mod moonshotai_zero_temperature {
 
 mod typesafe_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "typesafe", Credential::api_key("sk-just-kidding")?,
@@ -3857,42 +3605,32 @@ mod typesafe_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "jev-latest".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "jev-latest".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod typesafe_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -3909,45 +3647,35 @@ mod typesafe_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "jev-latest".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "jev-latest".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod typesafe_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -3964,46 +3692,34 @@ mod typesafe_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            json!([
-                { "role": "user", "content": "Quotes \" and a newline\n</script> are text, not executable code." },
-            ]),
-        ];
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = json!([
+            { "role": "user", "content": "Quotes \" and a newline\n</script> are text, not executable code." },
+        ]);
 
-        for input in inputs {
-            // Jev has no conversation: the transcript is the state's `messages` array, and a question can point at a turn (`messages[1].content`).
-            let state = json!({ "messages": input });
-            let request = Request {
-                model: "jev-latest".into(),
-                messages: vec![Message::user(Part::data(state))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "jev-latest".into(),
+            messages: vec![Message::user(Part::data(json!({ "messages": state })))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod ollama_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "ollama", Credential::api_key("unused")?,
@@ -4019,42 +3735,32 @@ mod ollama_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "qwen3.5:0.8b".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "qwen3.5:0.8b".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod ollama_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -4071,45 +3777,35 @@ mod ollama_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "qwen3.5:0.8b".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "qwen3.5:0.8b".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod ollama_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "ollama", Credential::api_key("unused")?,
@@ -4125,35 +3821,27 @@ mod ollama_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "qwen3.5:0.8b".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "qwen3.5:0.8b".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -4165,7 +3853,7 @@ mod ollama_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -4218,7 +3906,7 @@ mod ollama_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -4429,7 +4117,7 @@ mod ollama_zero_temperature {
 
 mod custom_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai-chat", Credential::api_key("unused")?,
@@ -4445,42 +4133,32 @@ mod custom_judge_text {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one text per call.
-        let inputs = [
-            "Quotes \" and a newline\n</script> are text, not executable code.",
-        ];
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
-        for input in inputs {
-            let request = Request {
-                model: "custom-model".into(),
-                messages: vec![Message::user(input)?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "custom-model".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod custom_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -4497,45 +4175,35 @@ mod custom_judge_fields {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one object per call: a data part; Jev reads it as structured state and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let inputs = [
-            json!({
-                "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-                "price": 1,
-            }),
-        ];
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
 
-        for input in inputs {
-            let request = Request {
-                model: "custom-model".into(),
-                messages: vec![Message::user(Part::data(input))?],
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "custom-model".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
 
 mod custom_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{choice_described, judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai-chat", Credential::api_key("unused")?,
@@ -4551,35 +4219,27 @@ mod custom_judge_conversation {
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("style".into(), choice_described("What is the dominant style described?", [
-            ("fruit".into(), Some("Fruit-forward".into())),
-            ("oak".into(), Some("Oak-driven".into())),
-            ("mineral".into(), Some("Mineral, savoury".into())),
-        ])?.into());
-        questions.insert("ageing".into(), yes_no("Does the note say the wine will improve with age?").into());
         let questions = judgments(questions)?;
 
-        // one transcript per call.
-        let inputs = [
-            vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
         ];
 
-        for input in inputs {
-            let request = Request {
-                model: "custom-model".into(),
-                messages: input,
-                config: Config {
-                    response_format: Some(questions.clone()),
-                    probabilities: Some(ProbabilityPolicy::IfAvailable),
-                    ..Default::default()
-                },
+        let request = Request {
+            model: "custom-model".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
                 ..Default::default()
-            };
-            let response = lm.complete(&request).await?;
-            println!("{:?}", response.data()); // the picked key per judgment
-            println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
-            println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
-        }
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         Ok(())
     }
 }
@@ -4591,7 +4251,7 @@ mod custom_story {
     use serde_json::json;
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {
@@ -4644,7 +4304,7 @@ mod custom_story_first_turn {
     use lm15::{Message, ProviderLM, Request, ResponseStream};
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
         async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
             messages.push(Message::user(text)?);
             let request = Request {

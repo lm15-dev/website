@@ -14,7 +14,7 @@
  * marks do not balance, so a slip is an error, not a stray character.
  */
 
-export type MarkKind = "value" | "api" | "comment" | "dim" | "opaque";
+export type MarkKind = "value" | "api" | "comment" | "dim" | "opaque" | "group";
 
 /**
  * A run of the text and every kind that applies to it (an outer `dim` line may hold a `comment`).
@@ -26,12 +26,12 @@ export interface Mark { readonly start: number; readonly end: number; readonly k
 /** A program for the panel: the exact text (what Copy gives), and where its meaning lies. */
 export interface Code { readonly text: string; readonly marks: readonly Mark[] }
 
-const OPEN: Record<MarkKind, string> = { value: "\u0001", api: "\u0002", comment: "\u0003", dim: "\u0004", opaque: "\u0007" };
-const KIND_OF: Record<string, MarkKind> = { "\u0001": "value", "\u0002": "api", "\u0003": "comment", "\u0004": "dim", "\u0007": "opaque" };
+const OPEN: Record<MarkKind, string> = { value: "\u0001", api: "\u0002", comment: "\u0003", dim: "\u0004", opaque: "\u0007", group: "\u0008" };
+const KIND_OF: Record<string, MarkKind> = { "\u0001": "value", "\u0002": "api", "\u0003": "comment", "\u0004": "dim", "\u0007": "opaque", "\u0008": "group" };
 const CLOSE = "\u0005";
 /** Wraps a value's source name right after its open mark: `\u0001\u0006system\u0006text\u0005`. */
 const SOURCE = "\u0006";
-const SENTINEL = /[\u0001-\u0007]/;
+const SENTINEL = /[\u0001-\u0008]/;
 
 export function mark(kind: MarkKind, text: string, source?: string): string {
   if (source !== undefined && (SENTINEL.test(source) || !source)) throw new Error("code marks: a source name must be plain and non-empty");
@@ -44,6 +44,8 @@ export const api = (text: string): string => mark("api", text);
 export const comment = (text: string): string => mark("comment", text);
 /** Plumbing the language demands: imports, error checks, `package main`. */
 export const dim = (text: string): string => mark("dim", text);
+/** No colour of its own: a run that belongs to one control (a question's line, the state), so the panel can light it as one. */
+export const group = (text: string, source: string): string => mark("group", text, source);
 /** A provider's opaque payload (a signature, an encrypted reasoning item): needed verbatim, not meant to be read. The panel folds it. */
 export const opaque = (text: string): string => mark("opaque", text);
 /** A quoted literal whose contents are opaque: quotes are syntax, the text between them is folded. */
@@ -58,7 +60,7 @@ export function quotedValue(literal: string, source?: string): string {
 
 /** The text without its marks: for width decisions while a program is still being written. */
 export function plain(marked: string): string {
-  return marked.replace(/\u0006[^\u0006]*\u0006/g, "").replace(/[\u0001-\u0005\u0007]/g, "");
+  return marked.replace(/\u0006[^\u0006]*\u0006/g, "").replace(/[\u0001-\u0005\u0007\u0008]/g, "");
 }
 
 /** The exact source and its marks. Throws on unbalanced marks. */

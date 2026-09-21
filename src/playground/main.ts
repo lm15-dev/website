@@ -145,10 +145,10 @@ function setMode(next: Mode, remember = false): void {
   const codePanel = $("code-panel");
   if (next === "judge") $("judge-code-slot").append(codePanel);
   else $("chat-view").append(codePanel);
-  const labels: Record<string, string> = next === "judge" ? { settings: "Questions", chat: "Results", code: "Code" } : { settings: "Questions", chat: "Chat", code: "Code" };
+  const labels: Record<string, string> = next === "judge" ? { chat: "Judge", code: "Code" } : { chat: "Chat", code: "Code" };
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-target]")) button.textContent = labels[button.dataset.viewTarget!]!;
-  if (next === "chat" && document.body.dataset.view === "settings") setView("chat"); // Chat has no third view
   if (remember) { try { localStorage.setItem("lm15.playground.mode", next); } catch { /* not remembered */ } }
+  if (next === "judge") judge?.layout(); else { autosize(prompt); autosize(systemInput); for (const area of document.querySelectorAll<HTMLTextAreaElement>(".turn-text")) autosize(area); }
   refreshStatus();
   if (changed && automatic.checked) void discover();
 }
@@ -170,7 +170,7 @@ function redactCode(code: Code): Code {
 /** The wire as text: the request line, the headers dimmed, the body as the SDK wrote it. */
 function wireCode(text: string, headerCount: number): Code {
   // A raw control character in a body (never in JSON, which escapes them) shows as U+FFFD rather than passing for a mark.
-  const lines = text.replace(/[\u0001-\u0007]/g, "\uFFFD").split("\n");
+  const lines = text.replace(/[\u0001-\u0008]/g, "\uFFFD").split("\n");
   // Lines 2 .. 1+headerCount are the headers (line 1 is blank after the request line).
   return finish(lines.map((line, i) => (i >= 2 && i < 2 + headerCount ? dim(line) : line)).join("\n"));
 }
@@ -284,8 +284,9 @@ function refreshStatus(): void {
   picker.update();
 }
 
-/** Start over: the example conversation, the default system prompt and sampling, the example draft. The connection and keys stay. */
+/** Start over: the example conversation, the default system prompt and sampling, the example draft — or, in Judge, the example question over the example state. The connection and keys stay. */
 function resetAll(): void {
+  if (mode === "judge") { judge.reset(); return; }
   Object.assign(settings, DEFAULT_SETTINGS);
   systemInput.value = DEFAULT_SETTINGS.system; autosize(systemInput);
   temperatureInput.value = ""; maxTokensInput.value = ""; reasoningInput.value = "";
@@ -528,7 +529,7 @@ function spotlight(source: string | undefined, scroll: false | "code" | "chat" |
   lit = source;
   const nextGhost = ghostFor(source);
   if (nextGhost !== ghost) { ghost = nextGhost; void updateCode(); } // re-renders, then calls back here with scroll off
-  for (const el of document.querySelectorAll("#code .lit, #chat-panel .lit")) el.classList.remove("lit");
+  for (const el of document.querySelectorAll("#code .lit, .side-panel .lit")) el.classList.remove("lit");
   if (!source) return;
   const spans = document.querySelectorAll<HTMLElement>(`#code [data-source="${CSS.escape(source)}"]`);
   for (const span of spans) span.classList.add("lit");
@@ -542,11 +543,11 @@ function spotlight(source: string | undefined, scroll: false | "code" | "chat" |
 function controlOf(source: string): HTMLElement | undefined {
   const turn = /^turn:(\d+)$/.exec(source);
   if (turn) return $("transcript").querySelectorAll<HTMLElement>("article:not([data-incomplete])")[Number(turn[1])]?.querySelector<HTMLElement>(".turn-text") ?? undefined;
-  return document.querySelector<HTMLElement>(`#chat-panel [data-source="${CSS.escape(source)}"]`) ?? undefined;
+  return document.querySelector<HTMLElement>(`.side-panel [data-source="${CSS.escape(source)}"]`) ?? undefined;
 }
 /** The source name of a control on the left: a static one carries it; a turn is named by its place in the transcript. */
 function sourceOf(target: EventTarget | null): { control: HTMLElement; source: string } | undefined {
-  if (!(target instanceof Element)) return;
+  if (!(target instanceof Element) || target.closest("#code-panel")) return;
   const control = target.closest<HTMLElement>("[data-source], .turn-text");
   if (!control) return;
   if (control.dataset["source"]) return { control, source: control.dataset["source"] };
@@ -556,13 +557,15 @@ function sourceOf(target: EventTarget | null): { control: HTMLElement; source: s
   return { control, source: turnSource(live.indexOf(article)) };
 }
 for (const [element, source] of [[systemInput, "system"], [prompt, "draft"], [temperatureInput, "temperature"], [maxTokensInput, "maxTokens"], [reasoningInput, "reasoning"], [$("provider-button"), "provider"], [$("model-button"), "model"]] as const) element.dataset["source"] = source;
-$("chat-panel").addEventListener("pointerover", (event) => { const hit = sourceOf(event.target); if (hit) spotlight(hit.source); });
-$("chat-panel").addEventListener("pointerout", (event) => {
-  const hit = sourceOf(event.target);
-  if (hit && !(event.relatedTarget instanceof Node && hit.control.contains(event.relatedTarget))) spotlight(pinned);
-});
-$("chat-panel").addEventListener("focusin", (event) => { const hit = sourceOf(event.target); pinned = hit?.source; spotlight(pinned); });
-$("chat-panel").addEventListener("focusout", (event) => { if (!sourceOf(event.relatedTarget)) { pinned = undefined; spotlight(undefined); } });
+for (const panel of [$("chat-panel"), $("judge-panel")]) {
+  panel.addEventListener("pointerover", (event) => { const hit = sourceOf(event.target); if (hit) spotlight(hit.source); });
+  panel.addEventListener("pointerout", (event) => {
+    const hit = sourceOf(event.target);
+    if (hit && !(event.relatedTarget instanceof Node && hit.control.contains(event.relatedTarget))) spotlight(pinned);
+  });
+  panel.addEventListener("focusin", (event) => { const hit = sourceOf(event.target); pinned = hit?.source; spotlight(pinned); });
+  panel.addEventListener("focusout", (event) => { if (!sourceOf(event.relatedTarget)) { pinned = undefined; spotlight(undefined); } });
+}
 // And the other way: a value in the code lights the control it came from.
 const codeSource = (target: EventTarget | null) => (target instanceof Element ? target.closest<HTMLElement>("#code [data-source]") ?? undefined : undefined);
 $("code-panel").addEventListener("pointerover", (event) => { const span = codeSource(event.target); if (span) spotlight(span.dataset["source"], "chat"); });
@@ -699,7 +702,7 @@ $("forget-relays").addEventListener("click", () => { disableAllRelays(); catalog
 $("provider-button").addEventListener("click", () => picker.open("provider", connection.provider));
 $("model-button").addEventListener("click", () => { picker.open("model", connection.model); if (automatic.checked) void discover(); });
 // A textarea's natural height depends on its width and font: both change with the viewport.
-addEventListener("resize", () => { for (const area of [prompt, systemInput, ...document.querySelectorAll<HTMLTextAreaElement>(".turn-text")]) autosize(area); });
+addEventListener("resize", () => { for (const area of [prompt, systemInput, ...document.querySelectorAll<HTMLTextAreaElement>(".turn-text")]) autosize(area); judge?.layout(); });
 moreMenu.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && moreMenu.open) { moreMenu.open = false; $("more-toggle").focus(); event.preventDefault(); }
 });
@@ -780,6 +783,7 @@ judge = new JudgeView({
   pickProvider: () => picker.open("provider", connection.provider),
   pickModel: () => { picker.open("model", connection.model); if (automatic.checked) void discover(); },
   codeChanged: () => void updateCode(),
+  autosize,
 });
 for (const button of document.querySelectorAll<HTMLButtonElement>(".mode-switch button")) button.addEventListener("click", () => { if (!button.disabled) setMode(button.dataset.mode as Mode, true); });
 let remembered: string | null = null;

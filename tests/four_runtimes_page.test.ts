@@ -5,7 +5,7 @@ import { chromium } from "playwright-core";
 import { startDemo } from "../scripts/serve-playground.ts";
 import { findBrowsers } from "./support/browser.ts";
 import { disableDiscovery, useKey, waitRuntimeReady } from "./support/playground.ts";
-import { judgeReplyFor, streamFor } from "./support/replies.ts";
+import { declaredKeys, judgeReplyFor, streamFor } from "./support/replies.ts";
 
 for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, real wire preview, stream, TypeSafe Judge, diagnostic failure and cancellation`, { timeout: 180_000 }, async (t) => {
   const installed = findBrowsers().find((b) => b.name === "chromium"); assert.ok(installed);
@@ -37,7 +37,7 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
     if (mode === "hold") { await new Promise<void>((resolve) => { release = resolve; }); return route.abort().catch(() => {}); }
     if (mode === "fail") return route.fulfill({ status: 429, headers: { "content-type": "application/json", "x-request-id": "req-four-runtime", "retry-after": "2", "access-control-expose-headers": "x-request-id,retry-after" }, body: JSON.stringify({ error: { message: "offline quota", type: "rate_limit_error" } }) });
     if (url.href.includes("/systemone")) {
-      const reply = judgeReplyFor(url.href);
+      const reply = judgeReplyFor(url.href, declaredKeys(route.request().postDataJSON()));
       return route.fulfill({ status: 200, contentType: "application/json", body: await reply.text() });
     }
     return route.fulfill({ status: 200, contentType: "text/event-stream", body: streamFor(url.href, "Hello 🍷 from wasm") });
@@ -69,17 +69,17 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
   assert.deepEqual(calls[0]!.body, expected);
   assert.equal(calls[0]!.body["stream"], true);
 
-  await page.getByRole("button", { name: "Judge", exact: true }).click();
+  await page.getByRole("button", { name: "Judge", exact: true }).first().click(); // the mode
   await useKey(page, "TypeSafe (Jev)", "offline-jev-key");
-  await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.includes("for input 1"));
+  await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.includes("for this state"));
   const judgePreview = await page.locator("#code").textContent() ?? "";
   const judgeExpected = JSON.parse(judgePreview.slice(judgePreview.indexOf("\n\n{") + 2));
-  await page.getByRole("button", { name: "Run all", exact: true }).click();
-  await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "3 of 3 judged");
-  assert.equal(calls.length, 4, "one chat HTTP exchange plus one complete per judged input");
+  await page.locator("#judge-run").click();
+  await page.waitForFunction(() => !document.getElementById("judge-result")?.hidden && document.getElementById("judge-usage")?.textContent?.startsWith("judged"));
+  assert.equal(calls.length, 2, "one chat HTTP exchange plus one complete for the state");
   assert.deepEqual(calls[1]!.body, judgeExpected);
-  assert.ok(calls.slice(1).every((call) => !("stream" in call.body)));
-  assert.match(await page.locator("#judge-results").textContent() ?? await page.locator("body").textContent() ?? "", new RegExp(language, "i"));
+  assert.ok(!("stream" in calls[1]!.body));
+  assert.match(await page.locator("#judge-usage").textContent() ?? "", new RegExp(language, "i"));
 
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   mode = "fail";
