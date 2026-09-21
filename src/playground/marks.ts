@@ -16,8 +16,12 @@
 
 export type MarkKind = "value" | "api" | "comment" | "dim";
 
-/** A run of the text and every kind that applies to it (an outer `dim` line may hold a `comment`). */
-export interface Mark { readonly start: number; readonly end: number; readonly kinds: readonly MarkKind[] }
+/**
+ * A run of the text and every kind that applies to it (an outer `dim` line may hold a `comment`).
+ * A value may name its source — the control it came from ("system", "model", "turn:2", "draft"…) — so
+ * the panel can light it when that control is touched.
+ */
+export interface Mark { readonly start: number; readonly end: number; readonly kinds: readonly MarkKind[]; readonly source?: string }
 
 /** A program for the panel: the exact text (what Copy gives), and where its meaning lies. */
 export interface Code { readonly text: string; readonly marks: readonly Mark[] }
@@ -25,11 +29,16 @@ export interface Code { readonly text: string; readonly marks: readonly Mark[] }
 const OPEN: Record<MarkKind, string> = { value: "\u0001", api: "\u0002", comment: "\u0003", dim: "\u0004" };
 const KIND_OF: Record<string, MarkKind> = { "\u0001": "value", "\u0002": "api", "\u0003": "comment", "\u0004": "dim" };
 const CLOSE = "\u0005";
-const SENTINEL = /[\u0001-\u0005]/;
+/** Wraps a value's source name right after its open mark: `\u0001\u0006system\u0006text\u0005`. */
+const SOURCE = "\u0006";
+const SENTINEL = /[\u0001-\u0006]/;
 
-export function mark(kind: MarkKind, text: string): string { return OPEN[kind] + text + CLOSE; }
-/** A value the person controls: the model, a message, a question, an input. */
-export const val = (text: string): string => mark("value", text);
+export function mark(kind: MarkKind, text: string, source?: string): string {
+  if (source !== undefined && (SENTINEL.test(source) || !source)) throw new Error("code marks: a source name must be plain and non-empty");
+  return OPEN[kind] + (source === undefined ? "" : SOURCE + source + SOURCE) + text + CLOSE;
+}
+/** A value the person controls: the model, a message, a question, an input; `source` names the control it came from. */
+export const val = (text: string, source?: string): string => mark("value", text, source);
 /** A call into LM15: the names the reader should learn. */
 export const api = (text: string): string => mark("api", text);
 export const comment = (text: string): string => mark("comment", text);
@@ -37,13 +46,13 @@ export const comment = (text: string): string => mark("comment", text);
 export const dim = (text: string): string => mark("dim", text);
 
 /** A quoted literal with its contents marked as a value: quotes are syntax, the text between them is the person's. */
-export function quotedValue(literal: string): string {
-  return literal[0]! + val(literal.slice(1, -1)) + literal.at(-1)!;
+export function quotedValue(literal: string, source?: string): string {
+  return literal[0]! + val(literal.slice(1, -1), source) + literal.at(-1)!;
 }
 
 /** The text without its marks: for width decisions while a program is still being written. */
 export function plain(marked: string): string {
-  return marked.replace(/[\u0001-\u0005]/g, "");
+  return marked.replace(/\u0006[^\u0006]*\u0006/g, "").replace(/[\u0001-\u0005]/g, "");
 }
 
 /** The exact source and its marks. Throws on unbalanced marks. */
@@ -51,21 +60,35 @@ export function finish(marked: string): Code {
   let text = "";
   const marks: Mark[] = [];
   const stack: MarkKind[] = [];
+  const sources: (string | undefined)[] = []; // one per open mark; the innermost named one is the run's source
   let runStart = 0;
   const flush = () => {
-    if (text.length > runStart && stack.length) marks.push({ start: runStart, end: text.length, kinds: [...stack] });
+    if (text.length > runStart && stack.length) {
+      const source = sources.findLast((s) => s !== undefined);
+      marks.push({ start: runStart, end: text.length, kinds: [...stack], ...(source === undefined ? {} : { source }) });
+    }
     runStart = text.length;
   };
+  let reading: string | undefined; // a source name being read between its two markers
   for (const char of marked) {
+    if (reading !== undefined) {
+      if (char === SOURCE) { sources[sources.length - 1] = reading; reading = undefined; }
+      else reading += char;
+      continue;
+    }
     if (char === CLOSE) {
       if (!stack.length) throw new Error("code marks: a close without an open");
       flush();
-      stack.pop();
+      stack.pop(); sources.pop();
     } else if (KIND_OF[char]) {
       flush();
-      stack.push(KIND_OF[char]!);
+      stack.push(KIND_OF[char]!); sources.push(undefined);
+    } else if (char === SOURCE) {
+      if (!stack.length || text.length !== runStart) throw new Error("code marks: a source name must follow its open mark");
+      reading = "";
     } else text += char;
   }
+  if (reading !== undefined) throw new Error("code marks: a source name never closed");
   if (stack.length) throw new Error(`code marks: ${stack.join(", ")} never closed`);
   flush();
   return { text, marks };
@@ -94,6 +117,6 @@ export function replaceAll(code: Code, from: string, to: string): Code {
     return p + shift;
   };
   const text = code.text.split(from).join(to);
-  const marks = code.marks.map((m) => ({ start: moved(m.start), end: moved(m.end), kinds: m.kinds })).filter((m) => m.end > m.start);
+  const marks = code.marks.map((m) => ({ ...m, start: moved(m.start), end: moved(m.end) })).filter((m) => m.end > m.start);
   return { text, marks };
 }

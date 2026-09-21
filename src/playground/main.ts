@@ -5,7 +5,7 @@ import { Credentials } from "./credentials.ts";
 import { renderCode } from "./code-view.ts";
 import { comment, dim, finish, replaceAll, unmarked, type Code } from "./marks.ts";
 import type { Progress } from "./runtimes/progress.ts";
-import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleGo, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyPage, keyless, slashCommand, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
+import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleGo, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyPage, keyless, slashCommand, turnSource, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
 import { JudgeView } from "./judge-ui.ts";
 import type { JudgeSource } from "./judge.ts";
 import { disableAllRelays, enableRelay, looksBrowserBlocked, relayAvailable, relayed, relayedProviders } from "./relay.ts";
@@ -57,6 +57,9 @@ const modeConnections: Record<Mode, Connection> = {
 let judge: JudgeView;
 /** The code panel shows the program, or the request that program puts on the wire (built by the selected runtime, never sent). */
 let codeView: "code" | "request" = "code";
+/** The control under the pointer or the caret: its value is lit in the code (marks carry the source name). */
+let lit: string | undefined;
+let pinned: string | undefined; // the focused control keeps its light while the pointer wanders
 /** An edited turn that became empty: nothing can be built from it until it has text again. */
 let transcriptError = "";
 /** What the provider list says in red: a missing key, an example key, a failed save. Cleared by the next good key. */
@@ -200,6 +203,7 @@ async function updateCode(): Promise<void> {
   $("code-scroll").dataset.view = codeView;
   if (codeView === "code") {
     renderCode($("code"), redactCode(code));
+    spotlight(lit, false);
     $("copy-code").textContent = "Copy code";
     $("request-note").hidden = true;
     return;
@@ -487,6 +491,38 @@ async function fidelity(request: Request): Promise<void> {
   if (wires.length < 2) { $("fidelity").textContent = wires.length === 1 ? `Request built by ${wires[0]![0]}. Load another runtime to compare bytes.` : ""; return; }
   $("fidelity").textContent = compareWires(wires);
 }
+
+// ─── What you touch on the left lights up on the right ────────────────
+
+/** Light every piece of code that came from `source`; scroll the first into view when the source changes. */
+function spotlight(source: string | undefined, scroll = true): void {
+  const changed = source !== lit;
+  lit = source;
+  for (const span of document.querySelectorAll("#code .lit")) span.classList.remove("lit");
+  if (!source) return;
+  const spans = document.querySelectorAll<HTMLElement>(`#code [data-source="${CSS.escape(source)}"]`);
+  for (const span of spans) span.classList.add("lit");
+  if (scroll && changed && spans[0]) spans[0].scrollIntoView({ block: "nearest" });
+}
+/** The source name of a control on the left: a static one carries it; a turn is named by its place in the transcript. */
+function sourceOf(target: EventTarget | null): { control: HTMLElement; source: string } | undefined {
+  if (!(target instanceof Element)) return;
+  const control = target.closest<HTMLElement>("[data-source], .turn-text");
+  if (!control) return;
+  if (control.dataset["source"]) return { control, source: control.dataset["source"] };
+  const article = control.closest<HTMLElement>("article");
+  if (!article || article.hasAttribute("data-incomplete")) return;
+  const live = [...$("transcript").querySelectorAll<HTMLElement>("article:not([data-incomplete])")];
+  return { control, source: turnSource(live.indexOf(article)) };
+}
+for (const [element, source] of [[systemInput, "system"], [prompt, "draft"], [temperatureInput, "temperature"], [maxTokensInput, "maxTokens"], [reasoningInput, "reasoning"], [$("provider-button"), "provider"], [$("model-button"), "model"]] as const) element.dataset["source"] = source;
+$("chat-panel").addEventListener("pointerover", (event) => { const hit = sourceOf(event.target); if (hit) spotlight(hit.source); });
+$("chat-panel").addEventListener("pointerout", (event) => {
+  const hit = sourceOf(event.target);
+  if (hit && !(event.relatedTarget instanceof Node && hit.control.contains(event.relatedTarget))) spotlight(pinned);
+});
+$("chat-panel").addEventListener("focusin", (event) => { const hit = sourceOf(event.target); pinned = hit?.source; spotlight(pinned); });
+$("chat-panel").addEventListener("focusout", (event) => { if (!sourceOf(event.relatedTarget)) { pinned = undefined; spotlight(undefined); } });
 
 // ─── Chat ─────────────────────────────────────────────────────────────
 

@@ -143,7 +143,9 @@ article.streaming .turn-text::placeholder { color: var(--muted); font-size: 12px
 /* One block per source line (each keeps its newline, so the text is exact): a wrapped line continues under its own indent (code-view.ts). */
 .code-panel pre .line { display: block; min-height: 1.8em; padding-left: calc(var(--indent, 0) * 1ch); text-indent: calc(var(--indent, 0) * -1ch); }
 /* What the generator marked (marks.ts): the person's values, LM15's calls, comments, and the language's plumbing. */
-.tok-value { color: var(--accent); }
+.tok-value { color: var(--accent); border-radius: 3px; transition: background-color 120ms; }
+/* The value whose control is under the pointer or the caret on the left. */
+#code .lit { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent); color: var(--lm-accent-strong); }
 .tok-api { color: var(--lm-code-api); }
 .tok-comment { color: var(--code-muted); font-style: italic; }
 .tok-dim { color: var(--code-muted); }

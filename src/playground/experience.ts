@@ -102,10 +102,12 @@ export function buildRequest(connection: Connection, settings: Settings, message
 // for what the language demands. The panel colours those; nothing parses.
 
 const q = JSON.stringify;
-/** A JSON string literal whose contents are the person's. */
-const qv = (text: string): string => quotedValue(q(text));
+/** A JSON string literal whose contents are the person's; `source` names the control it came from (the panel lights it on hover). */
+const qv = (text: string, source?: string): string => quotedValue(q(text), source);
 /** A number the person set. */
-const nv = (n: number): string => val(String(n));
+const nv = (n: number, source?: string): string => val(String(n), source);
+/** The transcript's turns are named by position; the composer's draft is the last one. */
+export const turnSource = (index: number): string => `turn:${index}`;
 const indent = (text: string, level: number) => text.split("\n").map((line) => (line ? "  ".repeat(level) + line : line)).join("\n");
 
 /** Python spelling of a JSON value (True/False/None), for the replayed transcript. */
@@ -136,28 +138,28 @@ function plainText(message: Message): { role: "user" | "assistant"; text: string
 function configLines(settings: Settings, lang: Language): string[] {
   const entries: Array<[string, string]> = [];
   if (lang === "javascript") {
-    if (settings.maxTokens !== null) entries.push(["maxTokens", nv(settings.maxTokens)]);
-    if (settings.temperature !== null) entries.push(["temperature", nv(settings.temperature)]);
-    if (settings.reasoning) entries.push(["reasoning", `{ effort: ${qv(settings.reasoning)} }`]);
+    if (settings.maxTokens !== null) entries.push(["maxTokens", nv(settings.maxTokens, "maxTokens")]);
+    if (settings.temperature !== null) entries.push(["temperature", nv(settings.temperature, "temperature")]);
+    if (settings.reasoning) entries.push(["reasoning", `{ effort: ${qv(settings.reasoning, "reasoning")} }`]);
     return entries.length ? [`  config: { ${entries.map(([k, v]) => `${k}: ${v}`).join(", ")} },`] : [];
   }
   if (lang === "python") {
-    if (settings.maxTokens !== null) entries.push(["max_tokens", nv(settings.maxTokens)]);
-    if (settings.temperature !== null) entries.push(["temperature", nv(settings.temperature)]);
-    if (settings.reasoning) entries.push(["reasoning", `${api("Reasoning")}(effort=${qv(settings.reasoning)})`]);
+    if (settings.maxTokens !== null) entries.push(["max_tokens", nv(settings.maxTokens, "maxTokens")]);
+    if (settings.temperature !== null) entries.push(["temperature", nv(settings.temperature, "temperature")]);
+    if (settings.reasoning) entries.push(["reasoning", `${api("Reasoning")}(effort=${qv(settings.reasoning, "reasoning")})`]);
     return entries.length ? [`    config=${api("Config")}(${entries.map(([k, v]) => `${k}=${v}`).join(", ")}),`] : [];
   }
-  if (settings.maxTokens !== null) entries.push(["max_tokens", `Some(${nv(settings.maxTokens)})`]);
-  if (settings.temperature !== null) entries.push(["temperature", `Some(${val(Number.isInteger(settings.temperature) ? `${settings.temperature}.0` : String(settings.temperature))})`]);
-  if (settings.reasoning) entries.push(["reasoning", `Some(${api("Reasoning::new")}(${quotedValue(rustString(settings.reasoning))}.parse()?))`]);
+  if (settings.maxTokens !== null) entries.push(["max_tokens", `Some(${nv(settings.maxTokens, "maxTokens")})`]);
+  if (settings.temperature !== null) entries.push(["temperature", `Some(${val(Number.isInteger(settings.temperature) ? `${settings.temperature}.0` : String(settings.temperature), "temperature")})`]);
+  if (settings.reasoning) entries.push(["reasoning", `Some(${api("Reasoning::new")}(${quotedValue(rustString(settings.reasoning), "reasoning")}.parse()?))`]);
   return entries.length ? [`    config: ${api("Config")} { ${entries.map(([k, v]) => `${k}: ${v}`).join(", ")}, ${dim("..Default::default()")} },`] : [];
 }
 
 /** The lines that make the client, JavaScript: the adapter, and what a page must add (relay, Anthropic's header). */
 export function jsClient(connection: Connection): string[] {
   const relay = baseUrlFor(connection);
-  if (connection.provider === "custom") return [`const lm = new ${api("OpenAIChatLM")}({`, `  apiKey: "unused", ${comment("// keyless custom server")}`, `  baseUrl: ${qv(connection.endpoint)},`, "});"];
-  const lines = [`const lm = ${api("adapterFor")}(${qv(connection.provider)}, {`, `  apiKey: ${keyless(connection.provider) ? '"unused"' : qv(EXAMPLE_API_KEY)},`];
+  if (connection.provider === "custom") return [`const lm = new ${api("OpenAIChatLM")}({`, `  apiKey: "unused", ${comment("// keyless custom server")}`, `  baseUrl: ${qv(connection.endpoint, "provider")},`, "});"];
+  const lines = [`const lm = ${api("adapterFor")}(${qv(connection.provider, "provider")}, {`, `  apiKey: ${keyless(connection.provider) ? '"unused"' : qv(EXAMPLE_API_KEY)},`];
   if (relay !== undefined) lines.push(`  ${comment("// This API refuses browser origins; the page relays it (see the Relay note). Drop this line outside a browser.")}`, `  baseUrl: ${qv(relay)},`);
   if (connection.provider === "anthropic") lines.push(`  ${comment("// A page must say it means to call Anthropic directly.")}`, `  access: ${api("access.withHeaders")}(${api("access.ANTHROPIC_API")}, {`, `    ${q(ANTHROPIC_BROWSER_HEADER[0])}: ${q(ANTHROPIC_BROWSER_HEADER[1])},`, "  }),");
   lines.push("});");
@@ -169,14 +171,14 @@ export function exampleJavascript(connection: Connection, settings: Settings, me
   const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", "Message", "Request", ...(streamed ? ["ResponseStream"] : [])];
   if (connection.provider === "anthropic") imports.splice(1, 0, "access");
   const lines = [dim(`import { ${imports.join(", ")} } from "lm15/browser";`), "", ...jsClient(connection)];
-  lines.push("", `const request = ${api("Request.create")}({`, `  model: ${qv(connection.model)},`);
-  if (settings.system.trim()) lines.push(`  system: ${qv(settings.system.trim())},`);
+  lines.push("", `const request = ${api("Request.create")}({`, `  model: ${qv(connection.model, "model")},`);
+  if (settings.system.trim()) lines.push(`  system: ${qv(settings.system.trim(), "system")},`);
   if (messages.length) {
-    lines.push("  messages: [", ...indent(messages.map((m) => {
+    lines.push("  messages: [", ...indent(messages.map((m, i) => {
       const simple = plainText(m);
-      return simple ? `${api(`Message.${simple.role}`)}(${qv(simple.text)}),` : `${api("Message.fromJSON")}(${stringifyJson(Message.toJSON(m), { indent: 2 })}),`;
-    }).join("\n"), 2).split("\n"), `    ${api("Message.user")}(${qv(prompt)}),`, "  ],");
-  } else lines.push(`  messages: [${api("Message.user")}(${qv(prompt)})],`);
+      return simple ? `${api(`Message.${simple.role}`)}(${qv(simple.text, turnSource(i))}),` : `${api("Message.fromJSON")}(${stringifyJson(Message.toJSON(m), { indent: 2 })}),`;
+    }).join("\n"), 2).split("\n"), `    ${api("Message.user")}(${qv(prompt, "draft")}),`, "  ],");
+  } else lines.push(`  messages: [${api("Message.user")}(${qv(prompt, "draft")})],`);
   lines.push(...configLines(settings, "javascript"), "});", "");
   if (streamed) {
     lines.push(`const controller = new AbortController(); ${comment("// Stop calls controller.abort()")}`, `const result = new ${api("ResponseStream")}(${api("lm.stream")}(request, { signal: controller.signal }), request);`, "for await (const text of result) console.log(text);", "", comment("// Keep the reply for the next turn."), `const response = await ${api("result.response")}();`);
@@ -195,9 +197,9 @@ export function pyClient(connection: Connection): { cls: string; lines: string[]
   const cls = connection.provider === "custom" ? "AsyncOpenAIChatLM" : (PY_CLASS[definition?.dialect ?? "openai-chat"] ?? "AsyncOpenAIChatLM");
   const lines = [`lm = ${api(cls)}(`, `    api_key=${keyless(connection.provider) ? '"unused"' : qv(EXAMPLE_API_KEY)},`];
   const relay = baseUrlFor(connection);
-  if (connection.provider === "custom") lines.push(`    base_url=${qv(connection.endpoint)},`);
+  if (connection.provider === "custom") lines.push(`    base_url=${qv(connection.endpoint, "provider")},`);
   else if (relay !== undefined) lines.push(`    ${comment("# This API refuses browser origins; the page relays it (see the Relay note). Drop this line outside a browser.")}`, `    base_url=${qv(relay)},`);
-  if (connection.provider !== "custom" && definition?.bound) lines.push(`    compat=${qv(connection.provider)},`);
+  if (connection.provider !== "custom" && definition?.bound) lines.push(`    compat=${qv(connection.provider, "provider")},`);
   if (connection.provider === "anthropic") lines.push(`    ${comment("# A page must say it means to call Anthropic directly.")}`, `    access=${api("ANTHROPIC_API.with_headers")}({${q(ANTHROPIC_BROWSER_HEADER[0])}: ${q(ANTHROPIC_BROWSER_HEADER[1])}}),`);
   lines.push(dim("    transport=FetchTransport(),"), ")");
   return { cls, lines };
@@ -219,14 +221,14 @@ export function examplePython(connection: Connection, settings: Settings, messag
   if (configLines(settings, "python").length) names.push("Config");
   if (settings.reasoning) names.push("Reasoning");
   const lines = pyImports(names, connection, messages.some((message) => !plainText(message)) ? ["from lm15.serde import message_from_dict"] : []);
-  lines.push("", ...client.lines, "", `request = ${api("Request")}(`, `    model=${qv(connection.model)},`);
-  if (settings.system.trim()) lines.push(`    system=${qv(settings.system.trim())},`);
+  lines.push("", ...client.lines, "", `request = ${api("Request")}(`, `    model=${qv(connection.model, "model")},`);
+  if (settings.system.trim()) lines.push(`    system=${qv(settings.system.trim(), "system")},`);
   if (messages.length) {
-    lines.push("    messages=(", ...messages.map((m) => {
+    lines.push("    messages=(", ...messages.map((m, i) => {
       const simple = plainText(m);
-      return simple ? `        ${api(`Message.${simple.role}`)}(${qv(simple.text)}),` : `        ${api("message_from_dict")}(${pyLiteral(Message.toJSON(m), 2)}),`;
-    }), `        ${api("Message.user")}(${qv(prompt)}),`, "    ),");
-  } else lines.push(`    messages=(${api("Message.user")}(${qv(prompt)}),),`);
+      return simple ? `        ${api(`Message.${simple.role}`)}(${qv(simple.text, turnSource(i))}),` : `        ${api("message_from_dict")}(${pyLiteral(Message.toJSON(m), 2)}),`;
+    }), `        ${api("Message.user")}(${qv(prompt, "draft")}),`, "    ),");
+  } else lines.push(`    messages=(${api("Message.user")}(${qv(prompt, "draft")}),),`);
   lines.push(...configLines(settings, "python"), ")", "");
   if (streamed) lines.push(`result = ${api("AsyncResponseStream")}(${api("lm.stream")}(request), request)  ${comment("# Stop closes the stream")}`, "async for text in result:", '    print(text, end="", flush=True)', "", comment("# Keep the reply for the next turn."), `response = await ${api("result.response")}()`);
   else lines.push(`response = await ${api("lm.complete")}(request)  ${comment("# one piece: this API has no stream")}`);
@@ -249,13 +251,13 @@ export function rustString(text: string): string {
 }
 
 /** A Rust string literal whose contents are the person's. */
-export const rv = (text: string): string => quotedValue(rustString(text));
+export const rv = (text: string, source?: string): string => quotedValue(rustString(text), source);
 
 /** The Rust adapter: `adapter_for` with the credential and, in a page, the relay. */
 export function rustClient(connection: Connection): string[] {
   const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
   const relay = baseUrlFor(connection);
-  return [`let lm = ${api("adapter_for")}(`, `    ${rv(provider)}, ${api("Credential::api_key")}(${keyless(connection.provider) ? '"unused"' : rv(EXAMPLE_API_KEY)})?,`, `    ${relay === undefined ? "None" : `Some(${rv(relay)})`}, None, None,`, ")?;"];
+  return [`let lm = ${api("adapter_for")}(`, `    ${rv(provider, "provider")}, ${api("Credential::api_key")}(${keyless(connection.provider) ? '"unused"' : rv(EXAMPLE_API_KEY)})?,`, `    ${relay === undefined ? "None" : `Some(${rv(relay)})`}, None, None,`, ")?;"];
 }
 
 /** A Go string literal holding JSON text: raw (backticks) when the text allows it, so the JSON reads as JSON. */
@@ -275,7 +277,7 @@ export function goProgram(connection: Connection, imports: readonly string[], bo
   const lines = [dim("package main"), "", dim("import ("), ...std.map(dim), "", dim('    lm15 "github.com/lm15-dev/lm15-go"'), dim(")"), "", dim("func main() {"), dim("    if err := run(); err != nil { panic(err) }"), dim("}"), "", dim("func run() error {"), `    ctx, cancel := context.WithCancel(context.Background()) ${comment("// call cancel to stop")}`, "    defer cancel()"];
   const relay = baseUrlFor(connection);
   if (connection.provider !== "custom" && relay !== undefined) lines.push(`    ${comment('// This API refuses browser origins; the page relays it (see the Relay note). Outside a browser pass "" instead.')}`);
-  lines.push(`    lm, err := ${api("lm15.AdapterForProvider")}(${qv(provider)}, ${keyless(connection.provider) ? '"unused"' : qv(EXAMPLE_API_KEY)}, ${relay === undefined ? '""' : qv(relay)}, nil, nil)`, GO_ERR, "", ...body, dim("    return nil"), dim("}"));
+  lines.push(`    lm, err := ${api("lm15.AdapterForProvider")}(${qv(provider, "provider")}, ${keyless(connection.provider) ? '"unused"' : qv(EXAMPLE_API_KEY)}, ${relay === undefined ? '""' : qv(relay)}, nil, nil)`, GO_ERR, "", ...body, dim("    return nil"), dim("}"));
   return finish(lines.join("\n"));
 }
 
@@ -284,17 +286,17 @@ export const GO_ERR = dim("    if err != nil { return err }");
 export const GO_ERR_IN_LOOP = dim("        if err != nil { return err }");
 
 /** The Go spelling of one transcript message: the SDK's constructor for plain text; the canonical JSON replayed for anything else (reasoning with continuation state). */
-function goMessage(message: Message): { expression: string; replay?: string[] } {
+function goMessage(message: Message, index: number): { expression: string; replay?: string[] } {
   const simple = plainText(message);
-  if (simple) return { expression: `${api(simple.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(simple.text)})` };
+  if (simple) return { expression: `${api(simple.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(simple.text, turnSource(index))})` };
   return { expression: "earlier", replay: [`    ${comment("// A reply replayed as the wire gave it (its reasoning and continuation state stay verbatim).")}`, `    var earlier ${api("lm15.Message")}`, `    if err := json.Unmarshal([]byte(${goJsonText(stringifyJson(Message.toJSON(message)))}), &earlier); err != nil { return err }`] };
 }
 
 function goConfig(settings: Settings): string | undefined {
   const entries: string[] = [];
-  if (settings.maxTokens !== null) entries.push(`MaxTokens: lm15.I(${nv(settings.maxTokens)})`);
-  if (settings.temperature !== null) entries.push(`Temperature: lm15.F(${nv(settings.temperature)})`);
-  if (settings.reasoning) entries.push(`Reasoning: &${api("lm15.Reasoning")}{Effort: ${qv(settings.reasoning)}}`);
+  if (settings.maxTokens !== null) entries.push(`MaxTokens: lm15.I(${nv(settings.maxTokens, "maxTokens")})`);
+  if (settings.temperature !== null) entries.push(`Temperature: lm15.F(${nv(settings.temperature, "temperature")})`);
+  if (settings.reasoning) entries.push(`Reasoning: &${api("lm15.Reasoning")}{Effort: ${qv(settings.reasoning, "reasoning")}}`);
   return entries.length ? `${api("lm15.Config")}{${entries.join(", ")}}` : undefined;
 }
 
@@ -302,14 +304,14 @@ function goConfig(settings: Settings): string | undefined {
 export function exampleGo(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): Code {
   if (judgmentsOnly(connection.provider)) return finish(comment("// TypeSafe is judgments-only. Open Judge to declare the questions."));
   const streamed = streams(connection);
-  const rendered = messages.map(goMessage);
+  const rendered = messages.map((m, i) => goMessage(m, i));
   const body: string[] = [];
   const replays = rendered.flatMap((m) => m.replay ?? []);
   if (replays.length) body.push(...replays, "");
-  const turns = [...rendered.map((m) => m.expression), `${api("lm15.UserMessage")}(${qv(prompt)})`];
+  const turns = [...rendered.map((m) => m.expression), `${api("lm15.UserMessage")}(${qv(prompt, "draft")})`];
   const config = goConfig(settings);
-  const options = [...(settings.system.trim() ? [`${api("lm15.WithSystem")}(${qv(settings.system.trim())})`] : []), ...(config ? [`${api("lm15.WithConfig")}(${config})`] : [])];
-  body.push(`    request, err := ${api("lm15.NewRequest")}(`, `        ${qv(connection.model)},`);
+  const options = [...(settings.system.trim() ? [`${api("lm15.WithSystem")}(${qv(settings.system.trim(), "system")})`] : []), ...(config ? [`${api("lm15.WithConfig")}(${config})`] : [])];
+  body.push(`    request, err := ${api("lm15.NewRequest")}(`, `        ${qv(connection.model, "model")},`);
   if (turns.length === 1) body.push(`        []lm15.Message{${turns[0]}},`);
   else body.push("        []lm15.Message{", ...turns.map((t) => `            ${t},`), "        },");
   body.push(...options.map((o) => `        ${o},`), "    )", GO_ERR, "");
@@ -325,14 +327,14 @@ export function exampleRust(connection: Connection, settings: Settings, messages
   if (configLines(settings, "rust").length) imports.push("Config");
   if (settings.reasoning) imports.push("Reasoning");
   if (messages.some((message) => !plainText(message))) imports.push("Canonical");
-  const lines = [dim("use futures_util::StreamExt;"), dim("use lm15::{auth::Credential, registry::adapter_for};"), dim(`use lm15::{${imports.sort().join(", ")}};`), "", ...rustClient(connection), "", `let request = ${api("Request")} {`, `    model: ${rv(connection.model)}.into(),`];
-  if (settings.system.trim()) lines.push(`    system: Some(${rv(settings.system.trim())}.into()),`);
+  const lines = [dim("use futures_util::StreamExt;"), dim("use lm15::{auth::Credential, registry::adapter_for};"), dim(`use lm15::{${imports.sort().join(", ")}};`), "", ...rustClient(connection), "", `let request = ${api("Request")} {`, `    model: ${rv(connection.model, "model")}.into(),`];
+  if (settings.system.trim()) lines.push(`    system: Some(${rv(settings.system.trim(), "system")}.into()),`);
   if (messages.length) {
-    lines.push("    messages: vec![", ...messages.map((m) => {
+    lines.push("    messages: vec![", ...messages.map((m, i) => {
       const simple = plainText(m);
-      return simple ? `        ${api(`Message::${simple.role}`)}(${rv(simple.text)})?,` : `        ${api("Message::from_json")}(&serde_json::from_str(${rustString(stringifyJson(Message.toJSON(m)))})?)?,`;
-    }), `        ${api("Message::user")}(${rv(prompt)})?,`, "    ],");
-  } else lines.push(`    messages: vec![${api("Message::user")}(${rv(prompt)})?],`);
+      return simple ? `        ${api(`Message::${simple.role}`)}(${rv(simple.text, turnSource(i))})?,` : `        ${api("Message::from_json")}(&serde_json::from_str(${rustString(stringifyJson(Message.toJSON(m)))})?)?,`;
+    }), `        ${api("Message::user")}(${rv(prompt, "draft")})?,`, "    ],");
+  } else lines.push(`    messages: vec![${api("Message::user")}(${rv(prompt, "draft")})?],`);
   lines.push(...configLines(settings, "rust"), dim("    ..Default::default()"), "};", "", `let mut result = ${api("ResponseStream::new")}(${api("lm.stream")}(&request), &request); ${comment("// drop it to stop")}`, `while let Some(text) = ${api("result.text_chunks")}().next().await {`, '    print!("{}", text?);', "}", "", comment("// Keep the reply for the next turn."), `let response = ${api("result.response")}().await?;`, "let mut messages = request.messages.clone();", "messages.push(response.message.clone());");
   return finish(lines.join("\n"));
 }

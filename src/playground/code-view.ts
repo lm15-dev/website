@@ -6,7 +6,7 @@
 
 import type { Code, MarkKind } from "./marks.ts";
 
-export interface Segment { readonly text: string; readonly kinds: readonly MarkKind[] }
+export interface Segment { readonly text: string; readonly kinds: readonly MarkKind[]; readonly source?: string }
 /** One source line: its text split into runs, and the columns of its indent (for the hanging indent when it wraps). */
 export interface Line { readonly indent: number; readonly segments: readonly Segment[] }
 
@@ -29,7 +29,7 @@ export function layout(code: Code): Line[] {
       if (m.end <= lineStart) { next = i + 1; continue; }
       const start = Math.max(m.start, lineStart), end = Math.min(m.end, lineEnd);
       if (start > cursor) segments.push({ text: code.text.slice(cursor, start), kinds: [] });
-      segments.push({ text: code.text.slice(start, end), kinds: m.kinds });
+      segments.push({ text: code.text.slice(start, end), kinds: m.kinds, ...(m.source === undefined ? {} : { source: m.source }) });
       cursor = end;
     }
     if (cursor < lineEnd) segments.push({ text: code.text.slice(cursor, lineEnd), kinds: [] });
@@ -52,6 +52,7 @@ export function renderCode(element: HTMLElement, code: Code): void {
       if (!segment.kinds.length) { block.append(document.createTextNode(segment.text)); continue; }
       const span = document.createElement("span");
       span.className = segment.kinds.map((k) => `tok-${k}`).join(" ");
+      if (segment.source !== undefined) span.dataset["source"] = segment.source;
       span.textContent = segment.text;
       block.append(span);
     }
