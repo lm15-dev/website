@@ -283,6 +283,14 @@ function refreshStatus(): void {
   picker.update();
 }
 
+/** Start over: the example conversation, the default system prompt and sampling, the example draft. The connection and keys stay. */
+function resetAll(): void {
+  Object.assign(settings, DEFAULT_SETTINGS);
+  systemInput.value = DEFAULT_SETTINGS.system; autosize(systemInput);
+  temperatureInput.value = ""; maxTokensInput.value = ""; reasoningInput.value = "";
+  prompt.value = EXAMPLE_DRAFT; autosize(prompt);
+  reset(); notify(); refreshStatus();
+}
 function reset(): void {
   generation++; active?.abort(); active = undefined; messages = exampleConversation(); origins = messages.map(() => "written"); transcriptError = "";
   $("transcript").replaceChildren(); $("usage").textContent = ""; $("fidelity").textContent = "";
@@ -299,7 +307,7 @@ function reset(): void {
 function credentialsChanged(): void {
   notifyKey();
   keyRevision.set(connection.provider, (keyRevision.get(connection.provider) ?? 0) + 1);
-  reset(); refreshStatus();
+  refreshStatus();
 }
 function selectProvider(id: string): void {
   const choice = CONNECTIONS.find((candidate) => candidate.id === id);
@@ -307,13 +315,13 @@ function selectProvider(id: string): void {
   // Save the actual chat selection before moving to a judgments-only provider.
   if (judgmentsOnly(id) && mode === "chat") setMode("judge", true);
   if (id !== connection.provider) {
-    connection.provider = id; connection.model = choice.model; reset(); notify(); notifyKey();
+    connection.provider = id; connection.model = choice.model; notify(); notifyKey(); // the conversation stays: only Reset starts over
   }
   refreshStatus();
   if (automatic.checked) void discover();
 }
 function selectModel(id: string): void {
-  if (connection.model !== id) { connection.model = id; reset(); notify(); }
+  if (connection.model !== id) { connection.model = id; notify(); }
   refreshStatus();
 }
 function openSettings(): void { if (matchMedia("(max-width: 1100px)").matches) setView("chat"); systemInput.focus(); systemInput.scrollIntoView({ block: "nearest" }); }
@@ -336,7 +344,7 @@ function submitKey(provider: string, input: HTMLInputElement): void {
     keyRevision.set(provider, (keyRevision.get(provider) ?? 0) + 1);
     keyError = "";
     // Pasting a key beside a provider is choosing that provider.
-    if (provider === connection.provider) { reset(); notify(); refreshStatus(); if (automatic.checked) void discover(); }
+    if (provider === connection.provider) { notify(); refreshStatus(); if (automatic.checked) void discover(); }
     else selectProvider(provider);
   }).catch(() => {
     savingKey.delete(provider);
@@ -612,6 +620,7 @@ async function sendTurn(text: string): Promise<void> {
   const version = generation;
   const controller = new AbortController();
   active = controller; updateControls(); notify();
+  $("usage").textContent = ""; $("fidelity").textContent = ""; // the previous turn's numbers are not this turn's
   const request = buildRequest(connection, settings, messages, text);
   const chosen = RUNTIMES[runtime];
   const asked = turn("You", text);
@@ -698,9 +707,10 @@ $("retry-runtime").addEventListener("click", () => void selectRuntime(runtime));
 for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-target]")) button.addEventListener("click", () => setView(button.dataset.viewTarget!));
 $("forget").addEventListener("click", () => {
   for (const id of credentials.providers()) keyRevision.set(id, (keyRevision.get(id) ?? 0) + 1);
-  void credentials.forgetAll().then(() => { catalogues.clear(); reset(); notify(); notifyKey(); refreshStatus(); });
+  void credentials.forgetAll().then(() => { catalogues.clear(); notify(); notifyKey(); refreshStatus(); });
 });
 $("toggle-code").addEventListener("click", () => setCodeCollapsed(document.body.dataset.code !== "collapsed"));
+$("reset").addEventListener("click", resetAll);
 automatic.addEventListener("change", () => { refreshStatus(); if (automatic.checked) void discover(); });
 $("list").addEventListener("click", () => void discover(true));
 systemInput.addEventListener("input", () => { settings.system = systemInput.value; autosize(systemInput); void updateCode(); });

@@ -392,7 +392,12 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
     assert.match(await page.locator("#code").textContent() ?? "", /temperature: Some\(2\.0\)/);
     await temperature.fill("");
     await page.getByLabel("Reasoning effort").selectOption("");
-    assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /temperature:|Reasoning::new/);
+    // While an unset field is hovered its place shows in the code, dimmed; away from it, nothing.
+    await page.getByLabel("Reasoning effort").hover();
+    await page.waitForFunction(() => /reasoning: None/.test(document.getElementById("code")?.textContent ?? ""));
+    await page.getByLabel("Message", { exact: true }).focus();
+    await page.mouse.move(700, 300);
+    assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /temperature:|reasoning:|Reasoning::new/);
     await page.getByLabel("Message", { exact: true }).fill("hello");
     for (const invalid of ["-0.1", "2.1", "0.75"]) {
       await temperature.fill(invalid);
@@ -409,6 +414,7 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
     }
     await page.getByLabel("Max tokens").fill("");
     assert.equal(await page.locator("#settings-error").isVisible(), false);
+    await page.getByLabel("Message", { exact: true }).focus();
     assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /max_tokens:/);
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));

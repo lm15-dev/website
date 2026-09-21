@@ -56,6 +56,9 @@ h2 { font-size: 13px; font-weight: 500; }
 .provider-chip { max-width: 42%; }
 .model-chip { flex: 1; }
 #provider-name, #model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reset-button { color: var(--muted); font-size: 13px; }
+.reset-button:hover:not(:disabled) { color: var(--lm-code-api); background: transparent; border-color: transparent; text-decoration: underline; }
+body[data-mode="judge"] .reset-button { display: none; }
 .more-menu { position: relative; }
 .more-menu > summary { list-style: none; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); min-height: 32px; }
 .more-menu > summary::-webkit-details-marker { display: none; }

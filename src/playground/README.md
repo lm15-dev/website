@@ -201,9 +201,11 @@ continuation state) and, having no call behind it any more, is spelled out in
 the story as a literal (`story.ts`). An emptied turn blocks sending and says so in the code
 panel until it has text again. Turns are not copyable as a separate action: the
 code panel's Copy is the copy. A streaming or failed turn is read-only; a failed
-pair is greyed and not part of the next request. Changing provider/model or keys
-starts a fresh conversation with that same example; language changes preserve
-the conversation. No inference is performed on arrival.
+pair is greyed and not part of the next request. Changing provider, model, keys
+or language keeps the conversation: the same transcript goes to whatever is
+selected next. **Reset**, beside More, is the one way to start over — the
+example conversation, the default system prompt and sampling, the example
+draft; the connection and keys stay. No inference is performed on arrival.
 
 The joke API key is a visible placeholder and appears in copyable code, but is
 never stored or accepted as a real key. Saving a real key does not erase the
