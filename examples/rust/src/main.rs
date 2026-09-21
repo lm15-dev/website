@@ -162,6 +162,94 @@ mod openai_judge_conversation {
     }
 }
 
+mod openai_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "gpt-4.1-mini".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "openai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod openai_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "gpt-4.1-mini".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "openai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
 mod openai_first_turn {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
@@ -496,6 +584,94 @@ mod anthropic_judge_conversation {
             println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
             println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
+        Ok(())
+    }
+}
+
+mod anthropic_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "claude-haiku-4-5".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "anthropic", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod anthropic_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "claude-haiku-4-5".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "anthropic", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
         Ok(())
     }
 }
@@ -838,6 +1014,94 @@ mod gemini_judge_conversation {
     }
 }
 
+mod gemini_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "gemini-2.5-flash".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "gemini", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod gemini_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "gemini-2.5-flash".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "gemini", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
 mod gemini_first_turn {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
@@ -1172,6 +1436,94 @@ mod groq_judge_conversation {
             println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
             println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
+        Ok(())
+    }
+}
+
+mod groq_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "llama-3.3-70b-versatile".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "groq", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod groq_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "llama-3.3-70b-versatile".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "groq", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
         Ok(())
     }
 }
@@ -1514,6 +1866,94 @@ mod openrouter_judge_conversation {
     }
 }
 
+mod openrouter_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "openai/gpt-4.1-mini".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "openrouter", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod openrouter_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "openai/gpt-4.1-mini".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "openrouter", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
 mod openrouter_first_turn {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
@@ -1848,6 +2288,94 @@ mod deepseek_judge_conversation {
             println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
             println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
+        Ok(())
+    }
+}
+
+mod deepseek_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "deepseek-chat".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "deepseek", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod deepseek_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "deepseek-chat".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "deepseek", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
         Ok(())
     }
 }
@@ -2190,6 +2718,94 @@ mod zai_judge_conversation {
     }
 }
 
+mod zai_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "glm-4.5".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "zai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod zai_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "glm-4.5".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "zai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
 mod zai_first_turn {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
@@ -2528,6 +3144,94 @@ mod meta_judge_conversation {
     }
 }
 
+mod meta_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "muse-spark-1.3".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "meta", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod meta_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "muse-spark-1.3".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "meta", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
 mod meta_first_turn {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
@@ -2862,6 +3566,94 @@ mod moonshotai_judge_conversation {
             println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
             println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
+        Ok(())
+    }
+}
+
+mod moonshotai_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "kimi-k2.5".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "moonshotai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod moonshotai_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "kimi-k2.5".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "moonshotai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
         Ok(())
     }
 }
@@ -3366,6 +4158,94 @@ mod ollama_judge_conversation {
     }
 }
 
+mod ollama_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "qwen3.5:0.8b".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "ollama", Credential::api_key("unused")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod ollama_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "qwen3.5:0.8b".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "ollama", Credential::api_key("unused")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
 mod ollama_first_turn {
     use futures_util::StreamExt;
     use lm15::{auth::Credential, registry::adapter_for};
@@ -3700,6 +4580,94 @@ mod custom_judge_conversation {
             println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
             println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
         }
+        Ok(())
+    }
+}
+
+mod custom_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "custom-model".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "openai-chat", Credential::api_key("unused")?,
+            Some("http://localhost:1234/v1"), None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod custom_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // One turn: ask, print the stream, keep the reply (it carries the model's reasoning state).
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "custom-model".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "openai-chat", Credential::api_key("unused")?,
+            Some("http://localhost:1234/v1"), None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
         Ok(())
     }
 }

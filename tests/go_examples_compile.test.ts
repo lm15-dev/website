@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { stringifyJson } from "lm15/browser";
-import { goExamples } from "./support/go-examples.ts";
+import { goExamples, goStories } from "./support/go-examples.ts";
 
 /** The program with `return dump(request)` after the request is built: nothing after it runs, so no provider is called. */
 function dumped(source: string): string {
@@ -35,6 +35,7 @@ test("Go displayed programs compile against the SDK and build the page's request
       const run = join(dir, `run${index}`); mkdirSync(run);
       writeFileSync(join(run, "main.go"), dumped(example.source));
     }
+    for (const [index, source] of goStories().entries()) { const path = join(dir, `story${index}`); mkdirSync(path); writeFileSync(join(path, "main.go"), source); }
     execFileSync("go", ["build", "-mod=mod", "./..."], { cwd: dir, stdio: "pipe", timeout: 200_000 }); // main is never invoked
     for (const [index, example] of examples.entries()) {
       const out = execFileSync("go", ["run", "-mod=mod", `./run${index}`], { cwd: dir, stdio: "pipe", timeout: 60_000, encoding: "utf-8" });

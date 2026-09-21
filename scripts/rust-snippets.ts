@@ -14,6 +14,7 @@ import { CONNECTIONS } from "../src/playground/connections.ts";
 import { DEFAULT_SETTINGS, judgmentsOnly, exampleConversation, exampleRust, type Connection, type Settings } from "../src/playground/experience.ts";
 
 import { EXAMPLE_SPEC, judgeRust } from "../src/playground/judge.ts";
+import { storyRust, writtenTurns, type Turn } from "../src/playground/story.ts";
 
 export const rustExamplesPath = resolve(fileURLToPath(new URL("..", import.meta.url)), "examples", "rust", "src", "main.rs");
 
@@ -24,6 +25,14 @@ export function renderRustExamples(): string {
   const history = [
     Message.user("Earlier question"),
     Message.assistant([thinking("Earlier hidden reasoning", { continuation: [continuationState("anthropic", "thinking_signature", { signature: "opaque-replay-signature" })] }), "Earlier answer"]),
+  ];
+  // The story (what the panel shows): the example, an asked/answered pair whose reply carries state, and a rewritten reply spelled out.
+  const story: Turn[] = [
+    ...writtenTurns(exampleConversation()),
+    { message: Message.user("Asked through the page"), origin: "asked" },
+    { message: history[1]!, origin: "answered" },
+    { message: Message.user("Asked again"), origin: "asked" },
+    { message: Message.assistant([thinking("", { continuation: continuationState("openai", "reasoning_item", { id: "rs_1", encrypted_content: "abc" }) }), "Rewritten by hand"]), origin: "written" },
   ];
   const parts: string[] = [
     "//! The playground's Rust snippets (website/src/playground), one",
@@ -43,6 +52,11 @@ export function renderRustExamples(): string {
       parts.push(`mod ${choice.id.replace(/-/g, "_")}_judge_${shape} {`, ...uses.map((u) => `    ${u}`), "    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {", ...code.split("\n").map((line) => line ? `        ${line}` : ""), "        Ok(())", "    }", "}", "");
     }
     if (judgmentsOnly(choice.id)) continue;
+    for (const [suffix, turns, settings] of [["story", story, FULL], ["story_first_turn", [], DEFAULT_SETTINGS]] as const) {
+      const connection: Connection = { provider: choice.id, model: choice.model || "custom-model", endpoint: "http://localhost:1234/v1" };
+      const [uses, code] = splitUses(storyRust(connection, settings, turns, prompt).text);
+      parts.push(`mod ${choice.id.replace(/-/g, "_")}_${suffix} {`, ...uses.map((u) => `    ${u}`), "", "    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {", ...code.split("\n").map((line) => (line ? `        ${line}` : "")), "        Ok(())", "    }", "}", "");
+    }
     for (const [suffix, messages, settings] of [["first_turn", [], DEFAULT_SETTINGS], ["with_history", history, FULL], ["teaching_example", exampleConversation(), DEFAULT_SETTINGS], ["teaching_with_settings", exampleConversation(), FULL], ["zero_temperature", exampleConversation(), { ...DEFAULT_SETTINGS, temperature: 0 }]] as const) {
       const connection: Connection = { provider: choice.id, model: choice.model || "custom-model", endpoint: "http://localhost:1234/v1" };
       const body = exampleRust(connection, settings, messages, prompt).text;

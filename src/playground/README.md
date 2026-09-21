@@ -26,7 +26,17 @@ https://lm15.dev/playground/ after the build and link checks pass.
 - `picker.ts`: the provider / model / command list. A provider's row carries
   its key: masked with Forget once one is saved, a field to paste one until
   then, the address for the custom server.
-- `experience.ts`, `connections.ts`: provider choices, requests, and examples.
+- `story.ts`: the chat program the panel shows — the conversation as a
+  person writes it. The transcript is a variable that grows; one `ask` helper
+  sends a message, prints the stream and keeps `response.message`; each turn
+  that was sent is an `ask(...)` call with the model's answer echoed beneath
+  as a comment. Hand-written turns (the teaching example, a reply rewritten
+  by hand) are literals, since no call produced them. What the runtimes
+  execute is the snapshot in `experience.ts` — the same setup with the
+  transcript restored and one call — because re-running the story would ask
+  the model again at every turn. The Request view is the snapshot's bytes.
+- `experience.ts`, `connections.ts`: provider choices, requests, the snapshot
+  programs (executed) and the shared spellings both forms use.
 - `judge.ts`, `judge-ui.ts`: Judge mode — the question set, the inputs, one
   request per input, the four languages, the results table.
 - `credentials.ts`: temporary keys and optional encrypted browser storage.
@@ -180,7 +190,8 @@ These are labeled example turns, not replies fetched from a provider. Every
 turn in the transcript — example, yours, or a reply — is a textarea and can be
 rewritten; the next request is built from what the transcript says now. A
 rewritten reply keeps anything it carried besides its text (reasoning,
-continuation state). An emptied turn blocks sending and says so in the code
+continuation state) and, having no call behind it any more, is spelled out in
+the story as a literal (`story.ts`). An emptied turn blocks sending and says so in the code
 panel until it has text again. Turns are not copyable as a separate action: the
 code panel's Copy is the copy. A streaming or failed turn is read-only; a failed
 pair is greyed and not part of the next request. Changing provider/model or keys
@@ -190,9 +201,10 @@ the conversation. No inference is performed on arrival.
 The joke API key is a visible placeholder and appears in copyable code, but is
 never stored or accepted as a real key. Saving a real key does not erase the
 teaching example. Plain text turns use short Message constructors in the code. A
-reply that carries hidden reasoning or replay state (an OpenAI reasoning item,
-an Anthropic signature, a Gemini thought signature) is spelled with the SDK's
-own part constructors — `thinking("", { continuation: continuationState(...) })`
+model's reply is never source: it is echoed under its `ask` as a comment and
+carried by `response.message`. A hand-written reply that carries hidden
+reasoning or replay state (an OpenAI reasoning item, an Anthropic signature, a
+Gemini thought signature) is spelled with the SDK's own part constructors — `thinking("", { continuation: continuationState(...) })`
 and its Python, Rust and Go equivalents — so the reader sees the shape rather
 than a JSON blob. Only what those cannot express (tool calls, media, numbers in
 an opaque payload, state on the message itself) keeps the canonical JSON replay.
@@ -200,10 +212,10 @@ an opaque payload, state on the message itself) keeps the canonical JSON replay.
 Example tests cover provider variants and the teaching conversation without a
 token cap. `npm run rust:snippets` updates the standalone Rust example project,
 including Judge and DataPart examples; from `examples/rust`, `rcargo check --locked`
-verifies them without provider requests. `tests/go_examples_compile.test.ts` separately compiles
-every Go program the page shows against the Go toolchain and the sibling `../lm15-go`
-checkout, then runs each one with its provider call swapped for a dump and checks the
-request it built equals the page's canonical request. All four languages show the
+verifies them without provider requests; the story programs are among them. `tests/go_examples_compile.test.ts`
+separately compiles every Go program against the Go toolchain and the sibling `../lm15-go`
+checkout — the stories compile only; the snapshots also run with their provider call swapped
+for a dump, and the request each built must equal the page's canonical request. All four languages show the
 SDK's own constructors (`Message.user`, `judgments` / `score` / `choice` / `yes_no` and
 their Go and Rust spellings); only a replayed reply the part constructors cannot
 express is shown as its canonical JSON, in every language. Browser tests intercept inference

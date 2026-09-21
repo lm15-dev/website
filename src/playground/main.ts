@@ -7,6 +7,7 @@ import { comment, dim, finish, replaceAll, unmarked, type Code } from "./marks.t
 import type { Progress } from "./runtimes/progress.ts";
 import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleGo, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyPage, keyless, slashCommand, turnSource, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
 import { JudgeView } from "./judge-ui.ts";
+import { storyGo, storyJavascript, storyPython, storyRust, type Origin, type Turn } from "./story.ts";
 import type { JudgeSource } from "./judge.ts";
 import { disableAllRelays, enableRelay, looksBrowserBlocked, relayAvailable, relayed, relayedProviders } from "./relay.ts";
 import { Picker, type PickOption, type PickResult } from "./picker.ts";
@@ -39,6 +40,9 @@ const keyRevision = new Map<string, number>();
 interface Catalogue { ids: string[]; status: string; loading: boolean; error?: string }
 const catalogues = new Map<string, Catalogue>();
 let messages: Message[] = [];
+/** Where each message came from: hand-written (the example, a rewritten reply), asked through the page, or answered by the model. */
+let origins: Origin[] = [];
+const turns = (): Turn[] => messages.map((message, i) => ({ message, origin: origins[i] ?? "written" }));
 let generation = 0;
 let active: AbortController | undefined;
 let runtime: RuntimeId = "javascript";
@@ -189,10 +193,11 @@ async function updateCode(): Promise<void> {
     if (mode === "judge") code = judge.code(runtime);
     else {
       if (error) throw new Error(error);
-      if (runtime === "javascript") code = exampleJavascript(connection, settings, messages, text);
-      else if (runtime === "python") code = examplePython(connection, settings, messages, text);
-      else if (runtime === "go") code = exampleGo(connection, settings, messages, text);
-      else code = exampleRust(connection, settings, messages, text);
+      // The story: the conversation as a person writes it (story.ts). The runtimes execute the snapshot form (experience.ts).
+      if (runtime === "javascript") code = storyJavascript(connection, settings, turns(), text);
+      else if (runtime === "python") code = storyPython(connection, settings, turns(), text);
+      else if (runtime === "go") code = storyGo(connection, settings, turns(), text);
+      else code = storyRust(connection, settings, turns(), text);
     }
   } catch (error) {
     code = finish(comment(`// ${redact(error instanceof Error ? error.message : String(error))}`));
@@ -270,7 +275,7 @@ function refreshStatus(): void {
 }
 
 function reset(): void {
-  generation++; active?.abort(); active = undefined; messages = exampleConversation(); transcriptError = "";
+  generation++; active?.abort(); active = undefined; messages = exampleConversation(); origins = messages.map(() => "written"); transcriptError = "";
   $("transcript").replaceChildren(); $("usage").textContent = ""; $("fidelity").textContent = "";
   for (const message of messages) {
     const role = message.role === "user" ? "user" : "assistant";
@@ -556,6 +561,7 @@ function editTurn(article: HTMLElement, value: string): void {
     const kept = current.parts.filter((part) => part.type !== "text");
     const parts = [...kept.slice(0, Math.max(at, 0)), textPart(value), ...kept.slice(Math.max(at, 0))];
     messages = messages.with(index, Message.create({ role: current.role, parts, ...(current.continuation ? { continuation: current.continuation } : {}) }));
+    if (origins[index] === "answered") origins = origins.with(index, "written"); // no call produced this text any more
     transcriptError = ""; article.removeAttribute("data-invalid");
   } catch {
     transcriptError = "A turn cannot be empty. Put the text back, or start again with a new provider."; article.dataset["invalid"] = "true";
@@ -595,6 +601,7 @@ async function sendTurn(text: string): Promise<void> {
     });
     if (version !== generation) return;
     messages = [...request.messages, response.message];
+    origins = [...origins.slice(0, request.messages.length - 1), "asked", "answered"];
     asked.readOnly = body.readOnly = false;
     const usage = response.usage;
     const adapted = response.adaptations.length ? ` · adapted: ${response.adaptations.map((a) => `${a.field} ${a.action}`).join(", ")}` : "";

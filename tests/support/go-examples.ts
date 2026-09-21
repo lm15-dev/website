@@ -1,7 +1,28 @@
-import { Request as RequestNs } from "lm15/browser";
+import { Message, Request as RequestNs, continuationState, thinking } from "lm15/browser";
 import { CONNECTIONS } from "../../src/playground/connections.ts";
 import { DEFAULT_SETTINGS, exampleGo, buildRequest, type Connection } from "../../src/playground/experience.ts";
 import { EXAMPLE_SPEC, judgeGo, judgeRequest, judgeRust, type InputValue } from "../../src/playground/judge.ts";
+import { storyGo, writtenTurns, type Turn } from "../../src/playground/story.ts";
+import { exampleConversation } from "../../src/playground/experience.ts";
+
+/** The story the panel shows (story.ts): compiled, never run — it would ask the model at every turn. */
+export function goStories(): string[] {
+  const prompt = 'Wine �� café, `backtick`, "quote", slash \\, controls\n\r\t\b\f\u0000';
+  const turns: Turn[] = [
+    ...writtenTurns(exampleConversation()),
+    { message: Message.user("Asked through the page"), origin: "asked" },
+    { message: Message.assistant([thinking("Earlier hidden reasoning", { continuation: [continuationState("anthropic", "thinking_signature", { signature: "opaque-replay-signature" })] }), "Earlier answer"]), origin: "answered" },
+    { message: Message.user("Asked again"), origin: "asked" },
+    { message: Message.assistant([thinking("", { continuation: continuationState("openai", "reasoning_item", { id: "rs_1", encrypted_content: "abc" }) }), "Rewritten by hand"]), origin: "written" },
+  ];
+  const sources: string[] = [];
+  for (const choice of CONNECTIONS) {
+    if (choice.id === "typesafe") continue;
+    const connection: Connection = { provider: choice.id, model: choice.model || "custom-model", endpoint: "http://localhost:1234/v1" };
+    sources.push(storyGo(connection, { ...DEFAULT_SETTINGS, maxTokens: 64, temperature: 0.2, reasoning: "low" }, turns, prompt).text, storyGo(connection, DEFAULT_SETTINGS, [], prompt).text);
+  }
+  return sources;
+}
 
 export function goExamples() {
   const prompt = 'Wine 🍷 café, `backtick`, "quote", slash \\, controls\n\r\t\b\f\u0000';

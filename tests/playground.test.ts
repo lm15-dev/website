@@ -306,7 +306,8 @@ test("the playground: settings reach the code and the wire; a remembered key sur
     await page.getByLabel("System prompt").fill("Answer briefly.");
     await page.getByLabel("Max tokens").fill("64");
     await page.getByLabel("Reasoning effort").selectOption("low");
-    for (const [tab, expected] of [["JavaScript", /system: "Answer briefly\."[\s\S]*maxTokens: 64[\s\S]*reasoning: \{ effort: "low" \}/], ["Python", /system="Answer briefly\."[\s\S]*Config\(max_tokens=64, reasoning=Reasoning\(effort="low"\)\)/], ["Rust", /system: Some\("Answer briefly\."\.into\(\)\)[\s\S]*Reasoning::new\("low"\.parse\(\)\?\)/]] as const) {
+    // The panel shows the conversation as a person writes it: settings as variables, one `ask` per turn (story.ts).
+    for (const [tab, expected] of [["JavaScript", /const system = "Answer briefly\.";[\s\S]*maxTokens: 64[\s\S]*reasoning: \{ effort: "low" \}[\s\S]*await ask\(/], ["Python", /system = "Answer briefly\."[\s\S]*Config\(max_tokens=64, reasoning=Reasoning\(effort="low"\)\)[\s\S]*await ask\(/], ["Rust", /system: Some\("Answer briefly\."\.into\(\)\)[\s\S]*Reasoning::new\("low"\.parse\(\)\?\)[\s\S]*ask\(&lm, &mut messages, /]] as const) {
       await page.getByRole("button", { name: tab, exact: true }).click();
       await waitRuntimeReady(page, tab);
       await page.waitForFunction((pattern) => new RegExp(pattern, "s").test(document.getElementById("code")?.textContent ?? ""), expected.source);
@@ -321,6 +322,9 @@ test("the playground: settings reach the code and the wire; a remembered key sur
     assert.equal(sent.max_output_tokens, 64);
     assert.equal(sent.reasoning.effort, "low");
     assert.equal(await page.locator("#transcript article").last().locator("textarea").inputValue(), "Hello there.");
+    await page.getByRole("button", { name: "JavaScript", exact: true }).click();
+    await page.waitForFunction(() => /await ask\("hello"\);\n\/\/ → Hello there\./.test(document.getElementById("code")?.textContent ?? ""));
+    assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /Message\.assistant\("Hello there\."\)/, "a reply the model gave is echoed, not retyped as source");
     // Encrypted at rest: the stored record is not the key; a reload decrypts it back.
     const stored = await page.evaluate(async () => {
       const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open("lm15-playground"); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });

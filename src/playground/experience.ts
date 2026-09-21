@@ -101,17 +101,17 @@ export function buildRequest(connection: Connection, settings: Settings, message
 // `qv` a value the person typed, `api` a call into LM15, `comment`, `dim`
 // for what the language demands. The panel colours those; nothing parses.
 
-const q = JSON.stringify;
+export const q = JSON.stringify;
 /** A JSON string literal whose contents are the person's; `source` names the control it came from (the panel lights it on hover). */
-const qv = (text: string, source?: string): string => quotedValue(q(text), source);
+export const qv = (text: string, source?: string): string => quotedValue(q(text), source);
 /** A number the person set. */
-const nv = (n: number, source?: string): string => val(String(n), source);
+export const nv = (n: number, source?: string): string => val(String(n), source);
 /** The transcript's turns are named by position; the composer's draft is the last one. */
 export const turnSource = (index: number): string => `turn:${index}`;
-const indent = (text: string, level: number) => text.split("\n").map((line) => (line ? "  ".repeat(level) + line : line)).join("\n");
+export const indent = (text: string, level: number) => text.split("\n").map((line) => (line ? "  ".repeat(level) + line : line)).join("\n");
 
 /** Python spelling of a JSON value (True/False/None), for the replayed transcript. */
-function pyLiteral(value: unknown, level = 0): string {
+export function pyLiteral(value: unknown, level = 0): string {
   const pad = "    ".repeat(level);
   const inner = "    ".repeat(level + 1);
   if (value === null) return "None";
@@ -132,7 +132,7 @@ function pyLiteral(value: unknown, level = 0): string {
  * opaque payload, state on the message itself) keeps the canonical JSON replay.
  */
 interface ReplayPart { readonly type: "thinking" | "text"; readonly text: string; readonly continuation: readonly ContinuationState[] }
-function replayParts(message: Message): ReplayPart[] | undefined {
+export function replayParts(message: Message): ReplayPart[] | undefined {
   if (message.role !== "assistant" || message.continuation?.length) return;
   const parts: ReplayPart[] = [];
   for (const part of message.parts) {
@@ -169,7 +169,7 @@ function pyReplay(parts: readonly ReplayPart[], source: string, pad: string): st
     : p.continuation.length ? `${pad}    ${api("text")}(${qv(p.text, source)}, ${states(p.continuation)}),` : `${pad}    ${qv(p.text, source)},`), `${pad}]),`];
 }
 /** The names a program needs beyond `Message` to spell its replayed replies. */
-function replayNames(messages: readonly Message[]): { thinking: boolean; text: boolean; state: boolean } {
+export function replayNames(messages: readonly Message[]): { thinking: boolean; text: boolean; state: boolean } {
   const names = { thinking: false, text: false, state: false };
   for (const message of messages) {
     if (plainText(message)) continue;
@@ -182,8 +182,48 @@ function replayNames(messages: readonly Message[]): { thinking: boolean; text: b
   return names;
 }
 
+/** One transcript message in JavaScript (multi-line for a replayed reply), unindented, with its trailing comma. */
+export function jsMessage(m: Message, i: number): string {
+  const simple = plainText(m);
+  if (simple) return `${api(`Message.${simple.role}`)}(${qv(simple.text, turnSource(i))}),`;
+  const parts = replayParts(m);
+  return parts ? jsReplay(parts, turnSource(i)).join("\n") : `${api("Message.fromJSON")}(${stringifyJson(Message.toJSON(m), { indent: 2 })}),`;
+}
+/** One transcript message in Python, at `pad`, with its trailing comma. */
+export function pyMessage(m: Message, i: number, pad: string): string[] {
+  const simple = plainText(m);
+  if (simple) return [`${pad}${api(`Message.${simple.role}`)}(${qv(simple.text, turnSource(i))}),`];
+  const parts = replayParts(m);
+  return parts ? pyReplay(parts, turnSource(i), pad) : [`${pad}${api("message_from_dict")}(${pyLiteral(Message.toJSON(m), pad.length / 4)}),`];
+}
+/** One transcript message in Rust, at `pad`, with its trailing comma. */
+export function rustMessage(m: Message, i: number, pad: string): string[] {
+  const simple = plainText(m);
+  if (simple) return [`${pad}${api(`Message::${simple.role}`)}(${rv(simple.text, turnSource(i))})?,`];
+  const parts = replayParts(m);
+  if (!parts) return [`${pad}${api("Message::from_json")}(&serde_json::from_str(${rustString(stringifyJson(Message.toJSON(m)))})?)?,`];
+  const state = (s: ContinuationState) => `${api("ContinuationState::new")}(${rustString(s.provider)}, ${rustString(s.kind)}, serde_json::from_value(${rustData(s)})?)?`;
+  const states = (c: readonly ContinuationState[]) => `continuation: vec![${c.map(state).join(", ")}],`;
+  return [`${pad}${api("Message::assistant")}(vec![`, ...parts.flatMap((p) => {
+    if (!p.continuation.length) return [`${pad}    ${api(p.type === "thinking" ? "Part::thinking" : "Part::text")}(${rv(p.text, p.type === "text" ? turnSource(i) : undefined)}),`];
+    const kind = p.type === "thinking" ? ["Part::Thinking", "ThinkingPart"] : ["Part::Text", "TextPart"];
+    return [`${pad}    ${api(kind[0]!)}(${api(kind[1]!)} {`, `${pad}        text: ${rv(p.text, p.type === "text" ? turnSource(i) : undefined)}.into(),`, `${pad}        ${states(p.continuation)}`, `${pad}    }),`];
+  }), `${pad}])?,`];
+}
+/** The Rust `use lm15::{…}` names a transcript needs beyond the basics. */
+export function rustReplayImports(messages: readonly Message[]): string[] {
+  const imports: string[] = [];
+  if (messages.some((message) => !plainText(message) && !replayParts(message))) imports.push("Canonical");
+  const replay = replayNames(messages);
+  if (replay.thinking || replay.text) imports.push("Part");
+  if (replay.thinking) imports.push("ThinkingPart");
+  if (replay.text) imports.push("TextPart");
+  if (replay.state) imports.push("ContinuationState");
+  return imports;
+}
+
 /** Only use shorthand when it preserves the complete canonical message. */
-function plainText(message: Message): { role: "user" | "assistant"; text: string } | undefined {
+export function plainText(message: Message): { role: "user" | "assistant"; text: string } | undefined {
   const data = Message.toJSON(message);
   if (Object.keys(data).sort().join(",") !== "parts,role" || (data.role !== "user" && data.role !== "assistant")) return;
   const parts = data.parts;
@@ -193,7 +233,7 @@ function plainText(message: Message): { role: "user" | "assistant"; text: string
   return { role: data.role, text: part.text };
 }
 
-function configLines(settings: Settings, lang: Language): string[] {
+export function configLines(settings: Settings, lang: Language): string[] {
   const entries: Array<[string, string]> = [];
   if (lang === "javascript") {
     if (settings.maxTokens !== null) entries.push(["maxTokens", nv(settings.maxTokens, "maxTokens")]);
@@ -234,12 +274,7 @@ export function exampleJavascript(connection: Connection, settings: Settings, me
   lines.push("", `const request = ${api("Request.create")}({`, `  model: ${qv(connection.model, "model")},`);
   if (settings.system.trim()) lines.push(`  system: ${qv(settings.system.trim(), "system")},`);
   if (messages.length) {
-    lines.push("  messages: [", ...indent(messages.map((m, i) => {
-      const simple = plainText(m);
-      if (simple) return `${api(`Message.${simple.role}`)}(${qv(simple.text, turnSource(i))}),`;
-      const parts = replayParts(m);
-      return parts ? jsReplay(parts, turnSource(i)).join("\n") : `${api("Message.fromJSON")}(${stringifyJson(Message.toJSON(m), { indent: 2 })}),`;
-    }).join("\n"), 2).split("\n"), `    ${api("Message.user")}(${qv(prompt, "draft")}),`, "  ],");
+    lines.push("  messages: [", ...indent(messages.map((m, i) => jsMessage(m, i)).join("\n"), 2).split("\n"), `    ${api("Message.user")}(${qv(prompt, "draft")}),`, "  ],");
   } else lines.push(`  messages: [${api("Message.user")}(${qv(prompt, "draft")})],`);
   lines.push(...configLines(settings, "javascript"), "});", "");
   if (streamed) {
@@ -292,12 +327,7 @@ export function examplePython(connection: Connection, settings: Settings, messag
   lines.push("", ...client.lines, "", `request = ${api("Request")}(`, `    model=${qv(connection.model, "model")},`);
   if (settings.system.trim()) lines.push(`    system=${qv(settings.system.trim(), "system")},`);
   if (messages.length) {
-    lines.push("    messages=(", ...messages.flatMap((m, i) => {
-      const simple = plainText(m);
-      if (simple) return [`        ${api(`Message.${simple.role}`)}(${qv(simple.text, turnSource(i))}),`];
-      const parts = replayParts(m);
-      return parts ? pyReplay(parts, turnSource(i), "        ") : [`        ${api("message_from_dict")}(${pyLiteral(Message.toJSON(m), 2)}),`];
-    }), `        ${api("Message.user")}(${qv(prompt, "draft")}),`, "    ),");
+    lines.push("    messages=(", ...messages.flatMap((m, i) => pyMessage(m, i, "        ")), `        ${api("Message.user")}(${qv(prompt, "draft")}),`, "    ),");
   } else lines.push(`    messages=(${api("Message.user")}(${qv(prompt, "draft")}),),`);
   lines.push(...configLines(settings, "python"), ")", "");
   if (streamed) lines.push(`result = ${api("AsyncResponseStream")}(${api("lm.stream")}(request), request)  ${comment("# Stop closes the stream")}`, `async for ${chunk} in result:`, `    print(${chunk}, end="", flush=True)`, "", comment("# Keep the reply for the next turn."), `response = await ${api("result.response")}()`);
@@ -356,7 +386,7 @@ export const GO_ERR = dim("    if err != nil { return err }");
 export const GO_ERR_IN_LOOP = dim("        if err != nil { return err }");
 
 /** The Go spelling of one transcript message: the SDK's constructor for plain text; the canonical JSON replayed for anything else (reasoning with continuation state). */
-function goMessage(message: Message, index: number): { expression: string; replay?: string[] } {
+export function goMessage(message: Message, index: number): { expression: string; replay?: string[] } {
   const simple = plainText(message);
   if (simple) return { expression: `${api(simple.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(simple.text, turnSource(index))})` };
   const parts = replayParts(message);
@@ -372,7 +402,7 @@ function goMessage(message: Message, index: number): { expression: string; repla
   return { expression: "earlier", replay: [`    ${comment("// A reply replayed as the wire gave it (its reasoning and continuation state stay verbatim).")}`, `    var earlier ${api("lm15.Message")}`, `    if err := json.Unmarshal([]byte(${goJsonText(stringifyJson(Message.toJSON(message)))}), &earlier); err != nil { return err }`] };
 }
 
-function goConfig(settings: Settings): string | undefined {
+export function goConfig(settings: Settings): string | undefined {
   const entries: string[] = [];
   if (settings.maxTokens !== null) entries.push(`MaxTokens: lm15.I(${nv(settings.maxTokens, "maxTokens")})`);
   if (settings.temperature !== null) entries.push(`Temperature: lm15.F(${nv(settings.temperature, "temperature")})`);
@@ -406,28 +436,12 @@ export function exampleRust(connection: Connection, settings: Settings, messages
   const imports = ["Message", "Request", "ResponseStream"];
   if (configLines(settings, "rust").length) imports.push("Config");
   if (settings.reasoning) imports.push("Reasoning");
-  if (messages.some((message) => !plainText(message) && !replayParts(message))) imports.push("Canonical");
+  imports.push(...rustReplayImports(messages));
   const replay = replayNames(messages);
-  if (replay.thinking || replay.text) imports.push("Part");
-  if (replay.thinking) imports.push("ThinkingPart");
-  if (replay.text) imports.push("TextPart");
-  if (replay.state) imports.push("ContinuationState");
   const lines = [dim("use futures_util::StreamExt;"), dim("use lm15::{auth::Credential, registry::adapter_for};"), dim(`use lm15::{${imports.sort().join(", ")}};`), ...(replay.state ? [dim("use serde_json::json;")] : []), "", ...rustClient(connection), "", `let request = ${api("Request")} {`, `    model: ${rv(connection.model, "model")}.into(),`];
   if (settings.system.trim()) lines.push(`    system: Some(${rv(settings.system.trim(), "system")}.into()),`);
   if (messages.length) {
-    lines.push("    messages: vec![", ...messages.flatMap((m, i) => {
-      const simple = plainText(m);
-      if (simple) return [`        ${api(`Message::${simple.role}`)}(${rv(simple.text, turnSource(i))})?,`];
-      const parts = replayParts(m);
-      if (!parts) return [`        ${api("Message::from_json")}(&serde_json::from_str(${rustString(stringifyJson(Message.toJSON(m)))})?)?,`];
-      const state = (s: ContinuationState) => `${api("ContinuationState::new")}(${rustString(s.provider)}, ${rustString(s.kind)}, serde_json::from_value(${rustData(s)})?)?`;
-      const states = (c: readonly ContinuationState[]) => `continuation: vec![${c.map(state).join(", ")}],`;
-      return [`        ${api("Message::assistant")}(vec![`, ...parts.flatMap((p) => {
-        if (!p.continuation.length) return [`            ${api(p.type === "thinking" ? "Part::thinking" : "Part::text")}(${rv(p.text, p.type === "text" ? turnSource(i) : undefined)}),`];
-        const kind = p.type === "thinking" ? ["Part::Thinking", "ThinkingPart"] : ["Part::Text", "TextPart"];
-        return [`            ${api(kind[0]!)}(${api(kind[1]!)} {`, `                text: ${rv(p.text, p.type === "text" ? turnSource(i) : undefined)}.into(),`, `                ${states(p.continuation)}`, "            }),"];
-      }), "        ])?,"];
-    }), `        ${api("Message::user")}(${rv(prompt, "draft")})?,`, "    ],");
+    lines.push("    messages: vec![", ...messages.flatMap((m, i) => rustMessage(m, i, "        ")), `        ${api("Message::user")}(${rv(prompt, "draft")})?,`, "    ],");
   } else lines.push(`    messages: vec![${api("Message::user")}(${rv(prompt, "draft")})?],`);
   lines.push(...configLines(settings, "rust"), dim("    ..Default::default()"), "};", "", `let mut result = ${api("ResponseStream::new")}(${api("lm.stream")}(&request), &request); ${comment("// drop it to stop")}`, `while let Some(text) = ${api("result.text_chunks")}().next().await {`, '    print!("{}", text?);', "}", "", comment("// Keep the reply for the next turn."), `let response = ${api("result.response")}().await?;`, "let mut messages = request.messages.clone();", "messages.push(response.message.clone());");
   return finish(lines.join("\n"));
