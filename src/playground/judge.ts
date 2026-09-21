@@ -405,8 +405,8 @@ export function judgeJavascript(connection: Connection, spec: JudgeSpec, value: 
   const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", ...(connection.provider === "anthropic" ? ["access"] : []), "Message", "Request", "judgments", ...[...uses].sort()];
   const jev = judgmentsOnly(connection.provider);
   const lines = [dim(`import { ${imports.join(", ")} } from "lm15/browser";`), "", ...jsClient(connection), `const model = ${qv(connection.model, "model")};`];
-  lines.push("", comment("// Declared keys in, a distribution out (MAP-14)."), `const questions = ${api("judgments")}({`, ...questionLines, "});", "");
-  lines.push(comment(`// ${SHAPE_NOTE[spec.shape]}.`), `const state = ${group(jsState(value, 0, jev), STATE_SOURCE)};`, "");
+  lines.push("", comment(`// ${SHAPE_NOTE[spec.shape]}.`), `const state = ${group(jsState(value, 0, jev), STATE_SOURCE)};`, "");
+  lines.push(comment("// Declared keys in, a distribution out (MAP-14)."), `const questions = ${api("judgments")}({`, ...questionLines, "});", "");
   const messages = jev
     ? (spec.shape === "text" ? `[${api("Message.user")}(state)]` : spec.shape === "fields" ? `[${api("Message.user")}({ type: "data", value: state })]` : `[${api("Message.user")}({ type: "data", value: { messages: state } })]`)
     : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `[${api("Message.user")}({ type: "data", value: state })]` : `[${api("Message.user")}(state)]`);
@@ -426,8 +426,8 @@ export function judgePython(connection: Connection, spec: JudgeSpec, value: Stat
   const jev = judgmentsOnly(connection.provider);
   const usesData = spec.shape === "fields" || (jev && spec.shape === "conversation");
   const lines = pyImports([client.cls, "Config", "Message", "Request", "judgments", ...(usesData ? ["data"] : []), ...uses], connection);
-  lines.push("", ...client.lines, `model = ${qv(connection.model, "model")}`, "", comment("# Declared keys in, a distribution out (MAP-14)."), `questions = ${api("judgments")}(`, ...questionLines, ")", "");
-  lines.push(comment(`# ${SHAPE_NOTE[spec.shape]}.`), `state = ${group(pyState(value, 0, jev), STATE_SOURCE)}`, "");
+  lines.push("", ...client.lines, `model = ${qv(connection.model, "model")}`, "", comment(`# ${SHAPE_NOTE[spec.shape]}.`), `state = ${group(pyState(value, 0, jev), STATE_SOURCE)}`, "");
+  lines.push(comment("# Declared keys in, a distribution out (MAP-14)."), `questions = ${api("judgments")}(`, ...questionLines, ")", "");
   const messages = jev
     ? (spec.shape === "text" ? `[${api("Message.user")}(state)]` : spec.shape === "fields" ? `[${api("Message.user")}(${api("data")}(state))]` : `[${api("Message.user")}(${api("data")}({"messages": state}))]`)
     : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `[${api("Message.user")}(${api("data")}(state))]` : `[${api("Message.user")}(state)]`);
@@ -472,7 +472,13 @@ function goIdentifiers(names: readonly string[]): string[] {
 /** The Go of the same call: the SDK's sugar for each question, one request, `Complete` (never streamed). */
 export function judgeGo(connection: Connection, spec: JudgeSpec, value: StateValue, echo?: Echo): Code {
   const jev = judgmentsOnly(connection.provider);
-  const body: string[] = [`    ${comment("// Declared keys in, a distribution out (MAP-14).")}`];
+  // The state first, as on the page; typed by shape: a text, an object, or a transcript (Jev takes a transcript as its own `messages` array).
+  const body: string[] = [`    ${comment(`// ${SHAPE_NOTE[spec.shape]}.`)}`];
+  if (spec.shape === "text") body.push(`    state := ${group(qv(value as string), STATE_SOURCE)}`);
+  else if (spec.shape === "fields") body.push(`    state := ${group(goJson(value as JsonValue, 1, true), STATE_SOURCE)}`);
+  else if (jev) body.push(`    state := ${group(`[]lm15.JSONObject{\n${(value as readonly Turn[]).map((t) => `        {"role": ${q(t.role)}, "content": ${qv(t.content)}},`).join("\n")}\n    }`, STATE_SOURCE)}`);
+  else body.push(`    state := ${group(`[]lm15.Message{\n${(value as readonly Turn[]).map((t) => `        ${api(t.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(t.content)}),`).join("\n")}\n    }`, STATE_SOURCE)}`);
+  body.push("", `    ${comment("// Declared keys in, a distribution out (MAP-14).")}`);
   const entries = Object.entries(spec.properties);
   const names = goIdentifiers(entries.map(([name]) => name));
   const properties: string[] = [];
@@ -492,13 +498,7 @@ export function judgeGo(connection: Connection, spec: JudgeSpec, value: StateVal
     }
     body.push(group(declared.join("\n"), source), GO_ERR);
   });
-  body.push(`    questions, err := ${api("lm15.Judgments")}("judgments", true,`, ...properties.map((p) => `        ${p},`), "    )", GO_ERR, "");
-  // The state, typed by shape: a text, an object, or a transcript (Jev takes a transcript as its own `messages` array).
-  body.push(`    ${comment(`// ${SHAPE_NOTE[spec.shape]}.`)}`);
-  if (spec.shape === "text") body.push(`    state := ${group(qv(value as string), STATE_SOURCE)}`);
-  else if (spec.shape === "fields") body.push(`    state := ${group(goJson(value as JsonValue, 1, true), STATE_SOURCE)}`);
-  else if (jev) body.push(`    state := ${group(`[]lm15.JSONObject{\n${(value as readonly Turn[]).map((t) => `        {"role": ${q(t.role)}, "content": ${qv(t.content)}},`).join("\n")}\n    }`, STATE_SOURCE)}`);
-  else body.push(`    state := ${group(`[]lm15.Message{\n${(value as readonly Turn[]).map((t) => `        ${api(t.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(t.content)}),`).join("\n")}\n    }`, STATE_SOURCE)}`);
+  body.push(`    questions, err := ${api("lm15.Judgments")}("judgments", true,`, ...properties.map((p) => `        ${p},`), "    )", GO_ERR);
   const messages = jev
     ? (spec.shape === "text" ? `[]lm15.Message{${api("lm15.UserMessage")}(state)}` : spec.shape === "fields" ? `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(state))}` : `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(lm15.JSONObject{"messages": state}))}`)
     : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(state))}` : `[]lm15.Message{${api("lm15.UserMessage")}(state)}`);
@@ -573,8 +573,8 @@ export function judgeRust(connection: Connection, spec: JudgeSpec, value: StateV
   const [data, probabilities, adaptations] = echoLines(echo, "rust", "//");
   const lines = [dim("use lm15::{auth::Credential, registry::adapter_for};"), dim(`use lm15::{${rustUseOrder(uses).join(", ")}};`), ...(json ? [dim("use serde_json::json;")] : []), ""];
   lines.push(...rustClient(connection), "");
-  lines.push(comment("// Declared keys in, a distribution out (MAP-14)."), "let mut questions = JsonObject::new();", ...questions, `let questions = ${api("judgments")}(questions)?;`, "");
   lines.push(comment(`// ${SHAPE_NOTE[spec.shape]}.`), `let state = ${group(state, STATE_SOURCE)};`, "");
+  lines.push(comment("// Declared keys in, a distribution out (MAP-14)."), "let mut questions = JsonObject::new();", ...questions, `let questions = ${api("judgments")}(questions)?;`, "");
   lines.push(`let request = ${api("Request")} {`, `    model: ${rv(connection.model, "model")}.into(),`, `    messages: ${messages},`, `    config: ${api("Config")} {`, "        response_format: Some(questions),", `        probabilities: Some(${api("ProbabilityPolicy::IfAvailable")}),`, dim("        ..Default::default()"), "    },", dim("    ..Default::default()"), "};",
     `let response = ${api("lm.complete")}(&request).await?;`,
     `println!("{:?}", ${api("response.data")}()); ${comment(`// ${DATA_NOTE}`)}`, ...data,

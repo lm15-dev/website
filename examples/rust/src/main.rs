@@ -14,6 +14,9 @@ mod openai_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -24,9 +27,6 @@ mod openai_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "gpt-4.1-mini".into(),
@@ -56,6 +56,12 @@ mod openai_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -66,12 +72,6 @@ mod openai_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "gpt-4.1-mini".into(),
@@ -100,6 +100,11 @@ mod openai_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -110,11 +115,6 @@ mod openai_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "gpt-4.1-mini".into(),
@@ -412,6 +412,9 @@ mod anthropic_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -422,9 +425,6 @@ mod anthropic_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "claude-haiku-4-5".into(),
@@ -454,6 +454,12 @@ mod anthropic_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -464,12 +470,6 @@ mod anthropic_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "claude-haiku-4-5".into(),
@@ -498,6 +498,11 @@ mod anthropic_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -508,11 +513,6 @@ mod anthropic_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "claude-haiku-4-5".into(),
@@ -810,6 +810,9 @@ mod gemini_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -820,9 +823,6 @@ mod gemini_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "gemini-2.5-flash".into(),
@@ -852,6 +852,12 @@ mod gemini_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -862,12 +868,6 @@ mod gemini_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "gemini-2.5-flash".into(),
@@ -896,6 +896,11 @@ mod gemini_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -906,11 +911,6 @@ mod gemini_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "gemini-2.5-flash".into(),
@@ -1208,6 +1208,9 @@ mod groq_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -1218,9 +1221,6 @@ mod groq_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "llama-3.3-70b-versatile".into(),
@@ -1250,6 +1250,12 @@ mod groq_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -1260,12 +1266,6 @@ mod groq_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "llama-3.3-70b-versatile".into(),
@@ -1294,6 +1294,11 @@ mod groq_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -1304,11 +1309,6 @@ mod groq_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "llama-3.3-70b-versatile".into(),
@@ -1606,6 +1606,9 @@ mod openrouter_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -1616,9 +1619,6 @@ mod openrouter_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "openai/gpt-4.1-mini".into(),
@@ -1648,6 +1648,12 @@ mod openrouter_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -1658,12 +1664,6 @@ mod openrouter_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "openai/gpt-4.1-mini".into(),
@@ -1692,6 +1692,11 @@ mod openrouter_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -1702,11 +1707,6 @@ mod openrouter_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "openai/gpt-4.1-mini".into(),
@@ -2004,6 +2004,9 @@ mod deepseek_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -2014,9 +2017,6 @@ mod deepseek_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "deepseek-chat".into(),
@@ -2046,6 +2046,12 @@ mod deepseek_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -2056,12 +2062,6 @@ mod deepseek_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "deepseek-chat".into(),
@@ -2090,6 +2090,11 @@ mod deepseek_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -2100,11 +2105,6 @@ mod deepseek_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "deepseek-chat".into(),
@@ -2402,6 +2402,9 @@ mod zai_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -2412,9 +2415,6 @@ mod zai_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "glm-4.5".into(),
@@ -2444,6 +2444,12 @@ mod zai_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -2454,12 +2460,6 @@ mod zai_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "glm-4.5".into(),
@@ -2488,6 +2488,11 @@ mod zai_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -2498,11 +2503,6 @@ mod zai_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "glm-4.5".into(),
@@ -2800,6 +2800,9 @@ mod meta_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -2810,9 +2813,6 @@ mod meta_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "muse-spark-1.3".into(),
@@ -2842,6 +2842,12 @@ mod meta_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -2852,12 +2858,6 @@ mod meta_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "muse-spark-1.3".into(),
@@ -2886,6 +2886,11 @@ mod meta_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -2896,11 +2901,6 @@ mod meta_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "muse-spark-1.3".into(),
@@ -3198,6 +3198,9 @@ mod moonshotai_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -3208,9 +3211,6 @@ mod moonshotai_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "kimi-k2.5".into(),
@@ -3240,6 +3240,12 @@ mod moonshotai_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -3250,12 +3256,6 @@ mod moonshotai_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "kimi-k2.5".into(),
@@ -3284,6 +3284,11 @@ mod moonshotai_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -3294,11 +3299,6 @@ mod moonshotai_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "kimi-k2.5".into(),
@@ -3596,6 +3596,9 @@ mod typesafe_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -3606,9 +3609,6 @@ mod typesafe_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "jev-latest".into(),
@@ -3638,6 +3638,12 @@ mod typesafe_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -3648,12 +3654,6 @@ mod typesafe_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "jev-latest".into(),
@@ -3683,6 +3683,11 @@ mod typesafe_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = json!([
+            { "role": "user", "content": "Quotes \" and a newline\n</script> are text, not executable code." },
+        ]);
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -3693,11 +3698,6 @@ mod typesafe_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = json!([
-            { "role": "user", "content": "Quotes \" and a newline\n</script> are text, not executable code." },
-        ]);
 
         let request = Request {
             model: "jev-latest".into(),
@@ -3726,6 +3726,9 @@ mod ollama_judge_text {
             None, None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -3736,9 +3739,6 @@ mod ollama_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "qwen3.5:0.8b".into(),
@@ -3768,6 +3768,12 @@ mod ollama_judge_fields {
             None, None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -3778,12 +3784,6 @@ mod ollama_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "qwen3.5:0.8b".into(),
@@ -3812,6 +3812,11 @@ mod ollama_judge_conversation {
             None, None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -3822,11 +3827,6 @@ mod ollama_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "qwen3.5:0.8b".into(),
@@ -4124,6 +4124,9 @@ mod custom_judge_text {
             Some("http://localhost:1234/v1"), None, None,
         )?;
 
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -4134,9 +4137,6 @@ mod custom_judge_text {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a text.
-        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
 
         let request = Request {
             model: "custom-model".into(),
@@ -4166,6 +4166,12 @@ mod custom_judge_fields {
             Some("http://localhost:1234/v1"), None, None,
         )?;
 
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -4176,12 +4182,6 @@ mod custom_judge_fields {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
-        let state = json!({
-            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
-            "price": 1,
-        });
 
         let request = Request {
             model: "custom-model".into(),
@@ -4210,6 +4210,11 @@ mod custom_judge_conversation {
             Some("http://localhost:1234/v1"), None, None,
         )?;
 
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
         questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
@@ -4220,11 +4225,6 @@ mod custom_judge_conversation {
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
         let questions = judgments(questions)?;
-
-        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
-        let state = vec![
-            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
-        ];
 
         let request = Request {
             model: "custom-model".into(),
