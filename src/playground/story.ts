@@ -15,7 +15,7 @@
  */
 import type { Message } from "lm15/browser";
 import { api, comment, dim, finish, mark, type Code } from "./marks.ts";
-import { GO_ERR, GO_ERR_IN_LOOP, configLines, goConfig, goMessage, goProgram, indent, jsClient, jsMessage, judgmentsOnly, plainText, pyClient, pyImports, pyMessage, qv, replayNames, replayParts, rustClient, rustMessage, rustReplayImports, rv, streams, turnSource, type Connection, type Settings } from "./experience.ts";
+import { GO_ERR, GO_ERR_IN_LOOP, configLines, goConfig, goMessage, goProgram, indent, jsClient, jsMessage, judgmentsOnly, plainText, pyClient, pyImports, pyMessage, qv, replayNames, replayParts, rustClient, rustMessage, rustReplayImports, rv, streams, turnSource, type Connection, type Ghost, type Settings } from "./experience.ts";
 
 export type Origin = "written" | "asked" | "answered";
 export interface Turn { readonly message: Message; readonly origin: Origin }
@@ -55,7 +55,7 @@ function echo(text: string, lead: string, index: number): string[] {
 const ONE_TURN = "Ask, print the stream, keep the reply: it carries the model's reasoning state.";
 const REWRITTEN = "Rewritten by hand: no call produced these, so they are written out.";
 
-export function storyJavascript(connection: Connection, settings: Settings, turns: readonly Turn[], draft: string): Code {
+export function storyJavascript(connection: Connection, settings: Settings, turns: readonly Turn[], draft: string, ghost?: Ghost): Code {
   if (judgmentsOnly(connection.provider) || !streams(connection)) return finish(comment("// TypeSafe is judgments-only. Open Judge to declare the questions."));
   const messages = turns.map((t) => t.message);
   const { opening, steps, literal } = plan(turns);
@@ -63,7 +63,7 @@ export function storyJavascript(connection: Connection, settings: Settings, turn
   const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", "Message", "Request", "ResponseStream", ...(replay.state ? ["continuationState"] : []), ...(replay.text ? ["text"] : []), ...(replay.thinking ? ["thinking"] : [])];
   if (connection.provider === "anthropic") imports.splice(1, 0, "access");
   const system = settings.system.trim();
-  const config = configLines(settings, "javascript").map((line) => line.trim().replace(/,$/, ""));
+  const config = configLines(settings, "javascript", ghost).map((line) => line.trim().replace(/,$/, ""));
   const lines = [dim(`import { ${imports.join(", ")} } from "lm15/browser";`), "", ...jsClient(connection), `const model = ${qv(connection.model, "model")};`];
   if (system) lines.push(`const system = ${qv(system, "system")};`);
   lines.push("", ...(opening.length ? ["const messages = [", ...indent(opening.map((i) => jsMessage(messages[i]!, i)).join("\n"), 1).split("\n"), "];"] : ["const messages = [];"]));
@@ -78,14 +78,14 @@ export function storyJavascript(connection: Connection, settings: Settings, turn
   return finish(lines.join("\n"));
 }
 
-export function storyPython(connection: Connection, settings: Settings, turns: readonly Turn[], draft: string): Code {
+export function storyPython(connection: Connection, settings: Settings, turns: readonly Turn[], draft: string, ghost?: Ghost): Code {
   if (judgmentsOnly(connection.provider) || !streams(connection)) return finish(comment("# TypeSafe is judgments-only. Open Judge to declare the questions."));
   const messages = turns.map((t) => t.message);
   const { opening, steps, literal } = plan(turns);
   const client = pyClient(connection);
   const replay = replayNames(literal);
   const names = [client.cls, "AsyncResponseStream", "Message", "Request", ...(replay.state ? ["ContinuationState"] : [])];
-  const config = configLines(settings, "python");
+  const config = configLines(settings, "python", ghost);
   if (config.length) names.push("Config");
   if (settings.reasoning) names.push("Reasoning");
   const factories = [...(replay.text ? ["text"] : []), ...(replay.thinking ? ["thinking"] : [])];
@@ -109,12 +109,12 @@ export function storyPython(connection: Connection, settings: Settings, turns: r
   return finish(lines.join("\n"));
 }
 
-export function storyRust(connection: Connection, settings: Settings, turns: readonly Turn[], draft: string): Code {
+export function storyRust(connection: Connection, settings: Settings, turns: readonly Turn[], draft: string, ghost?: Ghost): Code {
   if (judgmentsOnly(connection.provider) || !streams(connection)) return finish(comment("// TypeSafe is judgments-only. Open Judge to declare the questions."));
   const messages = turns.map((t) => t.message);
   const { opening, steps, literal } = plan(turns);
   const imports = ["Message", "ProviderLM", "Request", "ResponseStream", ...rustReplayImports(literal)];
-  const config = configLines(settings, "rust");
+  const config = configLines(settings, "rust", ghost);
   if (config.length) imports.push("Config");
   if (settings.reasoning) imports.push("Reasoning");
   const replay = replayNames(literal);
@@ -135,14 +135,14 @@ export function storyRust(connection: Connection, settings: Settings, turns: rea
   return finish(lines.join("\n"));
 }
 
-export function storyGo(connection: Connection, settings: Settings, turns: readonly Turn[], draft: string): Code {
+export function storyGo(connection: Connection, settings: Settings, turns: readonly Turn[], draft: string, ghost?: Ghost): Code {
   if (judgmentsOnly(connection.provider) || !streams(connection)) return finish(comment("// TypeSafe is judgments-only. Open Judge to declare the questions."));
   const messages = turns.map((t) => t.message);
   const { opening, steps, literal } = plan(turns);
   const rendered = messages.map((m, i) => (literal.includes(m) ? goMessage(m, i) : { expression: "" }));
   const replays = rendered.flatMap((m) => m.replay ?? []);
   const system = settings.system.trim();
-  const config = goConfig(settings);
+  const config = goConfig(settings, ghost);
   const options = [...(system ? [`${api("lm15.WithSystem")}(${qv(system, "system")})`] : []), ...(config ? [`${api("lm15.WithConfig")}(${config})`] : [])];
   const body: string[] = [];
   if (replays.length) body.push(...replays, "");

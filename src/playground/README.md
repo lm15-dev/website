@@ -102,6 +102,13 @@ the storage notice, Forget all), relay status, documentation, source, and
 privacy/license links. It closes with Escape, a click outside, or focus
 leaving the menu.
 
+Hovering or focusing a control on the left lights the value it produced in the
+code; hovering a value in the code lights its control on the left, and scrolls
+it into view. An unset sampling field (temperature, max tokens, reasoning
+effort) is drawn into the code while its field is touched, dimmed, as the
+language's own "unset" (`undefined`, `None`, `None`, `nil`), so its place is
+visible; it leaves with the pointer.
+
 Temperature and max tokens are optional: clear a number to leave it unset.
 Zero temperature is an explicit value; zero max tokens is invalid. An empty
 max-token field means no limit supplied by the playground, not unlimited output:

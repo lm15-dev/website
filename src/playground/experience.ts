@@ -233,23 +233,37 @@ export function plainText(message: Message): { role: "user" | "assistant"; text:
   return { role: data.role, text: part.text };
 }
 
-export function configLines(settings: Settings, lang: Language): string[] {
+/** A setting that is not set, drawn into the code while its field is touched: where it would go, spelled as "unset". */
+export type Ghost = "temperature" | "maxTokens" | "reasoning";
+/** The entry for an unset setting: the language's own "nothing", dimmed, named as its field so it lights with it. */
+const ghostEntry = (ghost: Ghost, none: string): string => dim(val(none, ghost));
+export function configLines(settings: Settings, lang: Language, ghost?: Ghost): string[] {
   const entries: Array<[string, string]> = [];
+  const unset = (name: Ghost) => ghost === name && (name === "reasoning" ? !settings.reasoning : settings[name] === null);
   if (lang === "javascript") {
     if (settings.maxTokens !== null) entries.push(["maxTokens", nv(settings.maxTokens, "maxTokens")]);
+    else if (unset("maxTokens")) entries.push(["maxTokens", ghostEntry("maxTokens", "undefined")]);
     if (settings.temperature !== null) entries.push(["temperature", nv(settings.temperature, "temperature")]);
+    else if (unset("temperature")) entries.push(["temperature", ghostEntry("temperature", "undefined")]);
     if (settings.reasoning) entries.push(["reasoning", `{ effort: ${qv(settings.reasoning, "reasoning")} }`]);
+    else if (unset("reasoning")) entries.push(["reasoning", ghostEntry("reasoning", "undefined")]);
     return entries.length ? [`  config: { ${entries.map(([k, v]) => `${k}: ${v}`).join(", ")} },`] : [];
   }
   if (lang === "python") {
     if (settings.maxTokens !== null) entries.push(["max_tokens", nv(settings.maxTokens, "maxTokens")]);
+    else if (unset("maxTokens")) entries.push(["max_tokens", ghostEntry("maxTokens", "None")]);
     if (settings.temperature !== null) entries.push(["temperature", nv(settings.temperature, "temperature")]);
+    else if (unset("temperature")) entries.push(["temperature", ghostEntry("temperature", "None")]);
     if (settings.reasoning) entries.push(["reasoning", `${api("Reasoning")}(effort=${qv(settings.reasoning, "reasoning")})`]);
+    else if (unset("reasoning")) entries.push(["reasoning", ghostEntry("reasoning", "None")]);
     return entries.length ? [`    config=${api("Config")}(${entries.map(([k, v]) => `${k}=${v}`).join(", ")}),`] : [];
   }
   if (settings.maxTokens !== null) entries.push(["max_tokens", `Some(${nv(settings.maxTokens, "maxTokens")})`]);
+  else if (unset("maxTokens")) entries.push(["max_tokens", ghostEntry("maxTokens", "None")]);
   if (settings.temperature !== null) entries.push(["temperature", `Some(${val(Number.isInteger(settings.temperature) ? `${settings.temperature}.0` : String(settings.temperature), "temperature")})`]);
+  else if (unset("temperature")) entries.push(["temperature", ghostEntry("temperature", "None")]);
   if (settings.reasoning) entries.push(["reasoning", `Some(${api("Reasoning::new")}(${quotedValue(rustString(settings.reasoning), "reasoning")}.parse()?))`]);
+  else if (unset("reasoning")) entries.push(["reasoning", ghostEntry("reasoning", "None")]);
   return entries.length ? [`    config: ${api("Config")} { ${entries.map(([k, v]) => `${k}: ${v}`).join(", ")}, ${dim("..Default::default()")} },`] : [];
 }
 
@@ -402,11 +416,15 @@ export function goMessage(message: Message, index: number): { expression: string
   return { expression: "earlier", replay: [`    ${comment("// A reply replayed as the wire gave it (its reasoning and continuation state stay verbatim).")}`, `    var earlier ${api("lm15.Message")}`, `    if err := json.Unmarshal([]byte(${goJsonText(stringifyJson(Message.toJSON(message)))}), &earlier); err != nil { return err }`] };
 }
 
-export function goConfig(settings: Settings): string | undefined {
+export function goConfig(settings: Settings, ghost?: Ghost): string | undefined {
   const entries: string[] = [];
+  const unset = (name: Ghost) => ghost === name && (name === "reasoning" ? !settings.reasoning : settings[name] === null);
   if (settings.maxTokens !== null) entries.push(`MaxTokens: lm15.I(${nv(settings.maxTokens, "maxTokens")})`);
+  else if (unset("maxTokens")) entries.push(`MaxTokens: ${ghostEntry("maxTokens", "nil")}`);
   if (settings.temperature !== null) entries.push(`Temperature: lm15.F(${nv(settings.temperature, "temperature")})`);
+  else if (unset("temperature")) entries.push(`Temperature: ${ghostEntry("temperature", "nil")}`);
   if (settings.reasoning) entries.push(`Reasoning: &${api("lm15.Reasoning")}{Effort: ${qv(settings.reasoning, "reasoning")}}`);
+  else if (unset("reasoning")) entries.push(`Reasoning: ${ghostEntry("reasoning", "nil")}`);
   return entries.length ? `${api("lm15.Config")}{${entries.join(", ")}}` : undefined;
 }
 
