@@ -25,15 +25,17 @@
         <label class="checkbox"><input id="automatic-models" type="checkbox" checked> Automatically discover model IDs</label>
         <p id="model-status" class="setting-help" role="status"></p>
         <button id="list" class="text-button" type="button">Refresh model list</button>
-        <section class="more-section" aria-label="Saved keys">
-          <h2>Providers with a loaded key</h2><p id="loaded" class="setting-help">None</p>
-          <button id="forget" class="text-button danger" type="button">Forget all keys</button>
+        <section class="more-section" aria-label="Keys">
+          <h2>Keys</h2><p id="loaded" class="setting-help">None</p>
+          <p id="key-storage-note" class="setting-help">Paste a key next to its provider. Keys stay in this tab unless remembered; remembered keys are encrypted on this device, but scripts on this site can still use them.</p>
+          <p id="remember-note" class="setting-help" hidden>This browser cannot remember keys; they stay in memory.</p>
+          <button id="forget" class="text-button warm" type="button">Forget all keys</button>
         </section>
         <section class="more-section" aria-label="Relay">
           <h2>Relayed providers</h2>
           <p id="relayed" class="setting-help">None. Every request goes from this page straight to its provider.</p>
           <p class="setting-help">A provider whose API refuses browser calls can be routed through the lm15 relay after you allow it. <a href="/playground/about/#relay">What the relay is</a>.</p>
-          <button id="forget-relays" class="text-button danger" type="button" hidden>Stop relaying</button>
+          <button id="forget-relays" class="text-button warm" type="button" hidden>Stop relaying</button>
         </section>
         <nav class="more-section more-links" aria-label="Resources">
           <a href="/docs/">Documentation</a>
@@ -45,39 +47,19 @@
   </div>
 </header>
 <nav class="view-switch" aria-label="Workspace view">
-  <button type="button" data-view-target="settings" aria-controls="settings" aria-pressed="false">Settings</button>
+  <button type="button" data-view-target="settings" aria-controls="judge-questions" aria-pressed="false">Questions</button>
   <button type="button" data-view-target="chat" aria-controls="chat-panel" aria-pressed="true">Chat</button>
   <button type="button" data-view-target="code" aria-controls="code-panel" aria-pressed="false">Code</button>
 </nav>
 <main id="chat-view" class="split">
-  <aside id="settings" class="settings-panel" aria-label="Settings">
-    <div id="settings-scroll" class="settings-scroll">
-      <section id="key-card" class="key-card" aria-label="Provider key">
-        <form id="credentials">
-          <div id="key-field">
-            <div class="section-heading"><label for="key">API key</label><a id="get-key" href="#" target="_blank" rel="noopener noreferrer">Get a key</a></div>
-            <div class="key-entry"><input id="key" type="password" autocomplete="off" spellcheck="false" aria-describedby="key-error key-storage-note"><button type="submit" class="key-submit" aria-label="Use key for this provider">Use key</button></div>
-            <p id="key-error" class="field-error" role="alert" hidden></p>
-            <label class="checkbox"><input id="remember" type="checkbox"> Remember on this device</label>
-            <p id="key-storage-note" class="setting-help">Keys stay in this tab unless remembered. Saved keys are encrypted, but scripts on this site can still use them.</p>
-            <p id="remember-note" class="setting-help" hidden>This browser cannot remember keys; they stay in memory.</p>
-            <button id="forget-key" type="button" class="text-button danger">Forget this key</button>
-          </div>
-        </form>
-        <p id="key-state" class="connection-status" role="status">Loading…</p>
-        <div id="custom-endpoint" hidden><label for="endpoint">Custom API root</label><input id="endpoint" type="url"><p class="setting-help">Changing the address clears its key.</p></div>
-      </section>
-      <div class="setting-section"><label for="system">System prompt</label><textarea id="system" rows="5"></textarea></div>
-      <div class="setting-section">
-        <div class="control-row"><label for="temperature">Temperature</label><input id="temperature" type="number" min="0" max="2" step="0.1" placeholder="Default" aria-describedby="settings-error" title="Leave empty to use the provider default"></div>
-        <div class="control-row"><label for="max-tokens">Max tokens</label><input id="max-tokens" type="number" min="1" max="100000" placeholder="Default" aria-describedby="settings-error" title="Leave empty to use the provider default"></div>
-        <label for="reasoning">Reasoning effort</label><select id="reasoning" aria-describedby="reasoning-note"><option value="">Model decides</option><option value="off">Off</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Maximum</option></select>
-        <p id="settings-error" class="field-error" role="status" hidden></p>
-      </div>
-    </div>
-  </aside>
   <section id="chat-panel" class="chat-panel" aria-label="Chat">
-    <div id="chat-scroll" class="chat-scroll"><div id="transcript" aria-label="Conversation" aria-live="off"></div></div>
+    <div id="chat-scroll" class="chat-scroll">
+      <section class="system-block">
+        <label for="system" class="system-label">System prompt</label>
+        <textarea id="system" rows="1" placeholder="No system prompt"></textarea>
+      </section>
+      <div id="transcript" aria-label="Conversation" aria-live="off"></div>
+    </div>
     <div class="composer-area">
       <p id="alert" role="alert" hidden></p>
       <p id="usage" class="usage" role="status"></p>
@@ -86,6 +68,12 @@
         <div id="slash-picker" class="slash-picker" hidden><p id="slash-status" class="picker-status" role="status"></p><ul id="slash-results" role="listbox" aria-label="Command suggestions"></ul></div>
         <label class="sr-only" for="prompt">Message</label>
         <textarea id="prompt" rows="3" placeholder="Message" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="slash-results"></textarea>
+        <div class="composer-settings" role="group" aria-label="Request settings">
+          <label class="setting"><span>Temperature</span><input id="temperature" type="number" min="0" max="2" step="0.1" placeholder="Default" aria-describedby="settings-error" title="Leave empty to use the provider default"></label>
+          <label class="setting"><span>Max tokens</span><input id="max-tokens" type="number" min="1" max="100000" placeholder="Default" aria-describedby="settings-error" title="Leave empty to use the provider default"></label>
+          <label class="setting"><span>Reasoning effort</span><select id="reasoning"><option value="">Model decides</option><option value="off">Off</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Maximum</option></select></label>
+        </div>
+        <p id="settings-error" class="field-error" role="status" hidden></p>
         <div class="composer-actions">
           <div class="connection">
             <button id="provider-button" type="button" class="chip provider-chip" aria-label="Choose provider" aria-haspopup="dialog"><span id="provider-name">OpenAI</span><span aria-hidden="true">⌄</span></button>
@@ -94,12 +82,11 @@
           <button id="stop" type="button" class="stop-button" disabled>Stop</button><button id="send" type="submit" class="primary">Send</button>
         </div>
       </form>
-      <p class="fine-print">Calls may cost money.</p>
     </div>
   </section>
   <aside id="code-panel" class="code-panel" aria-label="Code">
     <header class="code-toolbar"><div id="code-tabs" class="code-tabs" role="group" aria-label="Run language" data-state="ready" aria-busy="false"></div>
-      <div class="code-tools"><div class="seg" id="code-view" role="group" aria-label="Panel view"><button type="button" data-code-view="code" aria-pressed="true">Code</button><button type="button" data-code-view="request" aria-pressed="false">Request</button></div><button id="copy-code" class="quiet" type="button">Copy code</button></div></header>
+      <div class="code-tools"><div class="seg" id="code-view" role="group" aria-label="Panel view"><button type="button" data-code-view="code" aria-pressed="true">Code</button><button type="button" data-code-view="request" aria-pressed="false">Request</button></div><button id="copy-code" class="quiet" type="button">Copy code</button><button id="toggle-code" class="quiet toggle-code" type="button" aria-expanded="true" aria-controls="code-body" title="Hide the code panel">Hide</button></div></header>
     <p id="request-note" class="note request-note" role="status" hidden></p>
     <div id="code-body" class="code-body">
       <pre id="code-scroll" tabindex="0" aria-label="Example code"><code id="code"></code></pre>
@@ -119,7 +106,6 @@
 <main id="judge-view" class="split judge-split" hidden>
   <aside id="judge-questions" class="settings-panel" aria-label="Questions">
     <div class="settings-scroll">
-      <div id="judge-key-slot"></div>
       <section class="setting-section judge-section" aria-labelledby="judge-questions-title">
         <div class="section-heading"><h2 id="judge-questions-title" class="panel-title">Questions</h2><button id="judge-raw-toggle" class="text-button" type="button" aria-pressed="false">{ } JSON</button></div>
         <p id="judge-paths-hint" class="paths-hint" hidden></p>
@@ -179,9 +165,8 @@
         <span id="judge-tally" role="status"></span><span class="spacer"></span>
         <button id="judge-export-csv" class="text-button" type="button">Export CSV</button>
         <button id="judge-export-json" class="text-button" type="button">Export JSON</button>
-        <button id="judge-clear-results" class="text-button danger" type="button">Clear results</button>
+        <button id="judge-clear-results" class="text-button warm" type="button">Clear results</button>
       </div>
-      <p class="fine-print">Calls may cost money: one per input.</p>
     </section>
   </div>
 </main>
@@ -208,6 +193,7 @@
   <div class="dialog-heading"><h2 id="picker-title">Choose a provider</h2><button id="picker-close" class="quiet" aria-label="Close picker">✕</button></div>
   <label class="sr-only" for="picker-search">Search choices</label><input id="picker-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search…" role="combobox" aria-expanded="true" aria-controls="picker-results" aria-autocomplete="list">
   <p id="picker-status" class="picker-status" role="status"></p><ul id="picker-results" role="listbox" aria-label="Matching choices"></ul>
+  <label id="picker-remember" class="checkbox picker-remember" hidden><input id="remember" type="checkbox"> Remember keys on this device (encrypted)</label>
 </dialog>
 </body>
 </html>

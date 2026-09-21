@@ -81,7 +81,7 @@ async function boot(report: Report): Promise<Pyodide> {
 /** The displayed source with the key in place of the placeholder: what actually executes. */
 export function withKey(source: string, key: string | undefined, connection: Connection): string {
   if (keyless(connection.provider)) return source;
-  if (!key) throw new Error("Add this provider's API key in Settings first.");
+  if (!key) throw new Error("Add this provider's API key first.");
   const slot = `\n    api_key=${JSON.stringify(EXAMPLE_API_KEY)},`;
   if (!source.includes(slot)) throw new Error("The Python example is missing its API key field.");
   return source.replace(slot, `\n    api_key=${JSON.stringify(key)},`);

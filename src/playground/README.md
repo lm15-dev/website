@@ -23,6 +23,9 @@ https://lm15.dev/playground/ after the build and link checks pass.
   and Judge get the same colouring as JavaScript. `code-view.ts` renders one
   block per line with a hanging indent, keeping `textContent` byte-exact for
   Copy.
+- `picker.ts`: the provider / model / command list. A provider's row carries
+  its key: masked with Forget once one is saved, a field to paste one until
+  then, the address for the custom server.
 - `experience.ts`, `connections.ts`: provider choices, requests, and examples.
 - `judge.ts`, `judge-ui.ts`: Judge mode — the question set, the inputs, one
   request per input, the four languages, the results table.
@@ -41,11 +44,16 @@ and language tabs. Chat starts on OpenAI; Judge starts on TypeSafe's
 `jev-latest`. Each mode keeps its own provider/model selection while the page
 is open, so switching back does not overwrite a deliberate choice. Reloading
 restores the remembered mode and its default provider; connection selections
-are not persisted. The key card and the code panel are single
-elements that move between the two layouts.
+are not persisted. The code panel is a single element that moves between the
+two layouts.
 
-The chat workspace contains a key field, request settings, chat, and four code
-tabs. Provider and model buttons sit beside Send. JavaScript / Python / Rust / Go
+The chat workspace is two columns: the conversation and the code. There is no
+settings column. The system prompt heads the conversation as an editable block;
+temperature, max tokens and reasoning effort sit in the composer under the
+message; provider and model buttons sit beside Send. Both textareas grow with
+their text (no drag handle). **Hide** in the code panel's corner folds it to a
+strip so the conversation takes the width; the choice is remembered
+(`lm15.playground.code`). JavaScript / Python / Rust / Go
 select both the displayed code and the SDK that executes the next message;
 there is no separate execution selector or New chat button. **Code | Request**
 in the panel's corner switches between the program and the request that program
@@ -65,15 +73,24 @@ loaders yield two frames before compiling a module so the card paints first; the
 spinner is a compositor animation, so it keeps turning while the main thread is
 busy. Tabs are locked during a running turn so execution cannot silently change.
 
-Desktop keeps settings and code together; narrow screens retain Settings /
-Chat / Code views. There are no welcome cards, duplicate setup buttons, reset
-buttons, line numbers, filename labels, or keyboard-hint strips.
+Narrow screens show one panel at a time with a Chat / Code switch (Questions /
+Results / Code in Judge); the Hide toggle steps aside there. There are no
+welcome cards, duplicate setup buttons, reset buttons, line numbers, filename
+labels, keyboard-hint strips, or cost warnings.
 
-**More** contains model discovery, loaded-key management, documentation, source,
-and privacy/license links. It closes with Escape, a click outside, or focus
-leaving the menu. The short storage notice stays next to the key, and the cost
-warning stays next to Send. Missing-key and key-save errors appear at the key
-field without discarding the draft.
+Keys live in the provider list. Each row shows the provider's name and, at its
+right, the key: a field to paste one (with a link to the provider's key page),
+or, once saved, a mask and a warm-coloured **Forget**. Pasting or pressing Enter
+saves the key and makes that provider the current one; the list stays open.
+A checkbox under the list, *Remember keys on this device (encrypted)*, applies
+to keys pasted after it is ticked. Sending without a key opens the list on the
+current provider's field with the reason in red; the draft is kept. The example
+key is refused there in the same way.
+
+**More** contains model discovery, key management (which providers have a key,
+the storage notice, Forget all), relay status, documentation, source, and
+privacy/license links. It closes with Escape, a click outside, or focus
+leaving the menu.
 
 Temperature and max tokens are optional: clear a number to leave it unset.
 Zero temperature is an explicit value; zero max tokens is invalid. An empty

@@ -186,7 +186,7 @@ async function boot(report: Report): Promise<RustCodec> {
 
 export function connectionOf(connection: Connection, key: string | undefined): CodecConnection {
   const apiKey = keyless(connection.provider) ? "unused" : key;
-  if (!apiKey) throw new Error("Add this provider's API key in Settings first.");
+  if (!apiKey) throw new Error("Add this provider's API key first.");
   return { provider: connection.provider === "custom" ? "openai-chat" : connection.provider, apiKey, baseUrl: baseUrlFor(connection) };
 }
 

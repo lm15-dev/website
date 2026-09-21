@@ -7,7 +7,7 @@ import { extname, resolve, sep } from "node:path";
 import { test } from "node:test";
 import { chromium } from "playwright-core";
 import { findBrowsers } from "./support/browser.ts";
-import { disableDiscovery, openMore, waitRuntimeReady } from "./support/playground.ts";
+import { disableDiscovery, forgetKey, openMore, useKey, waitKeyState, waitRuntimeReady } from "./support/playground.ts";
 import { EXAMPLE_ANSWER, EXAMPLE_QUESTION } from "../src/playground/experience.ts";
 const siteDir = resolve(import.meta.dirname, '../dist');
 
@@ -58,14 +58,12 @@ test("the published static files boot, keep keys private, and run all four SDKs"
     const response = await page.goto(url);
     assert.equal(response?.status(), 200);
     if (process.env["SITE_URL"]) assert.equal(new URL(page.url()).protocol, "https:", "Live verification must use real HTTPS, not ignore certificate errors");
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
-    assert.equal(await page.locator("#settings").isVisible(), true);
+    await waitKeyState(page, "");
+    assert.equal(await page.locator("#system").isVisible(), true);
     assert.equal(assetRequests.some((path) => /\.wasm$|\.whl$/.test(path)), false, "No wasm download until a runtime is selected");
     await disableDiscovery(page);
-    await page.getByLabel("API key", { exact: true }).fill("dummy-static-site-key");
-    await page.getByLabel("Remember on this device").check();
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent?.includes("remembered"));
+    await useKey(page, "OpenAI", "dummy-static-site-key", { remember: true });
+    await waitKeyState(page, /remembered/);
     await page.getByLabel("System prompt").fill("Answer briefly.");
     assert.equal(await page.getByLabel("Max tokens").inputValue(), "");
     for (const runtime of ["JavaScript", "Python", "Rust", "Go"]) {
@@ -105,13 +103,13 @@ test("the published static files boot, keep keys private, and run all four SDKs"
     }
     for (const path of ["/.env", "/__lm15_test_credentials", "/tools/provider_demo.ts", "/.git/config"]) assert.equal((await page.request.get(new URL(path, url).href)).status(), 404, `${path} is not published`);
     await page.reload();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent?.includes("remembered"));
+    await waitKeyState(page, /remembered/);
     // Reload restores the key; immediately disable discovery again before further tests.
     await disableDiscovery(page);
-    await page.getByRole("button", { name: "Forget this key" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
+    await forgetKey(page, "OpenAI");
+    await waitKeyState(page, "");
     await page.reload();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
+    await waitKeyState(page, "");
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await openMore(page);

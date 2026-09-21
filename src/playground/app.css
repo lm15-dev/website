@@ -42,7 +42,9 @@ h2 { font-size: 13px; font-weight: 500; }
 .quiet, .text-button { border-color: transparent; background: transparent; }
 .text-button { min-height: 28px; padding: 3px 0; color: var(--muted); font-size: 12px; }
 .text-button:hover:not(:disabled) { color: var(--accent); background: transparent; border-color: transparent; }
-.danger, .danger:hover:not(:disabled) { color: var(--danger); }
+/* Undoing something you set up (a key, a relay, results) is warm, the brand's complement — not the red kept for errors. */
+.warm, .warm:hover:not(:disabled) { color: var(--lm-code-api); }
+.warm:hover:not(:disabled) { text-decoration: underline; }
 .workspace-toolbar { display: flex; align-items: center; gap: 20px; min-height: 64px; padding: 10px 24px; }
 .brand { font-size: 19px; font-weight: 700; letter-spacing: -.7px; color: var(--ink); }
 .brand:hover { text-decoration: none; }
@@ -63,32 +65,38 @@ summary:hover { border-color: var(--strong-line); }
 .more-section { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; }
 .more-links { display: flex; flex-direction: column; gap: 12px; font-size: 13px; }
 .view-switch { display: none; }
-.split { display: grid; grid-template-columns: 272px minmax(340px, 1fr) minmax(380px, 1.02fr); height: calc(100dvh - 80px); min-height: 500px; margin: 0 24px 16px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); }
+.split { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(380px, 1.02fr); height: calc(100dvh - 80px); min-height: 500px; margin: 0 24px 16px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); }
 .settings-panel, .chat-panel, .code-panel { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .settings-panel { background: var(--soft); border-right: 1px solid var(--line); }
+/* The code panel folded: the conversation takes the room, a narrow strip keeps the way back. */
+body[data-code="collapsed"] #chat-view.split { grid-template-columns: minmax(340px, 1fr) 44px; }
+body[data-code="collapsed"] #chat-view .code-panel > :not(.code-toolbar) { display: none; }
+body[data-code="collapsed"] #chat-view .code-toolbar { flex-direction: column; justify-content: flex-start; padding: 8px 0; border-bottom: 0; }
+body[data-code="collapsed"] #chat-view .code-toolbar > .code-tabs, body[data-code="collapsed"] #chat-view .code-tools > :not(.toggle-code) { display: none; }
+body[data-code="collapsed"] #chat-view .toggle-code { writing-mode: vertical-rl; min-height: 0; padding: 10px 6px; }
+.toggle-code { font-size: 12px; color: var(--muted); white-space: nowrap; }
+body[data-mode="judge"] .toggle-code { display: none; }
 .settings-scroll { flex: 1; min-height: 0; overflow: auto; padding: 20px 16px; scrollbar-width: thin; scrollbar-color: var(--strong-line) transparent; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .section-heading a { font-size: 12px; }
-.connection-status { font-size: 12px; color: var(--muted); margin-top: 8px; }
-.connection-status:empty { display: none; }
-.key-entry { display: flex; border: 1px solid var(--strong-line); border-radius: 6px; overflow: hidden; margin-top: 8px; }
-.key-entry:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-.key-entry:has([aria-invalid="true"]) { border-color: var(--danger); }
-.key-entry input { width: 100%; border: 0; border-radius: 0; font-size: 13px; padding: 8px; outline: none; }
-.key-submit { white-space: nowrap; padding: 4px 8px; font-size: 12px; border: 0; border-left: 1px solid var(--line); border-radius: 0; color: var(--accent); }
 .checkbox { display: flex; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; min-height: 24px; }
 .checkbox input { margin: 0; width: 14px; height: 14px; flex-shrink: 0; }
-.key-card .checkbox { margin-top: 10px; }
 .setting-help { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 6px; }
-#custom-endpoint { margin-top: 12px; }
-#endpoint { width: 100%; margin-top: 6px; }
 .setting-section { margin-top: 24px; }
 .settings-panel label:not(.checkbox) { font-size: 13px; font-weight: 500; }
-#system { margin-top: 8px; min-height: 120px; max-height: 300px; font-size: 14px; line-height: 1.6; }
 .setting-section select { margin-top: 8px; font-size: 13px; }
-.control-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px; }
-.control-row input { width: 92px; font-size: 13px; }
 .field-error { margin-top: 8px; color: var(--danger); font-size: 12px; }
+/* The system prompt opens the conversation: same voice as a turn's heading, the text growing with what is typed. */
+.system-block { margin-bottom: 28px; }
+.system-label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 8px; }
+#system { padding: 12px 15px; border: 1px dashed var(--strong-line); border-radius: 7px; background: transparent; resize: none; overflow: auto; min-height: 44px; max-height: 260px; font-size: 14px; line-height: 1.8; }
+#system:focus { border-style: solid; }
+/* Sampling sits in the composer, under the message: three small fields, the code follows every keystroke. */
+.composer-settings { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 4px 12px 0; }
+.composer-settings .setting { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.composer-settings input, .composer-settings select { width: 84px; padding: 3px 6px; min-height: 26px; font-size: 12px; color: var(--ink); }
+.composer-settings select { width: auto; }
+.composer #settings-error { margin: 6px 12px 0; }
 [aria-invalid="true"] { border-color: var(--danger); }
 #loaded { overflow-wrap: anywhere; }
 .note { font-size: 12px; color: var(--muted); }
@@ -104,12 +112,11 @@ article.streaming p:empty::after { content: "Waiting for the provider…"; color
 .composer-area { padding: 12px 20px; }
 .composer { position: relative; border: 1px solid var(--strong-line); border-radius: 8px; background: var(--surface); }
 .composer:focus-within { border-color: var(--accent); }
-#prompt { padding: 14px 14px 4px; border: 0; background: transparent; resize: vertical; min-height: 70px; max-height: 220px; font-size: 14px; outline: none; }
+#prompt { padding: 14px 14px 4px; border: 0; background: transparent; resize: none; overflow: auto; min-height: 70px; max-height: 220px; font-size: 14px; outline: none; }
 .composer-actions { display: flex; align-items: center; gap: 6px; padding: 8px 10px 10px; }
 .composer-actions > button { flex-shrink: 0; }
 .composer-actions:has(.stop-button:not(:disabled)) #send { display: none; }
 .stop-button:disabled { display: none; }
-.fine-print { font-size: 12px; color: var(--muted); text-align: center; margin-top: 9px; }
 #alert { white-space: pre-wrap; max-height: 110px; overflow: auto; padding: 10px 12px; margin-bottom: 12px; border-radius: 6px; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); font-size: 12px; }
 .usage { color: var(--muted); font-size: 12px; margin-bottom: 7px; overflow-wrap: anywhere; }
 .usage:empty { display: none; }
@@ -170,9 +177,26 @@ dialog::backdrop { background: #10241c55; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
 #picker-search { width: 100%; padding: 12px; }
 .picker-status { color: var(--muted); font-size: 12px; margin: 12px 0; }
+.picker-status:empty { display: none; }
+.picker-status.is-error { color: var(--danger); }
+#picker[data-kind="provider"] { width: min(94vw, 600px); }
+#picker[data-kind="provider"] #picker-search { margin-bottom: 12px; }
+/* A provider's row: the name, and at its right the key — masked with Forget, or a field to paste one. */
+[role="option"] { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+#picker[data-kind="provider"] [role="listbox"] { max-height: min(60dvh, 560px); }
+.pick-main { flex: 1; min-width: 0; }
+.pick-trailing { flex-shrink: 0; }
+.key-slot { display: flex; align-items: center; gap: 8px; }
+.key-slot input { width: 200px; padding: 5px 8px; min-height: 28px; font-size: 12px; }
+.key-slot input[type="url"] { width: 240px; font-family: ui-monospace, Consolas, monospace; }
+.key-mask { font-family: ui-monospace, Consolas, monospace; letter-spacing: 2px; color: var(--muted); }
+.key-local { font-size: 12px; color: var(--muted); }
+.key-forget { min-height: 0; padding: 0; }
+.key-page { font-size: 12px; white-space: nowrap; }
+.picker-remember { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); }
 [role="listbox"] { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow: auto; }
 [role="option"] { padding: 10px 12px; border-radius: 6px; cursor: pointer; }
-[role="option"] span, [role="option"] small { display: block; }
+.pick-main span, .pick-main small { display: block; }
 [role="option"] small { color: var(--muted); font-size: 12px; margin-top: 2px; }
 [role="option"][aria-selected="true"], [role="option"]:hover { background: var(--accent-soft); }
 .slash-picker { position: absolute; z-index: 3; bottom: calc(100% + 8px); left: 0; right: 0; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0002; }
@@ -326,14 +350,18 @@ body[data-judge-results="false"] #judge-io, body[data-judge-results="false"] #ju
 .pop .pr b { font-weight: 400; text-align: right; font-family: ui-monospace, monospace; color: var(--muted); }
 .pop .pf { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .footer-bar { display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
-#judge-results .fine-print { margin: 0 0 8px; }
 #judge-paste-text { width: 100%; font: 13px/1.5 ui-monospace, Consolas, monospace; margin-top: 10px; }
 
-@media (min-width: 1700px) { .split { grid-template-columns: 300px minmax(400px, 1fr) minmax(500px, 1.05fr); } .settings-scroll { padding: 24px; } .chat-scroll { padding: 24px 40px; } }
+@media (min-width: 1700px) { .split { grid-template-columns: minmax(400px, 1fr) minmax(500px, 1.05fr); } .settings-scroll { padding: 24px; } .chat-scroll { padding: 24px 40px; } }
 @media (max-width: 1100px) {
   .workspace-toolbar { padding: 10px 16px; }
-  .split { grid-template-columns: 260px minmax(0, 1fr); margin: 0 16px 12px; height: calc(100dvh - 116px); }
+  .split { grid-template-columns: minmax(0, 1fr); margin: 0 16px 12px; height: calc(100dvh - 116px); }
   .judge-split, body[data-judge-raw="true"] .judge-split { grid-template-columns: 300px minmax(0, 1fr); }
+  /* One panel at a time here: the Chat / Code switch does the folding, so the desktop toggle steps aside. */
+  body[data-code="collapsed"] #chat-view.split { grid-template-columns: minmax(0, 1fr); }
+  body[data-code="collapsed"] #chat-view .code-panel > :not(.code-toolbar), body[data-code="collapsed"] #chat-view .code-toolbar > .code-tabs, body[data-code="collapsed"] #chat-view .code-tools > :not(.toggle-code) { display: revert; }
+  body[data-code="collapsed"] #chat-view .code-toolbar { flex-direction: row; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid var(--line); }
+  .toggle-code { display: none; }
   body[data-mode="judge"]:not([data-view="code"]) .judge-code-slot, body[data-mode="judge"]:not([data-view="code"]) .judge-divider { display: none; }
   body[data-mode="judge"][data-view="code"] #judge-results { display: none; }
   body[data-mode="judge"] .judge-right { grid-template-rows: 1fr; }
@@ -350,7 +378,8 @@ body[data-judge-results="false"] #judge-io, body[data-judge-results="false"] #ju
   .chip { padding: 5px 6px; }
   .split { display: flex; margin: 0 10px 10px; height: calc(100dvh - 102px); min-height: 380px; }
   .view-switch { margin: 0 12px; }
-  .view-switch [data-view-target="settings"] { display: block; }
+  /* Judge's questions get their own view on a phone; Chat has nothing to put there. */
+  body[data-mode="judge"] .view-switch [data-view-target="settings"] { display: block; }
   .view-switch button { flex: 1; }
   .settings-panel, .chat-panel, .code-panel, .judge-right { flex: 1; width: 100%; }
   .judge-split { display: flex; }
@@ -377,12 +406,17 @@ body[data-judge-results="false"] #judge-io, body[data-judge-results="false"] #ju
   .footer-bar .text-button { white-space: nowrap; }
   .answers { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 12px; }
   .ans .pick { overflow-wrap: normal; }
-  body:not([data-view="settings"]) .settings-panel { display: none; }
   body:not([data-view="chat"]) .chat-panel { display: none; }
   body:not([data-view="code"]) .code-panel { display: none; }
   .settings-panel { border-right: 0; }
   .settings-scroll { padding: 20px; }
   input:not([type="checkbox"]), textarea, select, #system, #prompt { font-size: 16px; }
+  /* Three small cells, label above field: the phone keeps the sampling controls without a second scroll. */
+  .composer-settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 4px 10px 0; }
+  .composer-settings .setting { flex-direction: column; align-items: stretch; gap: 2px; font-size: 11px; }
+  .composer-settings input, .composer-settings select { width: 100%; font-size: 16px; }
+  [role="option"] { flex-wrap: wrap; }
+  .key-slot input { width: 100%; }
   .chat-scroll { padding: 12px 20px; }
   .composer-area { padding: 10px 12px; }
   .code-toolbar { gap: 6px; padding: 0 10px; flex-wrap: wrap; }

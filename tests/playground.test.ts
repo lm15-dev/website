@@ -10,7 +10,7 @@ import { CONNECTIONS } from "../src/playground/connections.ts";
 import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_ANSWER, EXAMPLE_DRAFT, EXAMPLE_QUESTION } from "../src/playground/experience.ts";
 import { startDemo } from "../scripts/serve-playground.ts";
 import { findBrowsers } from "./support/browser.ts";
-import { disableDiscovery, focusSettings, openMore, waitRuntimeReady } from "./support/playground.ts";
+import { closePicker, disableDiscovery, focusSettings, forgetKey, keyState, openMore, openProviders, useKey, waitKeyState, waitRuntimeReady } from "./support/playground.ts";
 
 const choices = CONNECTIONS.filter((c) => c.env);
 const key = (id: string) => `dummy-${id}-key`;
@@ -186,7 +186,7 @@ test("ten local keys load privately; each provider receives only its key; manual
       assert.equal(sent, 0, "Loading keys never starts inference");
       await page.waitForFunction(() => document.getElementById("model-status")?.textContent?.includes("model IDs listed"));
       assert.equal(modelLists, 1, "Only the selected connection is discovered");
-      assert.equal(await page.locator("#settings").isVisible(), true);
+      assert.equal(await page.locator("#system").isVisible(), true, "the system prompt heads the conversation");
       assert.ok((await page.locator("#code").textContent() ?? "").includes(EXAMPLE_API_KEY));
       await page.emulateMedia({ colorScheme: "light" });
       const readability = await page.evaluate(() => {
@@ -237,31 +237,30 @@ test("ten local keys load privately; each provider receives only its key; manual
       await page.getByLabel("Message", { exact: true }).fill("/provider opnai");
       await page.getByLabel("Message", { exact: true }).press("Enter");
       assert.equal(await page.locator("#provider-name").textContent(), "OpenAI");
-      await focusSettings(page);
-      await page.getByLabel("API key", { exact: true }).fill(expectedKey);
-      await page.getByRole("button", { name: "Use key for this provider" }).click();
-      await page.waitForFunction(() => (document.getElementById("key") as HTMLInputElement).value === "" && document.getElementById("key-state")?.textContent === "Key ready (this tab)");
-      assert.equal(await page.getByLabel("API key", { exact: true }).inputValue(), "");
+      await useKey(page, "OpenAI", expectedKey);
+      await waitKeyState(page, "Key ready (this tab)");
+      await openProviders(page);
+      assert.equal(await page.getByLabel("OpenAI API key", { exact: true }).count(), 0, "a saved key is masked, never shown in a field");
+      assert.equal(await page.locator('[data-trailing-for="openai"] .key-mask').textContent(), "••••••••");
+      await closePicker(page);
       await page.getByLabel("Message", { exact: true }).fill("Hello");
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
       assert.equal(sent, 10);
       // TypeSafe judges only: choosing it from Chat opens Judge, and Chat is closed to it. Its key reaches only it, one call per input.
       selected = "typesafe"; expectedKey = key(selected);
-      await page.getByLabel("API key", { exact: true }).fill("x"); // a draft in the key field is not a key
       await page.getByRole("button", { name: "Choose provider", exact: true }).click();
       await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
-      await page.getByRole("option", { name: /TypeSafe/ }).first().click();
+      await page.getByRole("option", { name: /TypeSafe/ }).first().locator(".pick-main").click();
       await page.waitForFunction(() => document.body.dataset.mode === "judge");
       assert.equal(await page.getByRole("button", { name: "Chat", exact: true }).isDisabled(), false, "Chat restores its own model");
-      await page.getByLabel("API key", { exact: true }).fill(expectedKey);
-      await page.getByRole("button", { name: "Use key for this provider" }).click();
-      await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
+      await useKey(page, "TypeSafe (Jev)", expectedKey);
+      await waitKeyState(page, "Key ready (this tab)");
       await page.getByRole("button", { name: "Run all", exact: true }).click();
       await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "3 of 3 judged");
       assert.equal(sent, 13);
       await page.reload();
-      await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
+      await waitKeyState(page, "");
       assert.equal(await page.locator("#loaded").textContent(), "None");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await close(demo.server); }
@@ -299,11 +298,10 @@ test("the playground: settings reach the code and the wire; a remembered key sur
   });
   try {
     await page.goto(demo.url);
-    assert.equal(await page.locator("#get-key").getAttribute("href"), "https://platform.openai.com/api-keys", "the key page comes from the registry");
     await disableDiscovery(page);
-    await page.getByLabel("API key", { exact: true }).fill("dummy-openai-key");
-    await page.getByLabel("Remember on this device").check();
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
+    await openProviders(page);
+    assert.equal(await page.locator('[data-trailing-for="openai"] a').getAttribute("href"), "https://platform.openai.com/api-keys", "the key page comes from the registry");
+    await useKey(page, "OpenAI", "dummy-openai-key", { remember: true });
     await focusSettings(page);
     await page.getByLabel("System prompt").fill("Answer briefly.");
     await page.getByLabel("Max tokens").fill("64");
@@ -333,11 +331,11 @@ test("the playground: settings reach the code and the wire; a remembered key sur
     assert.equal(stored[0]!.provider, "openai");
     assert.ok(!stored[0]!.text.includes("dummy-openai-key"), "the stored record is ciphertext");
     await page.reload();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (remembered on this device)");
-    await page.getByRole("button", { name: "Forget this key" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
+    await waitKeyState(page, "Key ready (remembered on this device)");
+    await forgetKey(page, "OpenAI");
+    await waitKeyState(page, "");
     await page.reload();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
+    await waitKeyState(page, "");
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await close(demo.server); }
 });
@@ -361,9 +359,8 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
   try {
     await page.goto(demo.url);
     await disableDiscovery(page);
-    await page.getByLabel("API key", { exact: true }).fill("dummy-settings-key");
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
+    await useKey(page, "OpenAI", "dummy-settings-key");
+    await waitKeyState(page, "Key ready (this tab)");
     await focusSettings(page);
     for (const tab of ["JavaScript", "Python", "Go", "Rust"]) {
       await page.getByRole("button", { name: tab, exact: true }).click();
@@ -375,8 +372,9 @@ test("settings stay beside the live code; defaults and invalid inputs stay hones
       assert.ok(await page.evaluate(() => {
         const setting = document.getElementById("system")!.getBoundingClientRect();
         const code = document.getElementById("code")!.getBoundingClientRect();
-        return setting.top >= 0 && setting.bottom < innerHeight && code.top >= 0 && code.top < innerHeight && setting.right < code.left;
-      }), "Setting and changed code are visible together");
+        const sampling = document.getElementById("temperature")!.getBoundingClientRect();
+        return setting.top >= 0 && setting.bottom < innerHeight && sampling.bottom < innerHeight && code.top >= 0 && code.top < innerHeight && setting.right < code.left && sampling.right < code.left;
+      }), "System prompt, sampling and the changed code are visible together");
     }
     await page.getByLabel("Max tokens").fill("72");
     await page.getByLabel("Reasoning effort").selectOption("low");
@@ -449,14 +447,22 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
     assert.equal(await page.locator("#prompt").inputValue(), EXAMPLE_DRAFT);
     assert.equal(await page.getByLabel("System prompt").inputValue(), DEFAULT_SETTINGS.system);
     assert.equal(await page.getByLabel("Max tokens").inputValue(), "");
-    assert.equal(await page.getByLabel("API key", { exact: true }).getAttribute("placeholder"), EXAMPLE_API_KEY);
-    assert.equal(await page.getByLabel("API key", { exact: true }).inputValue(), "", "The joke key is not a credential");
+    assert.ok(await page.locator("#composer #temperature, #composer #max-tokens, #composer #reasoning").count() === 3, "sampling lives in the composer");
+    assert.ok(await page.locator("#chat-scroll #system").count() === 1, "the system prompt heads the conversation");
+    for (const area of ["#prompt", "#system"]) assert.equal(await page.locator(area).evaluate((e) => getComputedStyle(e).resize), "none", `${area} grows with its text; there is no drag handle`);
+    await openProviders(page);
+    assert.equal(await page.getByLabel("OpenAI API key", { exact: true }).getAttribute("placeholder"), "Paste API key");
+    assert.equal(await page.getByLabel("OpenAI API key", { exact: true }).inputValue(), "", "The joke key is not a credential");
+    assert.equal(await page.locator("#picker .dialog-heading").isVisible(), false, "the provider list needs no title");
+    assert.equal(await page.locator("#picker-status").isVisible(), false, "and no explanation");
+    assert.equal(await page.locator('#picker [role="option"][aria-selected="true"] .pick-main').evaluate((e) => e.textContent), "OpenAI", "the highlight starts on the current provider");
+    await closePicker(page);
     assert.deepEqual(await page.locator("#transcript article p").allTextContents(), [EXAMPLE_QUESTION, EXAMPLE_ANSWER]);
     assert.equal(await page.locator('#transcript article[data-example="true"]').count(), 2);
     assert.deepEqual(await page.locator("[data-language]").allTextContents(), ["JavaScript", "Python", "Rust", "Go"]);
     assert.equal(await page.locator('#composer .composer-actions #provider-button').count(), 1);
     assert.equal(await page.locator('#composer .composer-actions #model-button').count(), 1);
-    for (const selector of ["#empty", "[data-starter]", "#reset-settings", "#temperature-reset", "#wrap-code", "#jump-request", "#code-file", "#code-note", "#turn-count", ".brand-mark", ".status-dot", ".composer-hint", ".picker-help", ".site-footer", "#settings-button", "#connection-button", "[data-line]", "#clear", "#runtime-controls", 'input[name="runtime"]', '[data-language="json"]', '[data-language="curl"]', "#preview-state"]) {
+    for (const selector of ["#empty", "[data-starter]", "#reset-settings", "#temperature-reset", "#wrap-code", "#jump-request", "#code-file", "#code-note", "#turn-count", ".brand-mark", ".status-dot", ".composer-hint", ".picker-help", ".site-footer", "#settings-button", "#connection-button", "[data-line]", "#clear", "#runtime-controls", 'input[name="runtime"]', '[data-language="json"]', '[data-language="curl"]', "#preview-state", "#settings", "#key-card", "#key", "#key-state", "#credentials", ".fine-print", "#judge-key-slot", ".control-row"]) {
       assert.equal(await page.locator(selector).count(), 0, `${selector} is removed, not just hidden`);
     }
     assert.equal(await page.getByRole("link", { name: "LM15 home" }).getAttribute("href"), "/");
@@ -466,36 +472,40 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
     await page.locator("#more-toggle").press("Enter");
     assert.equal(await page.getByRole("link", { name: "Documentation", exact: true }).getAttribute("href"), "/docs/");
     assert.equal(await page.getByRole("button", { name: "Forget all keys" }).isVisible(), true);
+    assert.equal(await page.locator("#key-storage-note").isVisible(), true, "the storage note lives with key management in More");
     await page.locator("#more-toggle").press("Escape");
     assert.equal(await page.evaluate(() => document.activeElement?.id), "more-toggle");
     assert.equal(await page.locator("#more-menu").evaluate(e => (e as HTMLDetailsElement).open), false);
     await openMore(page);
     await page.getByLabel("System prompt").click();
     assert.equal(await page.locator("#more-menu").evaluate(e => (e as HTMLDetailsElement).open), false);
-    assert.equal(await page.getByText("Calls may cost money.", { exact: true }).isVisible(), true);
-    assert.equal(await page.locator("#key-storage-note").isVisible(), true);
+    assert.equal(await page.getByText("Calls may cost money", { exact: false }).count(), 0, "no cost warning under the composer");
     const draft = "Keep my draft while I connect";
     await page.getByLabel("Message", { exact: true }).fill(draft);
     assert.equal(externalRequests, 0);
     await page.locator("#send").click();
-    assert.equal(await page.evaluate(() => document.activeElement?.id), "key");
+    // Sending without a key opens the provider list on this provider's key field, with the reason.
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "OpenAI API key");
     assert.equal(await page.locator("#prompt").inputValue(), draft);
     assert.equal(await page.locator("#transcript article").count(), 2, "Missing-key setup preserves the example without creating a failed turn");
-    assert.equal(await page.locator("#key-error").isVisible(), true);
-    assert.equal(await page.locator("#key-error").evaluate(e => Boolean(e.closest("#settings"))), true);
-    assert.equal(await page.locator("#key").getAttribute("aria-invalid"), "true");
+    assert.equal(await page.locator("#picker-status.is-error").isVisible(), true);
+    assert.match(await page.locator("#picker-status").textContent() ?? "", /Add your OpenAI API key/);
+    assert.equal(await page.getByLabel("OpenAI API key", { exact: true }).getAttribute("aria-invalid"), "true");
     assert.equal(await page.locator("#alert").isVisible(), false, "Key errors do not occupy the conversation");
+    await closePicker(page);
     await disableDiscovery(page);
-    await page.getByLabel("API key", { exact: true }).fill(EXAMPLE_API_KEY);
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
-    assert.match(await page.locator("#key-error").textContent() ?? "", /example key/);
+    await openProviders(page);
+    await page.getByLabel("OpenAI API key", { exact: true }).fill(EXAMPLE_API_KEY);
+    await page.getByLabel("OpenAI API key", { exact: true }).press("Enter");
+    assert.match(await page.locator("#picker-status").textContent() ?? "", /example key/);
     assert.equal(await page.locator("#loaded").textContent(), "None");
     assert.equal(externalRequests, 0, "The example key must not trigger discovery or inference");
-    await page.getByLabel("API key", { exact: true }).fill("dummy-design-key");
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
-    assert.equal(await page.locator("#key-error").isVisible(), false);
-    assert.equal(await page.locator("#key").getAttribute("aria-invalid"), "false");
+    await useKey(page, "OpenAI", "dummy-design-key");
+    await waitKeyState(page, "Key ready (this tab)");
+    await openProviders(page);
+    assert.equal(await page.locator("#picker-status").isVisible(), false, "a good key clears the error");
+    assert.equal(await page.getByRole("button", { name: "Forget the OpenAI key" }).evaluate((b) => getComputedStyle(b).color), await page.locator("#code .tok-api").first().evaluate((e) => getComputedStyle(e).color), "Forget wears the warm accent of LM15's calls in the code, not the error red");
+    await closePicker(page);
     await page.getByLabel("System prompt").fill('<script>window.hacked=true</script> <img src=x onerror=alert(1)> dummy-design-key');
     assert.equal(await page.locator("#code script, #code img").count(), 0);
     assert.ok(await page.locator("#code .tok-value").count() > 0, "the system prompt is shown as the person's value");
@@ -508,7 +518,7 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
     await page.getByLabel("Max tokens").fill("64");
     await page.getByLabel("Reasoning effort").selectOption("low");
     assert.equal(await page.locator("#prompt").inputValue(), draft, "Editing settings does not erase the draft or key");
-    assert.match(await page.locator("#key-state").textContent() ?? "", /Key ready/);
+    assert.match(await keyState(page), /Key ready/);
     assert.equal(await page.locator("#code-scroll").evaluate((e) => getComputedStyle(e).whiteSpace), "pre-wrap", "Long code lines wrap without another control");
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
@@ -527,25 +537,41 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
       // The two accents (the person's values in brand blue, LM15's calls in its warm complement) stay above AA in both themes.
       assert.ok(contrast.value >= 4.5 && contrast.api >= 4.5, `${scheme}: accent contrast value ${contrast.value.toFixed(1)}, api ${contrast.api.toFixed(1)}`);
     }
+    // The code panel folds away on a wide screen and the choice survives a reload; narrow screens switch views instead.
+    await page.getByRole("button", { name: "Hide", exact: true }).click();
+    assert.equal(await page.locator("#code-scroll").isVisible(), false);
+    assert.ok(await page.locator("#chat-panel").evaluate((e) => e.getBoundingClientRect().width > innerWidth * 0.8), "the conversation takes the room");
+    await page.reload();
+    assert.equal(await page.locator("#code-scroll").isVisible(), false, "the folded panel stays folded");
+    await page.getByRole("button", { name: "Show code", exact: true }).click();
+    assert.equal(await page.locator("#code-scroll").isVisible(), true);
+    await disableDiscovery(page);
+    await useKey(page, "OpenAI", "dummy-design-key");
+    await page.getByLabel("Message", { exact: true }).fill(draft);
     for (const width of [1024, 700, 390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       await focusSettings(page);
       await page.getByLabel("System prompt").fill(`Screen ${width}`);
       await page.locator('[data-view-target="code"]').click();
       assert.equal(await page.locator("#code-panel").isVisible(), true);
+      assert.equal(await page.locator("#toggle-code").isVisible(), false, "one panel at a time: the view switch folds, not the toggle");
       assert.match(await page.locator("#code").textContent() ?? "", new RegExp(`Screen ${width}`));
-      assert.equal(await page.locator("#settings").isVisible(), width > 700);
+      assert.equal(await page.locator("#chat-panel").isVisible(), false);
       await page.locator('[data-view-target="chat"]').click();
       assert.equal(await page.locator("#chat-panel").isVisible(), true);
+      assert.equal(await page.locator("#system").isVisible(), true);
       assert.equal(await page.locator("#prompt").inputValue(), draft);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `No page overflow at ${width}px`);
+      assert.ok(await page.evaluate(() => { const s = document.getElementById("system")!; return s.scrollHeight <= s.clientHeight + 1; }), `the system prompt is as tall as its text at ${width}px`);
     }
     await openMore(page);
     await page.getByRole("button", { name: "Forget all keys" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
+    await waitKeyState(page, "");
+    await page.locator("#more-toggle").press("Escape");
     await page.getByLabel("Message", { exact: true }).press("Enter");
-    assert.equal(await page.locator("#settings").isVisible(), true, "Missing-key errors open the phone's settings view");
-    assert.equal(await page.locator("#key-error").isVisible(), true);
+    assert.equal(await page.locator("#picker").evaluate((d) => (d as HTMLDialogElement).open && d.dataset["kind"] === "provider"), true, "Missing-key errors open the provider list on the phone too");
+    assert.equal(await page.locator("#picker-status.is-error").isVisible(), true);
+    await closePicker(page);
     assert.equal(await page.locator("#prompt").inputValue(), draft);
     assert.equal(await page.locator("#alert").isVisible(), false);
     assert.equal(externalRequests, 0);
@@ -582,9 +608,8 @@ test("runtime loading can be retried, never silently switches language, and does
   try {
     await page.goto(demo.url);
     await disableDiscovery(page);
-    await page.getByLabel("API key", { exact: true }).fill("dummy-loading-key");
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "Key ready (this tab)");
+    await useKey(page, "OpenAI", "dummy-loading-key");
+    await waitKeyState(page, "Key ready (this tab)");
     await page.getByLabel("Message", { exact: true }).fill("Keep this draft");
     await page.getByRole("button", { name: "Rust", exact: true }).click();
     await page.getByRole("button", { name: "Retry loading" }).waitFor({ state: "visible" });
@@ -667,8 +692,7 @@ test("the playground runs the same turn through Python (Pyodide) and Rust (wasm)
   try {
     await page.goto(demo.url);
     await disableDiscovery(page);
-    await page.getByLabel("API key", { exact: true }).fill("dummy-openai-key");
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
+    await useKey(page, "OpenAI", "dummy-openai-key");
     for (const runtime of ["Rust", "Python", "JavaScript"] as const) {
       await page.getByRole("button", { name: runtime, exact: true }).click();
       await waitRuntimeReady(page, runtime);
@@ -723,10 +747,9 @@ test("the relay: a provider that blocks the browser fails first, the page asks i
     await disableDiscovery(page);
     await page.getByRole("button", { name: "Choose provider", exact: true }).click();
     await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
-    await page.getByRole("option", { name: /TypeSafe/ }).first().click();
+    await page.getByRole("option", { name: /TypeSafe/ }).first().locator(".pick-main").click();
     await page.waitForFunction(() => document.body.dataset.mode === "judge" && document.getElementById("judge-provider-name")?.textContent === "TypeSafe (Jev)");
-    await page.getByLabel("API key", { exact: true }).fill("dummy-typesafe-key");
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
+    await useKey(page, "TypeSafe (Jev)", "dummy-typesafe-key");
     assert.match(await page.locator("#code").textContent() ?? "", /judgments\(\{/);
     assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /baseUrl/);
 
@@ -752,7 +775,10 @@ test("the relay: a provider that blocks the browser fails first, the page asks i
     await page.waitForFunction(() => document.getElementById("judge-out-count")?.textContent === "3 of 3 judged");
     assert.deepEqual(seen, ["https://api.typesafe.ai/v1/systemone", "https://api.typesafe.ai/v1/systemone", `${relay}/api.typesafe.ai/v1/systemone`, `${relay}/api.typesafe.ai/v1/systemone`, `${relay}/api.typesafe.ai/v1/systemone`]);
     assert.match(await page.locator("#code").textContent() ?? "", new RegExp(`baseUrl: "${relay}/api.typesafe.ai"`));
-    assert.match(await page.locator("#key-state").textContent() ?? "", /via the relay/);
+    assert.match(await keyState(page), /via the relay/);
+    await openProviders(page);
+    assert.match(await page.locator('#picker [role="option"]', { hasText: "TypeSafe" }).textContent() ?? "", /via the relay/, "the provider row says it too");
+    await closePicker(page);
     assert.equal(await page.evaluate(() => localStorage.getItem("lm15.playground.relay")), '["typesafe"]');
 
     // Another provider is untouched by the permission; More names what is relayed and revokes it.
@@ -799,8 +825,7 @@ test("the Request view: the code panel shows what the selected runtime puts on t
     await focusSettings(page);
     await page.getByLabel("Temperature").fill("0.3");
     await page.waitForFunction(() => /"temperature": 0\.3/.test(document.getElementById("code")?.textContent ?? ""));
-    await page.getByLabel("API key", { exact: true }).fill("sk-real-secret-key");
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
+    await useKey(page, "OpenAI", "sk-real-secret-key");
     await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.includes("Your key is blanked"));
     wire = await page.locator("#code").textContent() ?? "";
     assert.doesNotMatch(wire, /sk-real-secret-key/);

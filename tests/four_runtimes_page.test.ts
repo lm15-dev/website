@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { chromium } from "playwright-core";
 import { startDemo } from "../scripts/serve-playground.ts";
 import { findBrowsers } from "./support/browser.ts";
-import { disableDiscovery, waitRuntimeReady } from "./support/playground.ts";
+import { disableDiscovery, useKey, waitRuntimeReady } from "./support/playground.ts";
 import { judgeReplyFor, streamFor } from "./support/replies.ts";
 
 for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, real wire preview, stream, TypeSafe Judge, diagnostic failure and cancellation`, { timeout: 180_000 }, async (t) => {
@@ -48,8 +48,7 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
   await disableDiscovery(page);
   assert.equal(await page.locator("[data-language]").count(), 4);
   assert.equal(assets.some((path) => path.includes("/vendor/go/") || path.includes("/vendor/rust/")), false);
-  await page.getByLabel("API key", { exact: true }).fill("offline-dummy-key");
-  await page.getByRole("button", { name: "Use key for this provider" }).click();
+  await useKey(page, "OpenAI", "offline-dummy-key");
   await page.locator(`[data-language="${language}"]`).click();
   await page.waitForFunction(() => document.getElementById("runtime-title")?.textContent?.includes("Could not load"));
   assert.match(await page.locator("#runtime-status").textContent() ?? "", /HTTP 503/, "the card says why");
@@ -71,8 +70,7 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
   assert.equal(calls[0]!.body["stream"], true);
 
   await page.getByRole("button", { name: "Judge", exact: true }).click();
-  await page.getByLabel("API key", { exact: true }).fill("offline-jev-key");
-  await page.getByRole("button", { name: "Use key for this provider" }).click();
+  await useKey(page, "TypeSafe (Jev)", "offline-jev-key");
   await page.waitForFunction(() => document.getElementById("request-note")?.textContent?.includes("for input 1"));
   const judgePreview = await page.locator("#code").textContent() ?? "";
   const judgeExpected = JSON.parse(judgePreview.slice(judgePreview.indexOf("\n\n{") + 2));

@@ -218,5 +218,5 @@ test("the relay: off by default, per provider, remembered only on request; the S
   assert.equal(relay.looksBrowserBlocked(Object.assign(new Error("NetworkError when attempting to fetch resource."), { name: "TransportError" })), true);
   assert.equal(relay.looksBrowserBlocked(Object.assign(new Error("POST https://api.typesafe.ai/v1/systemone: request failed"), { name: "TransportError", cause: new TypeError("Failed to fetch") })), true);
   assert.equal(relay.looksBrowserBlocked(Object.assign(new Error("HTTP 401"), { name: "AuthError" })), false);
-  assert.equal(relay.looksBrowserBlocked(new Error("Add this provider's API key in Settings first.")), false);
+  assert.equal(relay.looksBrowserBlocked(new Error("Add this provider's API key first.")), false);
 });

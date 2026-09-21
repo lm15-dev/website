@@ -22,9 +22,7 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const prompt = $<HTMLTextAreaElement>("prompt");
 const send = $<HTMLButtonElement>("send");
 const stop = $<HTMLButtonElement>("stop");
-const keyInput = $<HTMLInputElement>("key");
 const remember = $<HTMLInputElement>("remember");
-const endpoint = $<HTMLInputElement>("endpoint");
 const automatic = $<HTMLInputElement>("automatic-models");
 const systemInput = $<HTMLTextAreaElement>("system");
 const temperatureInput = $<HTMLInputElement>("temperature");
@@ -59,6 +57,9 @@ const modeConnections: Record<Mode, Connection> = {
 let judge: JudgeView;
 /** The code panel shows the program, or the request that program puts on the wire (built by the selected runtime, never sent). */
 let codeView: "code" | "request" = "code";
+/** What the provider list says in red: a missing key, an example key, a failed save. Cleared by the next good key. */
+let keyError = "";
+const savingKey = new Set<string>();
 
 const picker = new Picker(options, (kind, id) => {
   if (kind === "commands") {
@@ -74,9 +75,20 @@ const picker = new Picker(options, (kind, id) => {
 // ─── Rendering ────────────────────────────────────────────────────────
 
 function notify(text = "") { $("alert").textContent = text; $("alert").hidden = !text; }
-function notifyKey(text = ""): void {
-  $("key-error").textContent = text; $("key-error").hidden = !text;
-  keyInput.setAttribute("aria-invalid", String(Boolean(text)));
+function notifyKey(text = ""): void { keyError = text; picker.update(); }
+/** A textarea that is as tall as its text, up to its CSS max-height: no resize handle to drag. */
+function autosize(area: HTMLTextAreaElement): void {
+  area.style.height = "auto";
+  area.style.height = `${area.scrollHeight + area.offsetHeight - area.clientHeight}px`; // content plus its own border
+}
+/** The code panel folds away when the conversation needs the room; the choice is kept for next time. */
+function setCodeCollapsed(collapsed: boolean, persist = true): void {
+  document.body.dataset.code = collapsed ? "collapsed" : "open";
+  const toggle = $("toggle-code");
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.textContent = collapsed ? "Show code" : "Hide";
+  toggle.title = collapsed ? "Show the code panel" : "Hide the code panel";
+  if (persist) { try { localStorage.setItem("lm15.playground.code", collapsed ? "collapsed" : "open"); } catch { /* not remembered */ } }
 }
 function setView(view: string): void {
   document.body.dataset.view = view;
@@ -104,7 +116,6 @@ function setMode(next: Mode, remember = false): void {
   if (changed) {
     modeConnections[mode] = { ...connection };
     Object.assign(connection, modeConnections[next]);
-    keyInput.value = ""; // never carry an unsubmitted key into another provider
     notify(); notifyKey();
   }
   mode = next;
@@ -112,19 +123,21 @@ function setMode(next: Mode, remember = false): void {
   $("chat-view").hidden = next === "judge";
   $("judge-view").hidden = next === "chat";
   for (const button of document.querySelectorAll<HTMLButtonElement>(".mode-switch button")) button.setAttribute("aria-pressed", String(button.dataset.mode === next));
-  const keyCard = $("key-card"), codePanel = $("code-panel");
-  if (next === "judge") { $("judge-key-slot").append(keyCard); $("judge-code-slot").append(codePanel); }
-  else { $("settings-scroll").prepend(keyCard); $("chat-view").append(codePanel); }
-  const labels: Record<string, string> = next === "judge" ? { settings: "Questions", chat: "Results", code: "Code" } : { settings: "Settings", chat: "Chat", code: "Code" };
+  const codePanel = $("code-panel");
+  if (next === "judge") $("judge-code-slot").append(codePanel);
+  else $("chat-view").append(codePanel);
+  const labels: Record<string, string> = next === "judge" ? { settings: "Questions", chat: "Results", code: "Code" } : { settings: "Questions", chat: "Chat", code: "Code" };
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-target]")) button.textContent = labels[button.dataset.viewTarget!]!;
+  if (next === "chat" && document.body.dataset.view === "settings") setView("chat"); // Chat has no third view
   if (remember) { try { localStorage.setItem("lm15.playground.mode", next); } catch { /* not remembered */ } }
   refreshStatus();
   if (changed && automatic.checked) void discover();
 }
+/** The key lives beside its provider: open that list and put the caret in this provider's key field. */
 function openConnection(): void {
-  if (matchMedia("(max-width: 700px)").matches) setView("settings");
-  const input = keyless(connection.provider) ? (connection.provider === "custom" ? endpoint : systemInput) : keyInput;
-  input.focus(); input.scrollIntoView({ block: "nearest" });
+  if (keyless(connection.provider) && connection.provider !== "custom") { openSettings(); return; }
+  if (picker.current !== "provider") picker.open("provider");
+  picker.focusTrailing(connection.provider);
 }
 function scrollChat(): void { const area = $("chat-scroll"); area.scrollTop = area.scrollHeight; }
 function redact(text: string): string {
@@ -227,26 +240,20 @@ async function updateRequestView(version: number, settingsError: string, text: s
   }
 }
 
+/** A real key is present for this provider (the example key is a placeholder, never a credential). */
+function hasKey(provider: string): boolean { const key = credentials.get(provider); return Boolean(key) && key !== EXAMPLE_API_KEY; }
+/** One line of key state for a provider, as the picker row and the More list say it. */
+function keyState(provider: string): string {
+  const state = hasKey(provider) ? (credentials.remembered(provider) ? "Key ready (remembered on this device)" : "Key ready (this tab)") : keyless(provider) ? "Local connection" : "";
+  return state + (relayed(provider) ? " · via the relay" : "");
+}
 function refreshStatus(): void {
   $("provider-name").textContent = currentChoice().label;
   $("model-name").textContent = connection.model || "Choose model";
-  $("provider-button").title = currentChoice().label; $("model-button").title = connection.model;
-  const hasKey = Boolean(credentials.get(connection.provider) && credentials.get(connection.provider) !== EXAMPLE_API_KEY);
-  keyInput.placeholder = hasKey ? "Replace key" : EXAMPLE_API_KEY;
-  keyInput.title = hasKey ? "The saved key is not shown here." : "Example key only. Paste your own provider key.";
-  $("forget-key").hidden = !hasKey;
-  $("key-state").textContent = hasKey ? (credentials.remembered(connection.provider) ? "Key ready (remembered on this device)" : "Key ready (this tab)") : keyless(connection.provider) ? "Local connection" : "";
-  const page = keyPage(connection.provider);
-  const link = $<HTMLAnchorElement>("get-key");
-  link.hidden = !page;
-  if (page) link.href = page;
-  $("key-field").hidden = keyless(connection.provider);
-  $("custom-endpoint").hidden = connection.provider !== "custom";
+  $("provider-button").title = `${currentChoice().label}${keyState(connection.provider) ? ` · ${keyState(connection.provider)}` : ""}`; $("model-button").title = connection.model;
   const relays = relayedProviders();
   $("relayed").textContent = relays.length ? `${relays.map((id) => CONNECTIONS.find((c) => c.id === id)?.label ?? id).join(", ")} — requests to ${relays.length === 1 ? "this provider go" : "these providers go"} through the lm15 relay.` : "None. Every request goes from this page straight to its provider.";
   $("forget-relays").hidden = relays.length === 0;
-  $("key-state").textContent += relayed(connection.provider) ? " · via the relay" : "";
-  endpoint.value = connection.endpoint;
   $("loaded").textContent = credentials.providers().map((id) => `${CONNECTIONS.find((c) => c.id === id)?.label ?? id}${credentials.remembered(id) ? " (remembered)" : ""}`).join(", ") || "None";
   const catalogue = catalogues.get(cacheKey());
   $("model-status").textContent = catalogue?.status ?? (automatic.checked ? "Model IDs load when this connection is ready." : "Automatic model discovery is off.");
@@ -280,7 +287,7 @@ function selectProvider(id: string): void {
   // Save the actual chat selection before moving to a judgments-only provider.
   if (judgmentsOnly(id) && mode === "chat") setMode("judge", true);
   if (id !== connection.provider) {
-    connection.provider = id; connection.model = choice.model; keyInput.value = ""; reset(); notify(); notifyKey();
+    connection.provider = id; connection.model = choice.model; reset(); notify(); notifyKey();
   }
   refreshStatus();
   if (automatic.checked) void discover();
@@ -289,7 +296,71 @@ function selectModel(id: string): void {
   if (connection.model !== id) { connection.model = id; reset(); notify(); }
   refreshStatus();
 }
-function openSettings(): void { if (matchMedia("(max-width: 700px)").matches) setView("settings"); systemInput.focus(); systemInput.scrollIntoView({ block: "nearest" }); }
+function openSettings(): void { if (matchMedia("(max-width: 1100px)").matches) setView("chat"); systemInput.focus(); systemInput.scrollIntoView({ block: "nearest" }); }
+
+// ─── Keys, beside their providers ─────────────────────────────────────
+
+/** Save what was pasted for one provider; that provider becomes the current one, and the row shows the key masked. */
+function submitKey(provider: string, input: HTMLInputElement): void {
+  const key = input.value.trim();
+  if (savingKey.has(provider)) return;
+  if (!key || key === EXAMPLE_API_KEY) {
+    input.setAttribute("aria-invalid", "true");
+    notifyKey(key === EXAMPLE_API_KEY ? "That is an example key. Paste your own provider key." : `Paste your ${CONNECTIONS.find((c) => c.id === provider)?.label ?? provider} API key.`);
+    picker.focusTrailing(provider);
+    return;
+  }
+  savingKey.add(provider); input.disabled = true;
+  void credentials.set(provider, key, remember.checked).then(() => {
+    savingKey.delete(provider);
+    keyRevision.set(provider, (keyRevision.get(provider) ?? 0) + 1);
+    keyError = "";
+    // Pasting a key beside a provider is choosing that provider.
+    if (provider === connection.provider) { reset(); notify(); refreshStatus(); if (automatic.checked) void discover(); }
+    else selectProvider(provider);
+  }).catch(() => {
+    savingKey.delete(provider);
+    notifyKey("Could not save this key. Try again, or uncheck Remember keys on this device.");
+    picker.focusTrailing(provider);
+  });
+}
+/** What sits at the right of a provider's row: its key, masked, with Forget; or a field to paste one; or, for local servers, the address. */
+function keyControl(provider: string): HTMLElement {
+  const box = document.createElement("div"); box.className = "key-slot";
+  if (provider === "custom") {
+    const endpoint = document.createElement("input"); endpoint.type = "url"; endpoint.value = connection.endpoint; endpoint.placeholder = "http://localhost:1234/v1";
+    endpoint.setAttribute("aria-label", "Custom API root"); endpoint.title = "Changing the address clears its key.";
+    endpoint.addEventListener("change", () => {
+      if (connection.endpoint === endpoint.value.trim()) return;
+      connection.endpoint = endpoint.value.trim();
+      void credentials.forget("custom").then(() => credentialsChanged());
+    });
+    box.append(endpoint); return box;
+  }
+  if (keyless(provider)) { const local = document.createElement("span"); local.className = "key-local"; local.textContent = "Local"; box.append(local); return box; }
+  if (hasKey(provider)) {
+    const mask = document.createElement("span"); mask.className = "key-mask"; mask.textContent = "••••••••"; mask.title = keyState(provider);
+    mask.setAttribute("aria-label", keyState(provider));
+    const forget = document.createElement("button"); forget.type = "button"; forget.className = "text-button warm key-forget"; forget.textContent = "Forget";
+    forget.setAttribute("aria-label", `Forget the ${CONNECTIONS.find((c) => c.id === provider)?.label ?? provider} key`);
+    forget.addEventListener("click", () => {
+      keyRevision.set(provider, (keyRevision.get(provider) ?? 0) + 1);
+      void credentials.forget(provider).then(() => { if (connection.provider === provider) credentialsChanged(); else refreshStatus(); });
+    });
+    box.append(mask, forget); return box;
+  }
+  const input = document.createElement("input"); input.type = "password"; input.autocomplete = "off"; input.spellcheck = false;
+  input.placeholder = "Paste API key"; input.setAttribute("aria-label", `${CONNECTIONS.find((c) => c.id === provider)?.label ?? provider} API key`);
+  if (keyError && provider === connection.provider) input.setAttribute("aria-invalid", "true");
+  input.addEventListener("input", () => { input.removeAttribute("aria-invalid"); if (keyError) { keyError = ""; $("picker-status").textContent = ""; $("picker-status").classList.remove("is-error"); } });
+  input.addEventListener("change", () => submitKey(provider, input));
+  input.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); submitKey(provider, input); } });
+  input.addEventListener("paste", () => setTimeout(() => submitKey(provider, input), 0));
+  box.append(input);
+  const page = keyPage(provider);
+  if (page) { const link = document.createElement("a"); link.href = page; link.target = "_blank"; link.rel = "noopener noreferrer"; link.className = "key-page"; link.textContent = "Get a key"; box.append(link); }
+  return box;
+}
 
 async function discover(force = false): Promise<void> {
   const selected = { ...connection };
@@ -324,17 +395,17 @@ function options(kind: PickerKind, query: string): PickResult {
     entries = [
       { id: "provider", label: "/provider", detail: "Change provider" },
       { id: "model", label: "/model", detail: "Search models or enter an ID" },
-      { id: "settings", label: "/settings", detail: "Keys, system prompt, sampling" },
+      { id: "settings", label: "/settings", detail: "System prompt and sampling" },
     ];
     status = "Commands configure the app. They are never sent to a model.";
   } else if (kind === "provider") {
-    entries = CONNECTIONS.map((choice) => ({ id: choice.id, label: choice.label, detail: `${credentials.get(choice.id) ? "Key loaded" : choice.env ? "Add key in Settings" : "Local / custom endpoint"}${judgmentsOnly(choice.id) ? " · judgments only, opens Judge" : ""}` }));
-    status = mode === "judge" ? "Choose a provider · judged inputs keep their answers until run again" : "Choose a provider · switching starts a new conversation";
+    entries = CONNECTIONS.map((choice) => ({ id: choice.id, label: choice.label, detail: [judgmentsOnly(choice.id) ? "Judgments only · opens Judge" : "", relayed(choice.id) ? "via the relay" : ""].filter(Boolean).join(" · "), trailing: () => keyControl(choice.id) }));
+    status = keyError;
   } else {
     const catalogue = catalogues.get(cacheKey());
     const listed = new Set(catalogue?.ids ?? []);
     entries = [...new Set([connection.model, ...listed, currentChoice().model])].filter(Boolean).map((id) => ({ id, label: id, detail: `${listed.has(id) ? "Listed by provider" : "Example or entered ID · unverified"}${id === connection.model ? " · current" : ""}` }));
-    status = catalogue?.status ?? (credentials.get(connection.provider) ? "Type to search, or enter an exact model ID" : "Add a key in Settings to discover models, or enter an ID");
+    status = catalogue?.status ?? (credentials.get(connection.provider) ? "Type to search, or enter an exact model ID" : "Add this provider's key to discover models, or enter an ID");
   }
   const filtered = entries.map((entry, index) => ({ entry, index, score: Math.max(fuzzyScore(query, entry.id), fuzzyScore(query, entry.label)) }))
     .filter((hit) => Number.isFinite(hit.score)).sort((a, b) => b.score - a.score || a.index - b.index);
@@ -342,7 +413,7 @@ function options(kind: PickerKind, query: string): PickResult {
   if (kind === "model" && query.trim() && !entries.some((entry) => entry.id === query.trim())) shown.push({ id: query.trim(), label: `Use exact ID: ${query.trim()}`, detail: "Custom model ID · not verified" });
   if (filtered.length > 30) status += ` · showing 30 of ${filtered.length}; type to narrow`;
   if (!shown.length) status += " · no matches";
-  return { options: shown, status };
+  return { options: shown, status, error: kind === "provider" && Boolean(keyError) };
 }
 
 // ─── Runtimes ─────────────────────────────────────────────────────────
@@ -434,9 +505,9 @@ function turn(who: string, text: string, role: "user" | "assistant" = who === "Y
 
 async function sendTurn(text: string): Promise<void> {
   if (active || loadingRuntime || !RUNTIMES[runtime].loaded()) return;
-  if ((!credentials.get(connection.provider) || credentials.get(connection.provider) === EXAMPLE_API_KEY) && !keyless(connection.provider)) { notifyKey(`Add your ${currentChoice().label} API key to send a message.`); openConnection(); return; }
-  if (!temperatureInput.reportValidity()) { openSettings(); temperatureInput.focus(); return; }
-  if (!maxTokensInput.reportValidity()) { openSettings(); maxTokensInput.focus(); return; }
+  if (!hasKey(connection.provider) && !keyless(connection.provider)) { openConnection(); notifyKey(`Add your ${currentChoice().label} API key to send a message.`); return; }
+  if (!temperatureInput.reportValidity()) { temperatureInput.focus(); return; }
+  if (!maxTokensInput.reportValidity()) { maxTokensInput.focus(); return; }
   if (!connection.model.trim()) { notify("Choose a model first."); return; }
   const version = generation;
   const controller = new AbortController();
@@ -445,8 +516,8 @@ async function sendTurn(text: string): Promise<void> {
   const chosen = RUNTIMES[runtime];
   const body = (turn("You", text), turn(`${currentChoice().label} · ${chosen.label}`, ""));
   body.parentElement!.classList.add("streaming");
-  prompt.value = "";
-  if (matchMedia("(max-width: 700px)").matches) setView("chat");
+  prompt.value = ""; autosize(prompt);
+  if (matchMedia("(max-width: 1100px)").matches) setView("chat");
   scrollChat();
   const started = performance.now();
   let resend = false;
@@ -509,42 +580,25 @@ $("forget-relays").addEventListener("click", () => { disableAllRelays(); catalog
 
 // ─── Wiring ───────────────────────────────────────────────────────────
 
-$("provider-button").addEventListener("click", () => picker.open("provider"));
-$("model-button").addEventListener("click", () => { picker.open("model"); if (automatic.checked) void discover(); });
+$("provider-button").addEventListener("click", () => picker.open("provider", connection.provider));
+$("model-button").addEventListener("click", () => { picker.open("model", connection.model); if (automatic.checked) void discover(); });
+// A textarea's natural height depends on its width and font: both change with the viewport.
+addEventListener("resize", () => { autosize(prompt); autosize(systemInput); });
 moreMenu.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && moreMenu.open) { moreMenu.open = false; $("more-toggle").focus(); event.preventDefault(); }
 });
 moreMenu.addEventListener("focusout", (event) => { if (event.relatedTarget instanceof Node && !moreMenu.contains(event.relatedTarget)) moreMenu.open = false; });
 document.addEventListener("click", (event) => { if (event.target instanceof Node && !moreMenu.contains(event.target)) moreMenu.open = false; });
-keyInput.addEventListener("input", () => notifyKey());
 $("retry-runtime").addEventListener("click", () => void selectRuntime(runtime));
-for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-target]")) button.addEventListener("click", () => { setView(button.dataset.viewTarget!); if (button.dataset.viewTarget === "settings") openSettings(); });
-$("credentials").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const key = keyInput.value.trim();
-  if (!key || key === EXAMPLE_API_KEY) { notifyKey(key === EXAMPLE_API_KEY ? "That is an example key. Paste your own provider key." : "Enter an API key first."); keyInput.focus(); return; }
-  const provider = connection.provider;
-  const button = $("credentials").querySelector<HTMLButtonElement>('button[type="submit"]')!;
-  button.disabled = true; button.textContent = "Saving…";
-  void credentials.set(provider, key, remember.checked).then(() => {
-    keyRevision.set(provider, (keyRevision.get(provider) ?? 0) + 1);
-    if (connection.provider === provider) { if (keyInput.value.trim() === key) keyInput.value = ""; reset(); notify(); notifyKey(); refreshStatus(); if (automatic.checked) void discover(); }
-  }).catch(() => { if (connection.provider === provider) notifyKey("Could not save this key. Try again, or uncheck Remember on this device."); })
-    .finally(() => { button.disabled = false; button.textContent = "Use key"; });
-});
-$("forget-key").addEventListener("click", () => { void credentials.forget(connection.provider).then(() => { keyInput.value = ""; credentialsChanged(); }); });
+for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-target]")) button.addEventListener("click", () => setView(button.dataset.viewTarget!));
 $("forget").addEventListener("click", () => {
   for (const id of credentials.providers()) keyRevision.set(id, (keyRevision.get(id) ?? 0) + 1);
-  void credentials.forgetAll().then(() => { keyInput.value = ""; catalogues.clear(); reset(); notify(); notifyKey(); refreshStatus(); });
+  void credentials.forgetAll().then(() => { catalogues.clear(); reset(); notify(); notifyKey(); refreshStatus(); });
 });
-endpoint.addEventListener("change", () => {
-  if (connection.endpoint === endpoint.value.trim()) return;
-  connection.endpoint = endpoint.value.trim();
-  void credentials.forget("custom").then(() => { keyInput.value = ""; credentialsChanged(); });
-});
+$("toggle-code").addEventListener("click", () => setCodeCollapsed(document.body.dataset.code !== "collapsed"));
 automatic.addEventListener("change", () => { refreshStatus(); if (automatic.checked) void discover(); });
 $("list").addEventListener("click", () => void discover(true));
-systemInput.addEventListener("input", () => { settings.system = systemInput.value; void updateCode(); });
+systemInput.addEventListener("input", () => { settings.system = systemInput.value; autosize(systemInput); void updateCode(); });
 temperatureInput.addEventListener("input", () => {
   if (temperatureInput.validity.valid) settings.temperature = temperatureInput.value === "" ? null : temperatureInput.valueAsNumber;
   void updateCode();
@@ -559,7 +613,7 @@ $("copy-code").addEventListener("click", async () => {
   }
   catch { $("copy-status").textContent = "Clipboard unavailable; select the code to copy it."; }
 });
-prompt.addEventListener("input", () => { updateControls(); void updateCode(); if (slashCommand(prompt.value)?.kind === "model" && automatic.checked) void discover(); });
+prompt.addEventListener("input", () => { autosize(prompt); updateControls(); void updateCode(); if (slashCommand(prompt.value)?.kind === "model" && automatic.checked) void discover(); });
 prompt.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !event.defaultPrevented) { event.preventDefault(); $<HTMLFormElement>("composer").requestSubmit(); }
 });
@@ -586,9 +640,9 @@ for (const { id, label } of LANGUAGES) {
   });
   $("code-tabs").append(tab);
 }
-systemInput.value = DEFAULT_SETTINGS.system;
+systemInput.value = DEFAULT_SETTINGS.system; autosize(systemInput);
 maxTokensInput.value = "";
-prompt.value = EXAMPLE_DRAFT;
+prompt.value = EXAMPLE_DRAFT; autosize(prompt);
 reset();
 judge = new JudgeView({
   connection,
@@ -601,24 +655,26 @@ judge = new JudgeView({
   offerRelay,
   errorMessage,
   requireKey: () => {
-    if ((!credentials.get(connection.provider) || credentials.get(connection.provider) === EXAMPLE_API_KEY) && !keyless(connection.provider)) { notifyKey(`Add your ${currentChoice().label} API key to judge.`); openConnection(); return false; }
+    if (!hasKey(connection.provider) && !keyless(connection.provider)) { openConnection(); notifyKey(`Add your ${currentChoice().label} API key to judge.`); return false; }
     return true;
   },
   onBusy: () => updateControls(),
-  pickProvider: () => picker.open("provider"),
-  pickModel: () => { picker.open("model"); if (automatic.checked) void discover(); },
+  pickProvider: () => picker.open("provider", connection.provider),
+  pickModel: () => { picker.open("model", connection.model); if (automatic.checked) void discover(); },
   codeChanged: () => void updateCode(),
 });
 for (const button of document.querySelectorAll<HTMLButtonElement>(".mode-switch button")) button.addEventListener("click", () => { if (!button.disabled) setMode(button.dataset.mode as Mode, true); });
 let remembered: string | null = null;
 try { remembered = localStorage.getItem("lm15.playground.mode"); } catch { remembered = null; }
 setMode(remembered === "judge" ? "judge" : "chat");
+try { setCodeCollapsed(localStorage.getItem("lm15.playground.code") === "collapsed", false); } catch { setCodeCollapsed(false, false); }
 try {
   const savedRuntime = localStorage.getItem("lm15.playground.runtime");
   const selected = LANGUAGES.find((item) => item.id === savedRuntime);
   if (selected) void selectRuntime(selected.id);
 } catch { /* storage is optional */ }
 $("remember-note").hidden = Credentials.available();
+remember.disabled = !Credentials.available();
 void credentials.load().then(() => { refreshStatus(); if (automatic.checked) void discover(); });
 refreshStatus();
 

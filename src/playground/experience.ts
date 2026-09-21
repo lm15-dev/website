@@ -65,7 +65,7 @@ export function keyPage(provider: string): string | undefined {
 
 export function createClient(connection: Connection, key?: string): ProviderLM {
   const id = connection.provider;
-  if (!key && !keyless(id)) throw new Error("Add this provider's API key in Settings first.");
+  if (!key && !keyless(id)) throw new Error("Add this provider's API key first.");
   if (id === "custom") {
     const url = new URL(connection.endpoint);
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {

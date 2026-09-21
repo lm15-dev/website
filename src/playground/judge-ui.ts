@@ -255,7 +255,7 @@ export class JudgeView {
       add.addEventListener("click", () => { const li = row({ key: "", description: "" }, list.children.length); list.append(li); li.querySelector("input")!.focus(); });
       body.append(label, list, add);
     }
-    const remove = document.createElement("button"); remove.type = "button"; remove.className = "text-button danger remove-question"; remove.textContent = "Remove question";
+    const remove = document.createElement("button"); remove.type = "button"; remove.className = "text-button warm remove-question"; remove.textContent = "Remove question";
     remove.addEventListener("click", () => { this.openCards.delete(q.name); this.setProperties(withoutQuestion(this.spec.properties, q.name)); this.renderQuestions(); });
     body.append(remove);
     card.append(summary, body);

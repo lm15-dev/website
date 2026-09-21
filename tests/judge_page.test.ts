@@ -11,7 +11,7 @@ import { test } from "node:test";
 import { chromium, type Page } from "playwright-core";
 import { startDemo } from "../scripts/serve-playground.ts";
 import { findBrowsers } from "./support/browser.ts";
-import { disableDiscovery, waitRuntimeReady } from "./support/playground.ts";
+import { disableDiscovery, keyState, useKey, waitKeyState, waitRuntimeReady } from "./support/playground.ts";
 
 test("Judge defaults to Jev, restores mode-specific choices, and starts on Jev after reload", { timeout: 60_000 }, async (t) => {
   const installed = findBrowsers().find(b => b.name === "chromium");
@@ -32,17 +32,16 @@ test("Judge defaults to Jev, restores mode-specific choices, and starts on Jev a
   await page.goto(url);
   await disableDiscovery(page);
   assert.equal(await page.locator("#provider-name").textContent(), "OpenAI");
-  await page.getByLabel("API key", { exact: true }).fill("unsubmitted-chat-key");
   await page.getByRole("button", { name: "Judge", exact: true }).click();
   assert.equal(await page.locator("#judge-provider-name").textContent(), "TypeSafe (Jev)");
   assert.match(await page.locator("#code").textContent() ?? "", /jev-latest/);
-  assert.equal(await page.getByLabel("API key", { exact: true }).inputValue(), "");
+  assert.equal(await keyState(page), "", "Jev starts without a key of its own");
   assert.equal(await page.getByRole("button", { name: "Chat", exact: true }).isEnabled(), true);
 
   // A deliberate Judge provider choice is retained while switching modes.
   await page.getByRole("button", { name: "Choose provider", exact: true }).click();
   await page.getByRole("combobox", { name: "Search choices" }).fill("anthropic");
-  await page.getByRole("option", { name: /^Anthropic/ }).first().click();
+  await page.getByRole("option", { name: /^Anthropic/ }).first().locator(".pick-main").click();
   assert.equal(await page.locator("#judge-provider-name").textContent(), "Anthropic");
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   assert.equal(await page.locator("#provider-name").textContent(), "OpenAI");
@@ -59,7 +58,7 @@ test("Judge defaults to Jev, restores mode-specific choices, and starts on Jev a
   // Explicitly choosing Jev from Chat still opens Judge; Chat remains usable.
   await page.getByRole("button", { name: "Choose provider", exact: true }).click();
   await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
-  await page.getByRole("option", { name: /TypeSafe/ }).first().click();
+  await page.getByRole("option", { name: /TypeSafe/ }).first().locator(".pick-main").click();
   await page.waitForFunction(() => document.body.dataset.mode === "judge");
   assert.equal(await page.locator("#judge-provider-name").textContent(), "TypeSafe (Jev)");
   await page.getByRole("button", { name: "Chat", exact: true }).click();
@@ -79,9 +78,8 @@ async function openJudgeWithTypeSafe(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Judge", exact: true }).click();
   await page.waitForFunction(() => document.body.dataset.mode === "judge");
   assert.equal(await page.locator("#judge-provider-name").textContent(), "TypeSafe (Jev)");
-  await page.getByLabel("API key", { exact: true }).fill("dummy-typesafe-key");
-  await page.getByRole("button", { name: "Use key for this provider" }).click();
-  await page.waitForFunction(() => document.getElementById("key-state")?.textContent?.startsWith("Key ready"));
+  await useKey(page, "TypeSafe (Jev)", "dummy-typesafe-key");
+  await waitKeyState(page, /^Key ready/);
 }
 
 test("Judge: the form is the schema; a run judges every input once; the sparkline and its popover say what was measured; the set survives a reload", { timeout: 180_000 }, async () => {
@@ -110,10 +108,8 @@ test("Judge: the form is the schema; a run judges every input once; the sparklin
     await page.goto(demo.url);
     await openJudgeWithTypeSafe(page);
     assert.equal(await page.locator("#judge-count").textContent(), "3 inputs · 3 questions · 3 calls");
-    // The key card and the code panel are the chat's own, moved: one key field, one set of language tabs.
-    assert.equal(await page.locator("#key").count(), 1);
+    // The code panel is the chat's own, moved: one set of language tabs; keys live in the shared provider list.
     assert.equal(await page.locator("#code-tabs").count(), 1);
-    assert.equal(await page.locator("#judge-key-slot #key").count(), 1);
     assert.equal(await page.locator("#judge-code-slot #code").count(), 1);
 
     // The form writes the schema the code shows: rename a question, add a level, add a yes/no.
@@ -291,11 +287,10 @@ test("Judge: shapes keep their own inputs; Fields on a chat wire is JSON text; o
     // A different Judge provider remains an explicit choice.
     await page.getByRole("button", { name: "Choose provider", exact: true }).click();
     await page.getByRole("combobox", { name: "Search choices" }).fill("openai");
-    await page.getByRole("option", { name: /^OpenAI/ }).first().click();
+    await page.getByRole("option", { name: /^OpenAI/ }).first().locator(".pick-main").click();
     assert.equal(await page.locator("#judge-provider-name").textContent(), "OpenAI");
-    await page.getByLabel("API key", { exact: true }).fill("dummy-openai-key");
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent?.startsWith("Key ready"));
+    await useKey(page, "OpenAI", "dummy-openai-key");
+    await waitKeyState(page, /^Key ready/);
 
     // A chat wire judges the pick without the numbers; the dropped probabilities are recorded on the row.
     await page.getByRole("button", { name: "Run all", exact: true }).click();
@@ -323,11 +318,10 @@ test("Judge: shapes keep their own inputs; Fields on a chat wire is JSON text; o
     // Fields on TypeSafe: structured state; a field typed as a number is sent as one.
     await page.getByRole("button", { name: "Choose provider", exact: true }).click();
     await page.getByRole("combobox", { name: "Search choices" }).fill("typesafe");
-    await page.getByRole("option", { name: /TypeSafe/ }).first().click();
+    await page.getByRole("option", { name: /TypeSafe/ }).first().locator(".pick-main").click();
     await page.waitForFunction(() => document.getElementById("judge-provider-name")?.textContent === "TypeSafe (Jev)");
-    await page.getByLabel("API key", { exact: true }).fill("dummy-typesafe-key");
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent?.startsWith("Key ready"));
+    await useKey(page, "TypeSafe (Jev)", "dummy-typesafe-key");
+    await waitKeyState(page, /^Key ready/);
     assert.equal(await page.locator("#judge-gap").isHidden(), true);
     // Without instructions the state is the object itself; typing instructions puts them beside the fields (D4).
     assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /instructions:/);
@@ -370,14 +364,13 @@ test("Judge: shapes keep their own inputs; Fields on a chat wire is JSON text; o
     // Chat mode is what it was: no judgments switch, the example conversation, the code for a chat turn.
     await page.getByRole("button", { name: "Choose provider", exact: true }).click();
     await page.getByRole("combobox", { name: "Search choices" }).fill("openai");
-    await page.getByRole("option", { name: /^OpenAI/ }).first().click();
+    await page.getByRole("option", { name: /^OpenAI/ }).first().locator(".pick-main").click();
     await page.getByRole("button", { name: "Chat", exact: true }).click();
     await page.waitForFunction(() => document.body.dataset.mode === "chat");
     assert.equal(await page.getByLabel("Ask for judgments").count(), 0);
     assert.equal(await page.locator("#transcript article").count(), 2);
     assert.match(await page.locator("#code").textContent() ?? "", /ResponseStream/);
     assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /judgments/);
-    assert.equal(await page.locator("#settings-scroll #key").count(), 1, "the key card is back in Settings");
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

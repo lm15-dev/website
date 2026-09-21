@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { chromium } from "playwright-core";
 import { startDemo } from "../scripts/serve-playground.ts";
 import { findBrowsers } from "./support/browser.ts";
-import { disableDiscovery, waitRuntimeReady } from "./support/playground.ts";
+import { disableDiscovery, useKey, waitKeyState, waitRuntimeReady } from "./support/playground.ts";
 
 test("playground shows rate-limit diagnostics in all four runtimes, including HTTP-200 stream failures", { timeout: 240_000 }, async (t) => {
   const installed = findBrowsers().find(b => b.name === "chromium");
@@ -38,10 +38,9 @@ test("playground shows rate-limit diagnostics in all four runtimes, including HT
   });
   try {
     await page.goto(url);
-    await page.waitForFunction(() => document.getElementById("key-state")?.textContent === "");
+    await waitKeyState(page, "");
     await disableDiscovery(page);
-    await page.getByLabel("API key", { exact: true }).fill(key);
-    await page.getByRole("button", { name: "Use key for this provider" }).click();
+    await useKey(page, "OpenAI", key);
     for (const language of ["JavaScript", "Python", "Rust", "Go"]) {
       await page.getByRole("button", { name: language, exact: true }).click();
       await waitRuntimeReady(page, language);
