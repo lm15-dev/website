@@ -15,6 +15,16 @@
   --lm-accent-soft: var(--lm-accent-soft-light);
   --lm-accent-strong: var(--lm-accent-strong-light);
 
+  /* The playground's code panel: the person's values take the brand blue
+     (cool, calm, can cover half the screen); LM15's own calls take the
+     brand's warm complement, #ff7100, taken down to ink weight so it sits in
+     the text rather than on it (6.4:1 on the light code background; darker
+     goes brown). Warm advances, cool recedes: the few short API names win
+     the eye over the many blue values. If --lm-brand changes hue, revisit. */
+  --lm-code-api-light: #9a4300;
+  --lm-code-api-dark: #ffaf70;
+  --lm-code-api: var(--lm-code-api-light);
+
   /* Cool blue/teal code colors, with warm amber separating numeric values.
      Keep the same token meanings in both code panels; brightness changes by mode. */
   --lm-code-string-light: #006b70;
@@ -34,6 +44,7 @@
     --lm-accent: var(--lm-accent-dark);
     --lm-accent-soft: var(--lm-accent-soft-dark);
     --lm-accent-strong: var(--lm-accent-strong-dark);
+    --lm-code-api: var(--lm-code-api-dark);
     --lm-code-string: var(--lm-code-string-dark);
     --lm-code-number: var(--lm-code-number-dark);
     --lm-code-comment: var(--lm-code-comment-dark);
@@ -45,6 +56,7 @@
   --lm-accent: var(--lm-accent-dark);
   --lm-accent-soft: var(--lm-accent-soft-dark);
   --lm-accent-strong: var(--lm-accent-strong-dark);
+  --lm-code-api: var(--lm-code-api-dark);
   --lm-code-string: var(--lm-code-string-dark);
   --lm-code-number: var(--lm-code-number-dark);
   --lm-code-comment: var(--lm-code-comment-dark);

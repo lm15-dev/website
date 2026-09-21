@@ -514,15 +514,18 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
       const contrast = await page.evaluate(() => {
         const luminance = (color: string) => {
-          const [r, g, b] = color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map((value) => { value /= 255; return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4; });
+          // `rgb(r, g, b)` in 0-255, or `color(srgb r g b)` in 0-1 (what a color-mix() resolves to).
+          const scale = color.startsWith("color(") ? 1 : 255;
+          const [r, g, b] = color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map((value) => { value /= scale; return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4; });
           return r! * .2126 + g! * .7152 + b! * .0722;
         };
-        const code = getComputedStyle(document.getElementById("code")!);
-        const panel = getComputedStyle(document.getElementById("code-panel")!);
-        const a = luminance(code.color), b = luminance(panel.backgroundColor);
-        return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+        const panel = luminance(getComputedStyle(document.getElementById("code-panel")!).backgroundColor);
+        const against = (element: Element) => { const a = luminance(getComputedStyle(element).color); return (Math.max(a, panel) + .05) / (Math.min(a, panel) + .05); };
+        return { ink: against(document.getElementById("code")!), value: against(document.querySelector("#code .tok-value")!), api: against(document.querySelector("#code .tok-api")!) };
       });
-      assert.ok(contrast >= 7, `${scheme}: readable code contrast`);
+      assert.ok(contrast.ink >= 7, `${scheme}: readable code contrast`);
+      // The two accents (the person's values in brand blue, LM15's calls in its warm complement) stay above AA in both themes.
+      assert.ok(contrast.value >= 4.5 && contrast.api >= 4.5, `${scheme}: accent contrast value ${contrast.value.toFixed(1)}, api ${contrast.api.toFixed(1)}`);
     }
     for (const width of [1024, 700, 390, 320]) {
       await page.setViewportSize({ width, height: 844 });

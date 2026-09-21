@@ -6,7 +6,7 @@
   --ink: #1d2924; --muted: #607168; --line: #e0e7e3; --strong-line: #c6d2cc;
   --accent: var(--lm-accent); --accent-soft: var(--lm-accent-soft);
   --danger: #b73a36; --danger-soft: #fff0ef;
-  --code-ink: #111; --code-muted: #666; --code-api: #0b6b55;
+  --code-ink: #111; --code-muted: #666;
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -14,7 +14,7 @@
     --bg: #0d1210; --surface: #151c18; --soft: #19221d; --code-bg: #111914;
     --ink: #e0ebe4; --muted: #a2b3a8; --line: #2a3830; --strong-line: #465b4d;
     --danger: #ffaca5; --danger-soft: #381e1d;
-    --code-ink: #e5e5e5; --code-muted: #aaa; --code-api: #5fd0a6;
+    --code-ink: #e5e5e5; --code-muted: #aaa;
   }
 }
 * { box-sizing: border-box; }
@@ -132,7 +132,7 @@ article.streaming p:empty::after { content: "Waiting for the provider…"; color
 .code-panel pre .line { display: block; min-height: 1.8em; padding-left: calc(var(--indent, 0) * 1ch); text-indent: calc(var(--indent, 0) * -1ch); }
 /* What the generator marked (marks.ts): the person's values, LM15's calls, comments, and the language's plumbing. */
 .tok-value { color: var(--accent); }
-.tok-api { color: var(--code-api); font-weight: 600; }
+.tok-api { color: var(--lm-code-api); }
 .tok-comment { color: var(--code-muted); font-style: italic; }
 .tok-dim { color: var(--code-muted); }
 .tok-dim .tok-comment { color: inherit; }
