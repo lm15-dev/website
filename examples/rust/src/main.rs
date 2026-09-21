@@ -7,7 +7,7 @@
 
 mod openai_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai", Credential::api_key("sk-just-kidding")?,
@@ -19,13 +19,14 @@ mod openai_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -48,7 +49,7 @@ mod openai_judge_text {
 
 mod openai_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -64,13 +65,14 @@ mod openai_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -93,7 +95,7 @@ mod openai_judge_fields {
 
 mod openai_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai", Credential::api_key("sk-just-kidding")?,
@@ -107,13 +109,14 @@ mod openai_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -405,7 +408,7 @@ mod openai_zero_temperature {
 
 mod anthropic_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "anthropic", Credential::api_key("sk-just-kidding")?,
@@ -417,13 +420,14 @@ mod anthropic_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -446,7 +450,7 @@ mod anthropic_judge_text {
 
 mod anthropic_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -462,13 +466,14 @@ mod anthropic_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -491,7 +496,7 @@ mod anthropic_judge_fields {
 
 mod anthropic_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "anthropic", Credential::api_key("sk-just-kidding")?,
@@ -505,13 +510,14 @@ mod anthropic_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -803,7 +809,7 @@ mod anthropic_zero_temperature {
 
 mod gemini_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "gemini", Credential::api_key("sk-just-kidding")?,
@@ -815,13 +821,14 @@ mod gemini_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -844,7 +851,7 @@ mod gemini_judge_text {
 
 mod gemini_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -860,13 +867,14 @@ mod gemini_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -889,7 +897,7 @@ mod gemini_judge_fields {
 
 mod gemini_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "gemini", Credential::api_key("sk-just-kidding")?,
@@ -903,13 +911,14 @@ mod gemini_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1201,7 +1210,7 @@ mod gemini_zero_temperature {
 
 mod groq_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "groq", Credential::api_key("sk-just-kidding")?,
@@ -1213,13 +1222,14 @@ mod groq_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1242,7 +1252,7 @@ mod groq_judge_text {
 
 mod groq_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -1258,13 +1268,14 @@ mod groq_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1287,7 +1298,7 @@ mod groq_judge_fields {
 
 mod groq_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "groq", Credential::api_key("sk-just-kidding")?,
@@ -1301,13 +1312,14 @@ mod groq_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1599,7 +1611,7 @@ mod groq_zero_temperature {
 
 mod openrouter_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openrouter", Credential::api_key("sk-just-kidding")?,
@@ -1611,13 +1623,14 @@ mod openrouter_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1640,7 +1653,7 @@ mod openrouter_judge_text {
 
 mod openrouter_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -1656,13 +1669,14 @@ mod openrouter_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1685,7 +1699,7 @@ mod openrouter_judge_fields {
 
 mod openrouter_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openrouter", Credential::api_key("sk-just-kidding")?,
@@ -1699,13 +1713,14 @@ mod openrouter_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1997,7 +2012,7 @@ mod openrouter_zero_temperature {
 
 mod deepseek_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "deepseek", Credential::api_key("sk-just-kidding")?,
@@ -2009,13 +2024,14 @@ mod deepseek_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2038,7 +2054,7 @@ mod deepseek_judge_text {
 
 mod deepseek_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -2054,13 +2070,14 @@ mod deepseek_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2083,7 +2100,7 @@ mod deepseek_judge_fields {
 
 mod deepseek_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "deepseek", Credential::api_key("sk-just-kidding")?,
@@ -2097,13 +2114,14 @@ mod deepseek_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2395,7 +2413,7 @@ mod deepseek_zero_temperature {
 
 mod zai_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "zai", Credential::api_key("sk-just-kidding")?,
@@ -2407,13 +2425,14 @@ mod zai_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2436,7 +2455,7 @@ mod zai_judge_text {
 
 mod zai_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -2452,13 +2471,14 @@ mod zai_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2481,7 +2501,7 @@ mod zai_judge_fields {
 
 mod zai_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "zai", Credential::api_key("sk-just-kidding")?,
@@ -2495,13 +2515,14 @@ mod zai_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2793,7 +2814,7 @@ mod zai_zero_temperature {
 
 mod meta_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "meta", Credential::api_key("sk-just-kidding")?,
@@ -2805,13 +2826,14 @@ mod meta_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2834,7 +2856,7 @@ mod meta_judge_text {
 
 mod meta_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -2850,13 +2872,14 @@ mod meta_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2879,7 +2902,7 @@ mod meta_judge_fields {
 
 mod meta_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "meta", Credential::api_key("sk-just-kidding")?,
@@ -2893,13 +2916,14 @@ mod meta_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3191,7 +3215,7 @@ mod meta_zero_temperature {
 
 mod moonshotai_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "moonshotai", Credential::api_key("sk-just-kidding")?,
@@ -3203,13 +3227,14 @@ mod moonshotai_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3232,7 +3257,7 @@ mod moonshotai_judge_text {
 
 mod moonshotai_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -3248,13 +3273,14 @@ mod moonshotai_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3277,7 +3303,7 @@ mod moonshotai_judge_fields {
 
 mod moonshotai_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "moonshotai", Credential::api_key("sk-just-kidding")?,
@@ -3291,13 +3317,14 @@ mod moonshotai_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3589,7 +3616,7 @@ mod moonshotai_zero_temperature {
 
 mod typesafe_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "typesafe", Credential::api_key("sk-just-kidding")?,
@@ -3601,13 +3628,14 @@ mod typesafe_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3630,7 +3658,7 @@ mod typesafe_judge_text {
 
 mod typesafe_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -3646,13 +3674,14 @@ mod typesafe_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3675,7 +3704,7 @@ mod typesafe_judge_fields {
 
 mod typesafe_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -3690,13 +3719,14 @@ mod typesafe_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3719,7 +3749,7 @@ mod typesafe_judge_conversation {
 
 mod ollama_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "ollama", Credential::api_key("unused")?,
@@ -3731,13 +3761,14 @@ mod ollama_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3760,7 +3791,7 @@ mod ollama_judge_text {
 
 mod ollama_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -3776,13 +3807,14 @@ mod ollama_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3805,7 +3837,7 @@ mod ollama_judge_fields {
 
 mod ollama_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "ollama", Credential::api_key("unused")?,
@@ -3819,13 +3851,14 @@ mod ollama_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -4117,7 +4150,7 @@ mod ollama_zero_temperature {
 
 mod custom_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai-chat", Credential::api_key("unused")?,
@@ -4129,13 +4162,14 @@ mod custom_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -4158,7 +4192,7 @@ mod custom_judge_text {
 
 mod custom_judge_fields {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
     use serde_json::json;
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
@@ -4174,13 +4208,14 @@ mod custom_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -4203,7 +4238,7 @@ mod custom_judge_fields {
 
 mod custom_judge_conversation {
     use lm15::{auth::Credential, registry::adapter_for};
-    use lm15::{judgments, score_named, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let lm = adapter_for(
             "openai-chat", Credential::api_key("unused")?,
@@ -4217,13 +4252,14 @@ mod custom_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("quality".into(), score_named("How good is this wine, according to the note?", [
+        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
             (Some("faulty".into()), "Faulty or unpleasant".into()),
             (Some("simple".into()), "Simple and sound".into()),
             (Some("good".into()), "Good, well made".into()),
             (Some("excellent".into()), "Excellent, complex and structured".into()),
             (Some("profound".into()), "Profound, exceptional".into()),
         ])?.into()); // levels, worst to best
+        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
         let questions = judgments(questions)?;
 
         let request = Request {

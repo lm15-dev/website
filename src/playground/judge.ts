@@ -585,10 +585,11 @@ export function judgeRust(connection: Connection, spec: JudgeSpec, value: StateV
 
 // ─── The example ─────────────────────────────────────────────────────
 
-/** One question over one state: the contract's receipted wine example, its `quality` scale. */
+/** Two questions over one state: the contract's receipted wine example — the wine's quality on a scale, and a yes/no about the note itself. */
 export const EXAMPLE_SPEC: JudgeSpec = {
   properties: {
-    quality: score("How good is this wine, according to the note?", { faulty: "Faulty or unpleasant", simple: "Simple and sound", good: "Good, well made", excellent: "Excellent, complex and structured", profound: "Profound, exceptional" }),
+    wine_quality: score("How good is this wine, according to the note?", { faulty: "Faulty or unpleasant", simple: "Simple and sound", good: "Good, well made", excellent: "Excellent, complex and structured", profound: "Profound, exceptional" }),
+    is_english: yesNo("Is the note written in English?"),
   },
   shape: "text",
 };

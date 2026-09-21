@@ -135,8 +135,9 @@ The question set is the JSON Schema `properties` object that
 `judgments({...})` takes; the form is a view over it, reading with the SDK's
 `judgmentsInSchema` and writing with its `choice`, `yesNo` and `score`.
 **{ } JSON** edits the same object directly; a property the form cannot show
-is kept verbatim and named. The example is one question (the wine `quality`
-scale) over one tasting note; nothing is pre-run.
+is kept verbatim and named. The example is two questions over one tasting
+note — `wine_quality`, a scale, and `is_english`, a yes/no about the note
+itself; nothing is pre-run.
 
 On Jev the state is the one user part, verbatim (contract 2026-09-19-jev-state,
 D1): a text as a string, an object as structured state, a transcript as the

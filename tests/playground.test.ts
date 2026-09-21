@@ -145,7 +145,7 @@ function sse(url: URL): string {
 }
 
 /** TypeSafe answers the example's one judgment over the state. */
-const JEV_ANSWER = { model: "jev-test", answers: { quality: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } } }, usage: { input_tokens: 40, output_tokens: 9 } };
+const JEV_ANSWER = { model: "jev-test", answers: { wine_quality: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } }, is_english: { type: "noul", noul: 0.99 } }, usage: { input_tokens: 40, output_tokens: 9 } };
 
 test("ten local keys load privately; each provider receives only its key; manual keys, clearing, and reload work", { timeout: 120_000 }, async () => {
   const installed = findBrowsers().find((b) => b.name === "chromium");

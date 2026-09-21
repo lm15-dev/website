@@ -109,7 +109,7 @@ test("Judge: one state, the question form is the schema, one call draws what was
     assert.equal(await page.locator("#judge-code-slot #code").count(), 1);
     assert.equal(await page.locator("#judge-result").isHidden(), true, "nothing is pre-run");
     for (const selector of ["#judge-rows", "#judge-add", "#judge-instructions", "#judge-export-csv", "#judge-paste", ".io-table"]) assert.equal(await page.locator(selector).count(), 0, `${selector} is gone`);
-    assert.equal(await page.locator(".question").count(), 1, "the example is one question");
+    assert.deepEqual(await page.locator(".question .qname").allTextContents(), ["wine_quality", "is_english"], "the example: two questions over one note");
     await page.waitForFunction(() => /const state = "Ripe blackberry/.test(document.getElementById("code")?.textContent ?? ""));
     assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /for \(|inputs/, "one call, no loop");
 
@@ -119,11 +119,14 @@ test("Judge: one state, the question form is the schema, one call draws what was
     await page.locator('#code [data-source="state"]').first().hover();
     assert.equal(await page.locator("#judge-panel .lit").count(), 1, "the state block lights when its code is hovered");
     // Typing a name or a question follows into the code keystroke by keystroke, the card staying under the caret; blur settles it.
-    await page.locator('.question[data-name="quality"] summary').click();
-    await page.locator('.question[data-name="quality"] input.mono').pressSequentially("score");
-    await page.waitForFunction(() => /scorequality: score\("How good/.test(document.getElementById("code")?.textContent ?? ""));
-    assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement).value), "scorequality", "the caret stays where it was");
-    await page.locator('.question[data-name="scorequality"] input.mono').fill("score");
+    await page.locator('.question[data-name="is_english"] summary').click();
+    await page.locator('.question[data-name="is_english"] button.remove-question').click();
+    await page.waitForFunction(() => !/is_english/.test(document.getElementById("code")?.textContent ?? ""));
+    await page.locator('.question[data-name="wine_quality"] summary').click();
+    await page.locator('.question[data-name="wine_quality"] input.mono').pressSequentially("score");
+    await page.waitForFunction(() => /scorewine_quality: score\("How good/.test(document.getElementById("code")?.textContent ?? ""));
+    assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement).value), "scorewine_quality", "the caret stays where it was");
+    await page.locator('.question[data-name="scorewine_quality"] input.mono').fill("score");
     await page.locator('.question[data-name="score"] input.mono').press("Tab");
     await page.waitForFunction(() => /score: score\("How good/.test(document.getElementById("code")?.textContent ?? ""));
     await page.getByLabel("Add a question").selectOption("yesNo");
@@ -195,7 +198,7 @@ test("Judge: one state, the question form is the schema, one call draws what was
     assert.equal(await page.locator("#judge-result").isHidden(), true, "a result is not remembered");
     await page.getByRole("button", { name: "Reset", exact: true }).click();
     assert.equal(await page.getByLabel("State", { exact: true }).inputValue().then((v) => v.slice(0, 15)), "Ripe blackberry");
-    assert.deepEqual(await page.locator(".question .qname").allTextContents(), ["quality"]);
+    assert.deepEqual(await page.locator(".question .qname").allTextContents(), ["wine_quality", "is_english"]);
     // Chat mode is what it was.
     await page.locator("#mode-chat").click();
     await page.waitForFunction(() => document.body.dataset.mode === "chat");

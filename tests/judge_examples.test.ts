@@ -15,7 +15,7 @@ import { test } from "node:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
-import { choice, utf8Decode, yesNo } from "lm15/browser";
+import { choice, score, utf8Decode, yesNo } from "lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
 import { EXAMPLE_API_KEY, createClient, keyless, type Connection } from "../src/playground/experience.ts";
 import { EXAMPLE_NOTE, EXAMPLE_SPEC, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, verdictOf, type JudgeSpec, type StateValue } from "../src/playground/judge.ts";
@@ -31,7 +31,7 @@ import { JUDGED_TEXT, judgeReplyFor } from "./support/replies.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /** The example's question plus two more (the prepared replies answer all three), over a state of each shape. */
-const THREE: JudgeSpec = { ...EXAMPLE_SPEC, properties: { ...EXAMPLE_SPEC.properties, style: choice("What is the dominant style described?", { fruit: "Fruit-forward", oak: "Oak-driven", mineral: "Mineral, savoury" }), ageing: yesNo("Does the note say the wine will improve with age?") } };
+const THREE: JudgeSpec = { ...EXAMPLE_SPEC, properties: { quality: score("How good is this wine, according to the note?", { faulty: "Faulty or unpleasant", simple: "Simple and sound", good: "Good, well made", excellent: "Excellent, complex and structured", profound: "Profound, exceptional" }), style: choice("What is the dominant style described?", { fruit: "Fruit-forward", oak: "Oak-driven", mineral: "Mineral, savoury" }), ageing: yesNo("Does the note say the wine will improve with age?") } };
 const SHAPES: Array<{ spec: JudgeSpec; value: StateValue }> = [
   { spec: THREE, value: EXAMPLE_NOTE },
   { spec: THREE, value: 'Quotes " and a newline\n</script> are text, not executable code.' },
@@ -68,7 +68,7 @@ test(`JavaScript: all ${cases.length} judge variants type-check, execute one cal
   let calls: Array<{ url: string; body: string }> = [];
   t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
     calls.push({ url, body: new TextDecoder().decode(init.body as Uint8Array<ArrayBuffer>) });
-    return judgeReplyFor(url);
+    return judgeReplyFor(url, Object.keys(THREE.properties));
   });
   t.mock.method(console, "log", () => {});
   const entry = import.meta.resolve("lm15/browser");
@@ -88,7 +88,7 @@ test(`Python under Pyodide: all ${cases.length} judge variants execute the progr
   let calls: Array<{ url: string; body: string; headers: Record<string, string> }> = [];
   (globalThis as { fetch: typeof fetch }).fetch = async (url, init) => {
     calls.push({ url: String(url), body: new TextDecoder().decode(init?.body as Uint8Array), headers: Object.fromEntries(new Headers(init?.headers).entries()) });
-    return judgeReplyFor(String(url));
+    return judgeReplyFor(String(url), Object.keys(THREE.properties));
   };
   const py = await loadPyodide({ stdout: () => {}, stderr: () => {} });
   await py.loadPackage(pathToFileURL((wheel as { path: string }).path).href, { messageCallback: () => {} });
@@ -147,7 +147,7 @@ test("Rust: Judge builds and parses prepared replies for every provider and shap
     const canonical = RequestNs.toJSON(want.request);
     const built = rust.buildRequest(conn, canonical, false);
     assert.deepEqual(built.body, JSON.parse(want.body), `${c.connection.provider} ${c.spec.shape}`);
-    const reply = judgeReplyFor(want.url);
+    const reply = judgeReplyFor(want.url, Object.keys(THREE.properties));
     const parsed = rust.parseResponse(conn, canonical, reply.status, await reply.text(), [...reply.headers], true);
     const response = CanonicalResponse.fromJSON(parsed.canonical_response as Parameters<typeof CanonicalResponse.fromJSON>[0]);
     assert.deepEqual(verdictOf(response, { ms: 0, provider: c.connection.provider, model: c.connection.model, runtime: "Rust" }).data, JSON.parse(JUDGED_TEXT));

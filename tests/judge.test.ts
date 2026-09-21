@@ -14,8 +14,8 @@ import { judgeProgram } from "../src/playground/runtimes/python.ts";
 import { replyFor } from "./support/replies.ts";
 
 const typesafe: Connection = { provider: "typesafe", model: "jev-latest", endpoint: "" };
-/** The example's one question plus two more: what the tests below need to see every sugar. */
-const THREE: JudgeSpec = { ...EXAMPLE_SPEC, properties: { ...EXAMPLE_SPEC.properties, style: choice("What is the dominant style described?", { fruit: "Fruit-forward", oak: "Oak-driven", mineral: "Mineral, savoury" }), ageing: yesNo("Does the note say the wine will improve with age?") } };
+/** Three questions, one of each sugar, over the example's state: what the tests below need. */
+const THREE: JudgeSpec = { ...EXAMPLE_SPEC, properties: { quality: score("How good is this wine, according to the note?", { faulty: "Faulty or unpleasant", simple: "Simple and sound", good: "Good, well made", excellent: "Excellent, complex and structured", profound: "Profound, exceptional" }), style: choice("What is the dominant style described?", { fruit: "Fruit-forward", oak: "Oak-driven", mineral: "Mineral, savoury" }), ageing: yesNo("Does the note say the wine will improve with age?") } };
 const openai: Connection = { provider: "openai", model: "gpt-4.1-mini", endpoint: "" };
 
 test("the form reads what the SDK reads and writes what the SDK writes: every sugar shape round-trips exactly", () => {
@@ -134,7 +134,7 @@ test("the code spells the questions with the SDK's sugar when the sugar reproduc
 
 test("a verdict keeps the pick, the distribution where measured, the method and the adaptations; labels read as a person would", async () => {
   const request = judgeRequest(typesafe, THREE, "A ripe, long wine.");
-  const jev = createClient(typesafe, "k").parseResponse(request, new HttpResponse({ status: 200, body: new TextEncoder().encode(await replyFor("https://api.typesafe.ai/v1/systemone").text()) }));
+  const jev = createClient(typesafe, "k").parseResponse(request, new HttpResponse({ status: 200, body: new TextEncoder().encode(await replyFor("https://api.typesafe.ai/v1/systemone", "Hi", Object.keys(THREE.properties)).text()) }));
   const verdict = verdictOf(jev, { ms: 12, provider: "typesafe", model: "jev-latest", runtime: "JavaScript" });
   assert.deepEqual(verdict.data, { quality: 3, style: "fruit", ageing: true });
   assert.equal(verdict.method, "provider_classification");
