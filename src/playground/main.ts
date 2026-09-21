@@ -156,7 +156,7 @@ function redactCode(code: Code): Code {
 /** The wire as text: the request line, the headers dimmed, the body as the SDK wrote it. */
 function wireCode(text: string, headerCount: number): Code {
   // A raw control character in a body (never in JSON, which escapes them) shows as U+FFFD rather than passing for a mark.
-  const lines = text.replace(/[\u0001-\u0005]/g, "\uFFFD").split("\n");
+  const lines = text.replace(/[\u0001-\u0007]/g, "\uFFFD").split("\n");
   // Lines 2 .. 1+headerCount are the headers (line 1 is blank after the request line).
   return finish(lines.map((line, i) => (i >= 2 && i < 2 + headerCount ? dim(line) : line)).join("\n"));
 }

@@ -12,7 +12,7 @@
  */
 
 import { Message, OpenAIChatLM, RawNumber, Request as RequestNs, adapterFor, access, lookup, stringifyJson, type Config, type ContinuationState, type ProviderLM, type ReasoningEffort, type Request } from "lm15/browser";
-import { api, comment, dim, finish, quotedValue, val, type Code } from "./marks.ts";
+import { api, comment, dim, finish, quotedOpaque, quotedValue, val, type Code } from "./marks.ts";
 import { relayBaseUrl, relayed } from "./relay.ts";
 
 export interface Connection { provider: string; model: string; endpoint: string }
@@ -146,10 +146,11 @@ function replayParts(message: Message): ReplayPart[] | undefined {
 /** The state's data as a flat literal in each language (strings only, by `replayParts`). */
 const dataEntries = (state: ContinuationState): Array<[string, string]> => Object.entries(state.data).map(([k, v]) => [k, v as string]);
 const jsIdentifier = /^[A-Za-z_$][\w$]*$/;
-const jsData = (state: ContinuationState): string => `{ ${dataEntries(state).map(([k, v]) => `${jsIdentifier.test(k) ? k : q(k)}: ${q(v)}`).join(", ")} }`;
-const pyData = (state: ContinuationState): string => `{${dataEntries(state).map(([k, v]) => `${q(k)}: ${q(v)}`).join(", ")}}`;
-const goData = (state: ContinuationState): string => `lm15.JSONObject{${dataEntries(state).map(([k, v]) => `${q(k)}: ${q(v)}`).join(", ")}}`;
-const rustData = (state: ContinuationState): string => `json!({ ${dataEntries(state).map(([k, v]) => `${rustString(k)}: ${rustString(v)}`).join(", ")} })`;
+// The data is the provider's, not the person's: quoted, and folded in the panel when it is a blob.
+const jsData = (state: ContinuationState): string => `{ ${dataEntries(state).map(([k, v]) => `${jsIdentifier.test(k) ? k : q(k)}: ${quotedOpaque(q(v))}`).join(", ")} }`;
+const pyData = (state: ContinuationState): string => `{${dataEntries(state).map(([k, v]) => `${q(k)}: ${quotedOpaque(q(v))}`).join(", ")}}`;
+const goData = (state: ContinuationState): string => `lm15.JSONObject{${dataEntries(state).map(([k, v]) => `${q(k)}: ${quotedOpaque(q(v))}`).join(", ")}}`;
+const rustData = (state: ContinuationState): string => `json!({ ${dataEntries(state).map(([k, v]) => `${rustString(k)}: ${quotedOpaque(rustString(v))}`).join(", ")} })`;
 
 /** JavaScript: `Message.assistant([thinking("", { continuation: continuationState(...) }), "the answer"])`, one part per line. */
 function jsReplay(parts: readonly ReplayPart[], source: string): string[] {

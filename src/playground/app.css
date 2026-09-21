@@ -150,6 +150,15 @@ article.streaming .turn-text::placeholder { color: var(--muted); font-size: 12px
 .tok-comment { color: var(--code-muted); font-style: italic; }
 .tok-dim { color: var(--code-muted); }
 .tok-dim .tok-comment { color: inherit; }
+/* An opaque payload: read as "some blob", opened only on purpose. The hidden middle stays in the DOM, so Copy is exact. */
+.tok-opaque { color: var(--code-muted); }
+.tok-opaque.folded { cursor: pointer; }
+.tok-opaque.folded .fold { display: none; }
+.tok-opaque .fold-note { display: none; }
+.tok-opaque.folded .fold-note::before { content: attr(data-hidden); }
+.tok-opaque.folded .fold-note { display: inline; margin: 0 2px; padding: 0 6px; border: 1px dashed var(--strong-line); border-radius: 4px; font-size: 12px; color: var(--muted); font-style: italic; }
+.tok-opaque.folded:hover .fold-note { border-color: var(--accent); color: var(--accent); }
+.tok-opaque:not(.folded) { cursor: pointer; }
 /* The loading card: centred over the code, one message at a time, a bar only when the bytes are being counted. */
 .runtime-card { position: absolute; inset: 0; margin: auto; width: min(340px, calc(100% - 32px)); height: fit-content; padding: 22px 24px 20px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px color-mix(in srgb, var(--ink) 12%, transparent); }
 .runtime-card[hidden] { display: none; }
