@@ -1,6 +1,5 @@
 ---
 import { INITIAL, LANGUAGES, exampleParts } from './home-example/examples';
-import { tokens } from '../playground/code-view';
 import './home-example/example.css';
 const [before, after] = exampleParts(INITIAL.language);
 ---
@@ -24,7 +23,7 @@ const [before, after] = exampleParts(INITIAL.language);
       <svg class="example-copy-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></svg>
       <svg class="example-copied-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
     </button>
-    <pre class="example-code"><code><span data-code-before>{tokens(before, INITIAL.language).map(token => token.kind ? <span class={`example-token-${token.kind}`}>{token.text}</span> : token.text)}</span><span class="example-fields"><span class="example-provider">"<button type="button" class="example-choice" role="combobox" aria-label="Provider" aria-haspopup="listbox" aria-expanded="false" aria-controls="example-picker" data-provider>{INITIAL.provider}</button>:</span><wbr /><span class="example-model"><button type="button" class="example-choice" role="combobox" aria-label="Model" aria-haspopup="listbox" aria-expanded="false" aria-controls="example-picker" data-model>{INITIAL.model}</button>"</span></span><span data-code-after>{tokens(after, INITIAL.language).map(token => token.kind ? <span class={`example-token-${token.kind}`}>{token.text}</span> : token.text)}</span></code></pre>
+    <pre class="example-code"><code><span data-code-before>{before}</span><span class="example-fields"><span class="example-provider">"<button type="button" class="example-choice" role="combobox" aria-label="Provider" aria-haspopup="listbox" aria-expanded="false" aria-controls="example-picker" data-provider>{INITIAL.provider}</button>:</span><wbr /><span class="example-model"><button type="button" class="example-choice" role="combobox" aria-label="Model" aria-haspopup="listbox" aria-expanded="false" aria-controls="example-picker" data-model>{INITIAL.model}</button>"</span></span><span data-code-after>{after}</span></code></pre>
     <div class="example-picker" id="example-picker" popover="auto" role="listbox" aria-label="Providers"></div>
     <span class="example-sr-only" role="status" aria-live="polite" data-example-status></span>
     <noscript><p class="example-no-script">Enable JavaScript to switch languages, providers, and models. The Python example above is ready to read.</p></noscript>

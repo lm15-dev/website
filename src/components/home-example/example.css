@@ -107,8 +107,7 @@
 .example-picker-check { color: var(--lm-accent); flex-shrink: 0; }
 .example-picker-option[data-active='true'] { background: var(--lm-brand); color: var(--lm-on-brand); }
 .example-picker-option[data-active='true'] :is(.example-picker-detail, .example-picker-check) { color: var(--lm-on-brand); }
-.example-separator, .example-token-string, .example-token-keyword,
-.example-token-comment, .example-token-number { color: inherit; }
+.example-separator { color: inherit; }
 .hero-with-example :is(button, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .example-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .example-no-script { padding: 0 18px; font-size: 12px; }

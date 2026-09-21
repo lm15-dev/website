@@ -1,5 +1,4 @@
 import { INITIAL, LANGUAGES, PROVIDERS, exampleParts, exampleSource, type Language } from './examples';
-import { tokens } from '../../playground/code-view';
 import { setupPickers } from './picker';
 
 export function setupExample(): void {
@@ -35,14 +34,7 @@ export function setupExample(): void {
   }
 
   function color(element: HTMLElement, text: string): void {
-    const language = ['r', 'julia'].includes(state.language) ? 'python' : state.language;
-    element.replaceChildren(...tokens(text, language).map(token => {
-      if (!token.kind) return document.createTextNode(token.text);
-      const span = document.createElement('span');
-      span.className = `example-token-${token.kind}`;
-      span.textContent = token.text;
-      return span;
-    }));
+    element.textContent = text;
   }
 
   function render(announce = true): void {
