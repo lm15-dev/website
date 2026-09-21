@@ -219,25 +219,44 @@ export class JudgeView {
     kind.textContent = q.kind === "yesNo" ? "yes / no" : q.kind === "choice" ? `choice · ${q.options.length} option${q.options.length === 1 ? "" : "s"}` : `scale · ${q.options.length} level${q.options.length === 1 ? "" : "s"}`;
     summary.append(name, kind);
     const body = document.createElement("div"); body.className = "qbody";
-    const field = (label: string, value: string, apply: (v: string) => Question, mono = false) => {
+    // Typing follows into the code at once (`live`, the card kept as it is); leaving the field settles it (`replaceQuestion`, the card re-drawn).
+    let current = q;
+    const badge = (c: Question) => { kind.textContent = c.kind === "yesNo" ? "yes / no" : c.kind === "choice" ? `choice · ${c.options.length} option${c.options.length === 1 ? "" : "s"}` : `scale · ${c.options.length} level${c.options.length === 1 ? "" : "s"}`; };
+    const live = (next: Question): boolean => {
+      if (next.name !== current.name && next.name in this.spec.properties) return false; // a taken name settles on blur, renamed apart
+      let properties: JsonObject;
+      try { properties = withQuestion(this.spec.properties, current.name, next); } catch { return false; } // the SDK refused the shape for now
+      if (next.name !== current.name) { this.openCards.delete(current.name); this.openCards.add(next.name); card.dataset.name = next.name; card.dataset.source = questionSource(next.name); name.textContent = next.name; }
+      current = next; badge(next);
+      this.spec = { ...this.spec, properties }; this.rawText = stringifyJson(properties, { indent: 2 });
+      if (this.verdict) this.stale = true;
+      this.persist(); this.renderResult(); this.renderRun(); this.host.codeChanged(); this.showAlert();
+      return true;
+    };
+    // Settling (blur) re-draws the card only when typing could not be applied as it went: a taken name gets a free one, a refused shape its reason.
+    const settle = (next: Question) => { if (!live(next)) this.replaceQuestion(current.name, next); };
+    const field = (label: string, value: string, apply: (q: Question, v: string) => Question, mono = false) => {
       const wrap = document.createElement("label"); wrap.className = "field"; wrap.textContent = label;
       const input = document.createElement("input"); input.value = value; if (mono) input.className = "mono";
-      input.addEventListener("change", () => this.replaceQuestion(q.name, apply(input.value)));
+      input.addEventListener("input", () => live(apply(current, input.value)));
+      input.addEventListener("change", () => settle(apply(current, input.value)));
       wrap.append(input); return wrap;
     };
-    body.append(field("Name", q.name, (v) => ({ ...q, name: v.trim() || q.name }), true));
-    body.append(field("Question", q.question, (v) => ({ ...q, question: v })));
+    body.append(field("Name", q.name, (c, v) => ({ ...c, name: v.trim() || c.name }), true));
+    body.append(field("Question", q.question, (c, v) => ({ ...c, question: v })));
     if (q.kind !== "yesNo") {
       const label = document.createElement("p"); label.className = "field"; label.textContent = q.kind === "choice" ? "Options (key · optional description)" : "Levels, worst to best (title · optional description)";
       const list = document.createElement("ol"); list.className = "levels";
       // The rows are the form's: a blank row stays until it is filled or removed; the schema only ever holds the filled ones.
       const read = (): Option[] => [...list.querySelectorAll("li")].map((li) => ({ key: li.querySelector<HTMLInputElement>("input.key")!.value, description: li.querySelector<HTMLInputElement>("input.desc")!.value }));
-      const apply = () => this.replaceQuestion(q.name, { ...q, options: read() });
+      const apply = () => settle({ ...current, options: read() });
+      const typed = () => live({ ...current, options: read() });
       const row = (o: Option, i: number) => {
         const li = document.createElement("li");
         const n = document.createElement("span"); n.className = "n"; n.textContent = q.kind === "score" ? String(i) : "";
         const key = document.createElement("input"); key.value = o.key; key.placeholder = q.kind === "choice" ? "key" : "title"; key.className = "key"; key.setAttribute("aria-label", `${q.kind === "choice" ? "Option" : "Level"} ${i + 1} ${q.kind === "choice" ? "key" : "title"}`);
         const desc = document.createElement("input"); desc.value = o.description; desc.placeholder = "description"; desc.className = "desc"; desc.setAttribute("aria-label", `${q.kind === "choice" ? "Option" : "Level"} ${i + 1} description`);
+        key.addEventListener("input", typed); desc.addEventListener("input", typed);
         key.addEventListener("change", apply); desc.addEventListener("change", apply);
         const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "×"; x.title = "Remove"; x.setAttribute("aria-label", `Remove ${q.kind === "choice" ? "option" : "level"} ${i + 1}`);
         x.addEventListener("click", () => { li.remove(); apply(); });

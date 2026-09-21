@@ -118,15 +118,28 @@ test("Judge: one state, the question form is the schema, one call draws what was
     await page.waitForFunction(() => /const state = "Thin, sour/.test(document.getElementById("code")?.textContent ?? ""));
     await page.locator('#code [data-source="state"]').first().hover();
     assert.equal(await page.locator("#judge-panel .lit").count(), 1, "the state block lights when its code is hovered");
+    // Typing a name or a question follows into the code keystroke by keystroke, the card staying under the caret; blur settles it.
     await page.locator('.question[data-name="quality"] summary').click();
-    await page.locator('.question[data-name="quality"] input.mono').fill("score");
-    await page.locator('.question[data-name="quality"] input.mono').press("Tab");
+    await page.locator('.question[data-name="quality"] input.mono').pressSequentially("score");
+    await page.waitForFunction(() => /scorequality: score\("How good/.test(document.getElementById("code")?.textContent ?? ""));
+    assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement).value), "scorequality", "the caret stays where it was");
+    await page.locator('.question[data-name="scorequality"] input.mono').fill("score");
+    await page.locator('.question[data-name="score"] input.mono').press("Tab");
     await page.waitForFunction(() => /score: score\("How good/.test(document.getElementById("code")?.textContent ?? ""));
     await page.getByLabel("Add a question").selectOption("yesNo");
     await page.locator('.question[data-name="flag"] input.mono').fill("ageing");
-    await page.locator('.question[data-name="flag"] input.mono').press("Tab");
-    await page.locator('.question[data-name="ageing"] input:not(.mono)').first().fill("Will it improve with age?");
-    await page.locator('.question[data-name="ageing"] input:not(.mono)').first().press("Tab");
+    await page.locator('.question[data-name="ageing"] input:not(.mono)').first().click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.type("Will it improve with age?");
+    await page.waitForFunction(() => /ageing: yesNo\("Will it improve with age\?"\)/.test(document.getElementById("code")?.textContent ?? ""));
+    await page.keyboard.press("Tab");
+    // A name already taken settles apart, renamed; nothing is lost.
+    await page.locator('.question[data-name="ageing"] input.mono').fill("score");
+    assert.deepEqual(await page.locator(".question .qname").allTextContents(), ["score", "ageing"], "a taken name is not applied while typing");
+    await page.locator('.question[data-name="ageing"] input.mono').press("Tab");
+    assert.deepEqual(await page.locator(".question .qname").allTextContents(), ["score", "score_2"]);
+    await page.locator('.question[data-name="score_2"] input.mono').fill("ageing");
+    await page.locator('.question[data-name="ageing"] input.mono').press("Tab");
     await page.waitForFunction(() => /ageing: yesNo\("Will it improve with age\?"\)/.test(document.getElementById("code")?.textContent ?? ""));
     await page.locator('.question[data-name="ageing"]').hover();
     assert.ok(await page.locator('#code .lit[data-source="question:ageing"]').count() >= 1, "a question lights its line in the code");
