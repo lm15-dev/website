@@ -19,14 +19,14 @@ mod openai_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -65,14 +65,14 @@ mod openai_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -109,14 +109,14 @@ mod openai_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -420,14 +420,14 @@ mod anthropic_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -466,14 +466,14 @@ mod anthropic_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -510,14 +510,14 @@ mod anthropic_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -821,14 +821,14 @@ mod gemini_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -867,14 +867,14 @@ mod gemini_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -911,14 +911,14 @@ mod gemini_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1222,14 +1222,14 @@ mod groq_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1268,14 +1268,14 @@ mod groq_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1312,14 +1312,14 @@ mod groq_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1623,14 +1623,14 @@ mod openrouter_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1669,14 +1669,14 @@ mod openrouter_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -1713,14 +1713,14 @@ mod openrouter_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2024,14 +2024,14 @@ mod deepseek_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2070,14 +2070,14 @@ mod deepseek_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2114,14 +2114,14 @@ mod deepseek_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2425,14 +2425,14 @@ mod zai_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2471,14 +2471,14 @@ mod zai_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2515,14 +2515,14 @@ mod zai_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2826,14 +2826,14 @@ mod meta_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2872,14 +2872,14 @@ mod meta_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -2916,14 +2916,14 @@ mod meta_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3227,14 +3227,14 @@ mod moonshotai_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3273,14 +3273,14 @@ mod moonshotai_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3317,14 +3317,14 @@ mod moonshotai_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3628,14 +3628,14 @@ mod typesafe_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3674,14 +3674,14 @@ mod typesafe_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3719,14 +3719,14 @@ mod typesafe_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3761,14 +3761,14 @@ mod ollama_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3807,14 +3807,14 @@ mod ollama_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -3851,14 +3851,14 @@ mod ollama_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -4162,14 +4162,14 @@ mod custom_judge_text {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -4208,14 +4208,14 @@ mod custom_judge_fields {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {
@@ -4252,14 +4252,14 @@ mod custom_judge_conversation {
 
         // Declared keys in, a distribution out (MAP-14).
         let mut questions = JsonObject::new();
-        questions.insert("wine_quality".into(), score_named("How good is this wine, according to the note?", [
-            (Some("faulty".into()), "Faulty or unpleasant".into()),
-            (Some("simple".into()), "Simple and sound".into()),
-            (Some("good".into()), "Good, well made".into()),
-            (Some("excellent".into()), "Excellent, complex and structured".into()),
-            (Some("profound".into()), "Profound, exceptional".into()),
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
         ])?.into()); // levels, worst to best
-        questions.insert("is_english".into(), yes_no("Is the note written in English?").into());
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
         let questions = judgments(questions)?;
 
         let request = Request {

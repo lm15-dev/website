@@ -585,20 +585,20 @@ export function judgeRust(connection: Connection, spec: JudgeSpec, value: StateV
 
 // ─── The example ─────────────────────────────────────────────────────
 
-/** Two questions over one state: the contract's receipted wine example — the wine's quality on a scale, and a yes/no about the note itself. */
+/** Two questions over one state, the docs' running example (a wildlife station's field note): how sure the identification is, on a scale, and a yes/no. */
 export const EXAMPLE_SPEC: JudgeSpec = {
   properties: {
-    wine_quality: score("How good is this wine, according to the note?", { faulty: "Faulty or unpleasant", simple: "Simple and sound", good: "Good, well made", excellent: "Excellent, complex and structured", profound: "Profound, exceptional" }),
-    is_english: yesNo("Is the note written in English?"),
+    id_certainty: score("How sure is the species identification, according to the note?", { unknown: "Species not identified", guess: "A guess", probable: "Probable, some features described", confident: "Confident, clear features described", certain: "Certain, unmistakable or confirmed" }),
+    juvenile_present: yesNo("Does the note say a juvenile was present?"),
   },
   shape: "text",
 };
 
-export const EXAMPLE_NOTE = "Ripe blackberry and cassis lead, framed by toasty oak and firm, fine-grained tannins. Long, layered finish; will reward a decade in the cellar.";
+export const EXAMPLE_NOTE = "Dusk, edge of the oak grove. Two deer browsing on fallen acorns, one small with spots still showing. Too far to be sure of the species: roe or fallow. They moved off into the trees when a dog barked.";
 
 /** What each shape starts with: the note as a text, as an object, as a conversation. */
 export function exampleState(shape: Shape): StateValue {
   if (shape === "text") return EXAMPLE_NOTE;
-  if (shape === "fields") return { note: EXAMPLE_NOTE, price_eur: 48 };
-  return [{ role: "user", content: "Something to lay down for ten years?" }, { role: "assistant", content: `The 2019 Pauillac: ${EXAMPLE_NOTE}` }];
+  if (shape === "fields") return { note: EXAMPLE_NOTE, distance_m: 80 };
+  return [{ role: "user", content: "Anything at the oak grove last night?" }, { role: "assistant", content: `From the field notes: ${EXAMPLE_NOTE}` }];
 }

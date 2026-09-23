@@ -109,8 +109,8 @@ test("Judge: one state, the question form is the schema, one call draws what was
     assert.equal(await page.locator("#judge-code-slot #code").count(), 1);
     assert.equal(await page.locator("#judge-result").isHidden(), true, "nothing is pre-run");
     for (const selector of ["#judge-rows", "#judge-add", "#judge-instructions", "#judge-export-csv", "#judge-paste", ".io-table"]) assert.equal(await page.locator(selector).count(), 0, `${selector} is gone`);
-    assert.deepEqual(await page.locator(".question .qname").allTextContents(), ["wine_quality", "is_english"], "the example: two questions over one note");
-    await page.waitForFunction(() => /const state = "Ripe blackberry/.test(document.getElementById("code")?.textContent ?? ""));
+    assert.deepEqual(await page.locator(".question .qname").allTextContents(), ["id_certainty", "juvenile_present"], "the example: two questions over one note");
+    await page.waitForFunction(() => /const state = "Dusk, edge of the oak grove/.test(document.getElementById("code")?.textContent ?? ""));
     assert.doesNotMatch(await page.locator("#code").textContent() ?? "", /for \(|inputs/, "one call, no loop");
 
     // The state and the questions are the code's: edit either and it follows; hover lights it both ways.
@@ -119,16 +119,16 @@ test("Judge: one state, the question form is the schema, one call draws what was
     await page.locator('#code [data-source="state"]').first().hover();
     assert.equal(await page.locator("#judge-panel .lit").count(), 1, "the state block lights when its code is hovered");
     // Typing a name or a question follows into the code keystroke by keystroke, the card staying under the caret; blur settles it.
-    await page.locator('.question[data-name="is_english"] summary').click();
-    await page.locator('.question[data-name="is_english"] button.remove-question').click();
-    await page.waitForFunction(() => !/is_english/.test(document.getElementById("code")?.textContent ?? ""));
-    await page.locator('.question[data-name="wine_quality"] summary').click();
-    await page.locator('.question[data-name="wine_quality"] input.mono').pressSequentially("score");
-    await page.waitForFunction(() => /scorewine_quality: score\("How good/.test(document.getElementById("code")?.textContent ?? ""));
-    assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement).value), "scorewine_quality", "the caret stays where it was");
-    await page.locator('.question[data-name="scorewine_quality"] input.mono').fill("score");
+    await page.locator('.question[data-name="juvenile_present"] summary').click();
+    await page.locator('.question[data-name="juvenile_present"] button.remove-question').click();
+    await page.waitForFunction(() => !/juvenile_present/.test(document.getElementById("code")?.textContent ?? ""));
+    await page.locator('.question[data-name="id_certainty"] summary').click();
+    await page.locator('.question[data-name="id_certainty"] input.mono').pressSequentially("score");
+    await page.waitForFunction(() => /scoreid_certainty: score\("How sure/.test(document.getElementById("code")?.textContent ?? ""));
+    assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement).value), "scoreid_certainty", "the caret stays where it was");
+    await page.locator('.question[data-name="scoreid_certainty"] input.mono').fill("score");
     await page.locator('.question[data-name="score"] input.mono').press("Tab");
-    await page.waitForFunction(() => /score: score\("How good/.test(document.getElementById("code")?.textContent ?? ""));
+    await page.waitForFunction(() => /score: score\("How sure/.test(document.getElementById("code")?.textContent ?? ""));
     await page.getByLabel("Add a question").selectOption("yesNo");
     await page.locator('.question[data-name="flag"] input.mono').fill("ageing");
     await page.locator('.question[data-name="ageing"] input:not(.mono)').first().click();
@@ -153,10 +153,10 @@ test("Judge: one state, the question form is the schema, one call draws what was
     assert.equal(bodies.length, 1);
     assert.equal(bodies[0]!.state, "Thin, sour, faintly oxidised. Drink up.");
     assert.deepEqual(Object.keys(bodies[0]!.questions), ["score", "ageing"]);
-    assert.equal(await page.locator('#judge-answers .ans:has(.q:text-is("score")) .pick').evaluate((e) => e.firstChild?.textContent), "excellent");
+    assert.equal(await page.locator('#judge-answers .ans:has(.q:text-is("score")) .pick').evaluate((e) => e.firstChild?.textContent), "confident");
     assert.equal(await page.locator('#judge-answers .ans:has(.q:text-is("ageing")) .pick').evaluate((e) => e.firstChild?.textContent), "yes");
     await page.locator('#judge-answers .ans:has(.q:text-is("score")) .spark').hover();
-    assert.match(await page.locator("#judge-pop").textContent() ?? "", /excellent.*45%/s);
+    assert.match(await page.locator("#judge-pop").textContent() ?? "", /confident.*45%/s);
     assert.match(await page.locator("#judge-method").textContent() ?? "", /provider classification/);
     await page.waitForFunction(() => /\/\/ → \{ score: 3, ageing: true \}/.test(document.getElementById("code")?.textContent ?? ""));
     assert.match(await page.locator("#code").textContent() ?? "", /\/\/ → \{ score: \{ "0": 0, "1": 0\.05, "2": 0\.15, "3": 0\.45, "4": 0\.35 \}, ageing: \{ true: 0\.87, false: 0\.13 \} \}/);
@@ -173,7 +173,7 @@ test("Judge: one state, the question form is the schema, one call draws what was
 
     // Shapes: an object as JSON, a conversation as turns; each keeps its own state; a bad object is refused before any call.
     await page.locator('#judge-shape [data-shape="fields"]').click();
-    await page.waitForFunction(() => /const state = \{\n  note: "Ripe blackberry/.test(document.getElementById("code")?.textContent ?? ""));
+    await page.waitForFunction(() => /const state = \{\n  note: "Dusk, edge of the oak grove/.test(document.getElementById("code")?.textContent ?? ""));
     await page.getByLabel("State (JSON object)").fill('{"note": "Wet stone", "price_eur": 12}');
     await page.waitForFunction(() => /price_eur: 12/.test(document.getElementById("code")?.textContent ?? ""));
     await page.getByLabel("State (JSON object)").fill("[1]");
@@ -181,7 +181,7 @@ test("Judge: one state, the question form is the schema, one call draws what was
     assert.equal(await page.locator("#judge-run").isDisabled(), true);
     await page.getByLabel("State (JSON object)").fill('{"note": "Wet stone", "price_eur": 12}');
     await page.locator('#judge-shape [data-shape="conversation"]').click();
-    await page.waitForFunction(() => /role: "assistant", content: "The 2019 Pauillac/.test(document.getElementById("code")?.textContent ?? ""));
+    await page.waitForFunction(() => /role: "assistant", content: "From the field notes/.test(document.getElementById("code")?.textContent ?? ""));
     await page.getByLabel("user turn 1").fill("Anything for a decade in the cellar?");
     await page.waitForFunction(() => /content: "Anything for a decade/.test(document.getElementById("code")?.textContent ?? ""));
     await page.locator("#judge-run").click();
@@ -197,8 +197,8 @@ test("Judge: one state, the question form is the schema, one call draws what was
     assert.deepEqual(await page.locator(".question .qname").allTextContents(), ["score", "ageing"]);
     assert.equal(await page.locator("#judge-result").isHidden(), true, "a result is not remembered");
     await page.getByRole("button", { name: "Reset", exact: true }).click();
-    assert.equal(await page.getByLabel("State", { exact: true }).inputValue().then((v) => v.slice(0, 15)), "Ripe blackberry");
-    assert.deepEqual(await page.locator(".question .qname").allTextContents(), ["wine_quality", "is_english"]);
+    assert.equal(await page.getByLabel("State", { exact: true }).inputValue().then((v) => v.slice(0, 15)), "Dusk, edge of t");
+    assert.deepEqual(await page.locator(".question .qname").allTextContents(), ["id_certainty", "juvenile_present"]);
     // Chat mode is what it was.
     await page.locator("#mode-chat").click();
     await page.waitForFunction(() => document.body.dataset.mode === "chat");

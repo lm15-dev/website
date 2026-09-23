@@ -101,7 +101,7 @@ test("the code spells the questions with the SDK's sugar when the sugar reproduc
   assert.match(js, /style: choice\("What is the dominant style described\?", \{\n    fruit: "Fruit-forward",\n    oak: "Oak-driven",\n    mineral: "Mineral, savoury",\n  \}\)/);
   assert.match(judgeJavascript(openai, { ...EXAMPLE_SPEC, properties: { ok: choice("Ok?", ["yes", "no"]) } }, "t").text, /ok: choice\("Ok\?", \["yes", "no"\]\)/);
   assert.match(js, /ageing: yesNo\("Does the note say the wine will improve with age\?"\)/);
-  assert.match(js, /const state = "Ripe blackberry[^"]*";\n\n\/\/ Declared keys in[\s\S]*\}\);\n\nconst request = Request\.create\(\{\n  model,\n  messages: \[Message\.user\(state\)\],/, "the Jev code is the quick start: the state, then the questions (the page's order), one call");
+  assert.match(js, /const state = "Dusk, edge of the oak grove[^"]*";\n\n\/\/ Declared keys in[\s\S]*\}\);\n\nconst request = Request\.create\(\{\n  model,\n  messages: \[Message\.user\(state\)\],/, "the Jev code is the quick start: the state, then the questions (the page's order), one call");
   assert.doesNotMatch(js, /for \(|inputs/, "one state, no loop");
   assert.match(judgeJavascript(openai, EXAMPLE_SPEC, EXAMPLE_NOTE).text, /messages: \[Message\.user\(state\)\]/);
   const py = judgePython(typesafe, THREE, EXAMPLE_NOTE).text;

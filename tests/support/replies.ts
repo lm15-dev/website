@@ -2,7 +2,7 @@
 
 /** Jev's answers to the three example judgments; `keys` narrows them to the ones a request declared (the SDK refuses any other). */
 export function jevAnswers(keys?: readonly string[]): Record<string, unknown> {
-  const all: Record<string, unknown> = { quality: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } }, wine_quality: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } }, style: { type: "choice", choice: "fruit", probabilities: { fruit: 0.9, oak: 0.1, mineral: 0 } }, ageing: { type: "noul", noul: 0.97 }, is_english: { type: "noul", noul: 0.99 } };
+  const all: Record<string, unknown> = { quality: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } }, id_certainty: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } }, style: { type: "choice", choice: "fruit", probabilities: { fruit: 0.9, oak: 0.1, mineral: 0 } }, ageing: { type: "noul", noul: 0.97 }, juvenile_present: { type: "noul", noul: 0.99 } };
   return keys ? Object.fromEntries(Object.entries(all).filter(([k]) => keys.includes(k))) : all;
 }
 /** The question names a judge request body declares, whatever the wire: the schema's properties. */
@@ -32,7 +32,7 @@ export function replyFor(url: string, text = "Hi", keys?: readonly string[]): Re
 /** The three example judgments answered as structured output by a chat wire (the pick, no distribution), or by Jev. */
 export const JUDGED_TEXT = '{"quality":3,"style":"fruit","ageing":true}';
 export function judgedText(keys?: readonly string[]): string {
-  const all = { ...JSON.parse(JUDGED_TEXT), wine_quality: 3, is_english: true } as Record<string, unknown>;
+  const all = { ...JSON.parse(JUDGED_TEXT), id_certainty: 1, juvenile_present: true } as Record<string, unknown>;
   return JSON.stringify(keys ? Object.fromEntries(Object.entries(all).filter(([k]) => keys.includes(k))) : all);
 }
 

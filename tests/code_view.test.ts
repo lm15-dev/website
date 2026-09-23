@@ -61,7 +61,7 @@ test("every language marks the person's values, LM15's calls and the plumbing, i
         const values = marked(code, "value"), apis = marked(code, "api");
         assert.ok(values.includes(connection.model), `${render.name}: the model is a value`);
         for (const name of Object.keys(spec.properties)) assert.ok(values.includes(name), `${render.name}: the question name ${name} is a value`);
-        for (const text of ["How good is this wine, according to the note?", "Faulty or unpleasant", "faulty", "Is the note written in English?"]) assert.ok(values.includes(text), `${render.name}: ${text} is a value`);
+        for (const text of ["How sure is the species identification, according to the note?", "Species not identified", "unknown", "Does the note say a juvenile was present?"]) assert.ok(values.includes(text), `${render.name}: ${text} is a value`);
         if (typeof input === "string") assert.ok(values.includes(input), `${render.name}: the input is a value`);
         else if (Array.isArray(input)) assert.ok(values.includes("Red?") && values.includes("This one."), `${render.name}: each turn's content is a value`);
         else assert.ok(values.includes("A note.") && values.includes("48"), `${render.name}: each field is a value`);

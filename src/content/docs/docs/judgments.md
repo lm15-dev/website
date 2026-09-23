@@ -31,36 +31,37 @@ already qualifies.
 ```python
 from lm15 import LMRouter, Request, Message, Config, judgments, choice, score, yes_no
 
-note = "Ripe blackberry and cassis, toasty oak, firm tannins. Long finish; will reward a decade in the cellar."
+note = "Dusk, edge of the oak grove. Two deer browsing on fallen acorns, one small with spots still showing. Too far to be sure of the species: roe or fallow. They moved off into the trees when a dog barked."
 
 answers = judgments(
-    quality=score("How good is this wine, according to the note?", {
-        "faulty": "Faulty or unpleasant",
-        "simple": "Simple and sound",
-        "good": "Good, well made",
-        "excellent": "Excellent - complex and structured",
-        "profound": "Profound - the note treats it as exceptional",
+    certainty=score("How sure is the species identification, according to the note?", {
+        "unknown": "Species not identified",
+        "guess": "A guess",
+        "probable": "Probable - some features described",
+        "confident": "Confident - clear features described",
+        "certain": "Certain - unmistakable, or confirmed",
     }),
-    style=choice("What is the dominant style described?",
-                 {"fruit": "Fruit-forward", "oak": "Oak-driven", "other": None}),
-    ageing=yes_no("Does the note say the wine will improve with age?"),
+    behaviour=choice("What were the animals mainly doing?",
+                     {"feeding": "Feeding or foraging", "moving": "Moving or travelling", "other": None}),
+    juvenile=yes_no("Does the note say a juvenile was present?"),
 )
 
 router = LMRouter()
 r = router.complete(Request(
     model="jev-latest",
-    messages=[Message.user("Tasting note:\n" + note)],
+    messages=[Message.user("Field note:\n" + note)],
     config=Config(response_format=answers, probabilities="if_available"),
 ))
 
-r.data                    # {'quality': 3, 'style': 'fruit', 'ageing': True}
-r.probabilities["style"]  # {'fruit': 1.0, 'oak': 0.0, 'other': 0.0}
-r.expected("quality")     # 3.02  — Σ p·i over the 0..4 levels
-r.method                  # 'provider_classification'
+r.data                        # {'certainty': 1, 'behaviour': 'feeding', 'juvenile': True}
+r.probabilities["certainty"]  # {'0': 0.19, '1': 0.74, '2': 0.07, '3': 0.0, '4': 0.0}
+r.expected("certainty")       # 0.88  — Σ p·i over the 0..4 levels
+r.method                      # 'provider_classification'
 ```
 
-`r.data` is a plain dict: an ordered judgment answers with its level index
-(`3` = `excellent`), a choice with its key, a yes/no with a bool.
+The comments show one real run (`jev-1.13.0`, 2026-09-23); a rerun can differ
+slightly. `r.data` is a plain dict: an ordered judgment answers with its level
+index (`1` = `guess`), a choice with its key, a yes/no with a bool.
 `r.probabilities` holds one distribution per judgment over the keys you
 declared — or `None` when nothing was measured. Never a made-up one.
 
@@ -108,8 +109,8 @@ import pandas as pd
 rows = [router.complete(Request(model="jev-latest", messages=[Message.user(n)],
                                 config=Config(response_format=answers, probabilities="if_available")))
         for n in notes]
-df = pd.DataFrame([r.data | {"quality_expected": r.expected("quality")} for r in rows])
-df["quality"] = pd.Categorical(df.quality, categories=range(5), ordered=True)
+df = pd.DataFrame([r.data | {"certainty_expected": r.expected("certainty")} for r in rows])
+df["certainty"] = pd.Categorical(df.certainty, categories=range(5), ordered=True)
 ```
 
 ## Structured input, and what Jev takes
