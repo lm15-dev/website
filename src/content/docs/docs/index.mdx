@@ -25,11 +25,13 @@ or to [`llms.txt`](/llms.txt).
 
 ## The example we’ll build
 
-Throughout this guide, we build one small program: a **sommelier for a home
-wine cellar**. First you ask it what to open with dinner. Over the following
-pages, it looks through the bottles you actually own, keeps track of a
-conversation, reads a label from a photo, and scores tasting notes. Each page
-adds one ability to the same program.
+Throughout this guide, we build one small program: a **field assistant for a
+wildlife research station**. First you ask it a question any naturalist might:
+what is eating the acorns under the oak trees at night? Over the following
+pages, it searches the sightings your station has recorded, keeps track of a
+conversation, identifies an animal in a camera-trap photo, turns observers’
+field notes into tidy records, and sorts a whole season of notes at once. Each
+page adds one ability to the same program.
 
 This page is a quick tour. It names the parts of a request and a response, and
 shows each one in the smallest amount of code. Don’t worry if not everything
@@ -87,7 +89,8 @@ and how to answer. It sits beside the messages, not inside them.
 ## Tools
 
 **`tools`** lists functions the model may ask your program to run. Our
-sommelier can’t know what’s in your cellar, so we offer it a way to look:
+assistant can’t know what your station has recorded, so we offer it a way to
+look:
 
 <DocsExample recipe="tour-tools" />
 

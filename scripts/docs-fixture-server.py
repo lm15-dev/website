@@ -11,7 +11,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 LOG = sys.argv[1]
-REPLY = "Open the Barolo."
+REPLY = "Probably wood mice."
 USAGE = {"prompt_tokens": 12, "completion_tokens": 5, "total_tokens": 17}
 
 
@@ -41,7 +41,7 @@ class Handler(BaseHTTPRequestHandler):
             log.write(json.dumps(body) + "\n")
         base = {"id": "chatcmpl-docs", "object": "chat.completion", "created": 0, "model": body["model"]}
         if body.get("stream"):
-            words = ["Open ", "the ", "Barolo."]
+            words = ["Probably ", "wood ", "mice."]
             chunks = [{**base, "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"role": "assistant", "content": w} if i == 0 else {"content": w}, "finish_reason": None}]} for i, w in enumerate(words)]
             chunks.append({**base, "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})
             chunks.append({**base, "object": "chat.completion.chunk", "choices": [], "usage": USAGE})

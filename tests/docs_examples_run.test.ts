@@ -7,7 +7,7 @@
  *
  * Each program is the page's code with one change: the model is
  * `ollama:test-model`, which every SDK sends to 127.0.0.1:11434. There, a
- * stand-in server (scripts/docs-fixture-server.py) answers "Open the Barolo."
+ * stand-in server (scripts/docs-fixture-server.py) answers "Probably wood mice."
  * and records the request. Programs run in a network namespace with no route
  * out, so nothing reaches a real provider and no key is needed.
  *
@@ -34,7 +34,7 @@ import { tourPrograms } from '../src/data/tour-examples.ts';
 const ROOT = resolve(import.meta.dirname, '..');
 const FIXTURE = join(ROOT, 'scripts/docs-fixture-server.py');
 const CACHE = join(homedir(), '.cache/lm15-docs-examples');
-const REPLY = 'Open the Barolo.';
+const REPLY = 'Probably wood mice.';
 const sdk = (variable: string, name: string) => resolve(process.env[variable] ?? join(ROOT, '..', name));
 const pins = JSON.parse(readFileSync(join(ROOT, 'node_modules/lm15/runtime/sources.json'), 'utf8')) as Record<string, string>;
 const wanted = new Set((process.env['LM15_DOCS_LANGUAGES'] ?? LANGUAGES.map(l => l.id).join(',')).split(','));
@@ -141,9 +141,9 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
 .docs_reply <- '{"id":"chatcmpl-docs","object":"chat.completion","created":0,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","content":"${REPLY}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}'
 .docs_chunk <- function(delta, finish = "null", extra = "") paste0('data: {"id":"chatcmpl-docs","object":"chat.completion.chunk","created":0,"model":"test-model","choices":', delta, extra, '}\\n\\n')
 .docs_sse <- c(
-  .docs_chunk('[{"index":0,"delta":{"role":"assistant","content":"Open "},"finish_reason":null}]'),
-  .docs_chunk('[{"index":0,"delta":{"content":"the "},"finish_reason":null}]'),
-  .docs_chunk('[{"index":0,"delta":{"content":"Barolo."},"finish_reason":null}]'),
+  .docs_chunk('[{"index":0,"delta":{"role":"assistant","content":"Probably "},"finish_reason":null}]'),
+  .docs_chunk('[{"index":0,"delta":{"content":"wood "},"finish_reason":null}]'),
+  .docs_chunk('[{"index":0,"delta":{"content":"mice."},"finish_reason":null}]'),
   .docs_chunk('[{"index":0,"delta":{},"finish_reason":"stop"}]'),
   .docs_chunk('[]', extra = ',"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}'),
   "data: [DONE]\\n\\n")`;

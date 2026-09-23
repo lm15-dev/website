@@ -1,6 +1,6 @@
 /**
  * The Overview's tour: one request, built up a part at a time, in every
- * language. The running example is a sommelier for a home wine cellar.
+ * language. The running example is a field assistant for a wildlife research station.
  *
  * Each language is written out by hand, in its own idiom, as a handful of
  * pieces (the tool, the request, reading the response, streaming). The page
@@ -15,10 +15,10 @@ import { api, comment, dim, finish, val, type Code } from '../playground/marks.t
 import type { Language } from '../components/home-example/examples.ts';
 
 export const TOUR = {
-  system: 'You are the sommelier for a home wine cellar. Answer in two sentences.',
-  prompt: 'What should I open with mushroom risotto tonight?',
-  tool: 'search_cellar',
-  toolDescription: 'Find bottles in the cellar by grape, region or style.',
+  system: 'You are the field assistant for a wildlife research station. Answer in two sentences.',
+  prompt: 'What might be eating the acorns under our oak trees at night?',
+  tool: 'search_sightings',
+  toolDescription: "Find the station's recorded sightings by species, place or date.",
   maxTokens: 1000,
 } as const;
 
@@ -90,7 +90,7 @@ print(stream.usage.output_tokens, "tokens")`,
 };
 
 const typescript: Writer = {
-  tool: () => `const searchCellar: ${api('FunctionTool')} = {
+  tool: () => `const searchSightings: ${api('FunctionTool')} = {
   type: "function",
   name: ${q(TOUR.tool)},
   description: ${q(TOUR.toolDescription)},
@@ -105,7 +105,7 @@ const typescript: Writer = {
     `  model: ${q(model)},`,
     ...(p.system ? [`  system: ${q(TOUR.system)},`] : []),
     `  messages: [${api('Message.user')}(${q(TOUR.prompt)})],`,
-    ...(p.tools ? ['  tools: [searchCellar],'] : []),
+    ...(p.tools ? ['  tools: [searchSightings],'] : []),
     ...(p.config ? [`  config: { maxTokens: ${val(String(TOUR.maxTokens))} },`] : []),
     '};',
   ].join('\n'),
@@ -127,7 +127,7 @@ console.log(response.usage.outputTokens, "tokens");`,
 };
 
 const rust: Writer = {
-  tool: () => `let search_cellar = ${api('Tool::Function')}(${api('FunctionTool::new')}(
+  tool: () => `let search_sightings = ${api('Tool::Function')}(${api('FunctionTool::new')}(
     ${q(TOUR.tool)},
     Some(${q(TOUR.toolDescription)}.into()),
     serde_json::from_value(serde_json::json!({
@@ -141,7 +141,7 @@ const rust: Writer = {
     `    model: ${q(model)}.into(),`,
     ...(p.system ? [`    system: Some(${q(TOUR.system)}.into()),`] : []),
     `    messages: vec![${api('Message::user')}(${q(TOUR.prompt)})?],`,
-    ...(p.tools ? ['    tools: vec![search_cellar],'] : []),
+    ...(p.tools ? ['    tools: vec![search_sightings],'] : []),
     ...(p.config ? [`    config: ${api('Config')} { max_tokens: Some(${val(String(TOUR.maxTokens))}), ${dim('..Default::default()')} },`] : []),
     // Every field given: nothing left to default.
     ...(p.system && p.tools && p.config ? [] : [`    ${dim('..Default::default()')}`]),
@@ -181,7 +181,7 @@ if let Some(tokens) = response.usage.output_tokens {
 };
 
 const go: Writer = {
-  tool: () => `searchCellar := ${api('lm15.FunctionTool')}{
+  tool: () => `searchSightings := ${api('lm15.FunctionTool')}{
     Name:        ${q(TOUR.tool)},
     Description: ${q(TOUR.toolDescription)},
     Parameters: lm15.JSONObject{
@@ -198,7 +198,7 @@ const go: Writer = {
     `    Messages: []${api('lm15.Message')}{`,
     `        ${api('lm15.UserMessage')}(${q(TOUR.prompt)}),`,
     '    },',
-    ...(p.tools ? [`    Tools:${p.config ? '  ' : ' '}[]${api('lm15.Tool')}{searchCellar},`] : []),
+    ...(p.tools ? [`    Tools:${p.config ? '  ' : ' '}[]${api('lm15.Tool')}{searchSightings},`] : []),
     ...(p.config ? [`    Config: ${api('lm15.Config')}{MaxTokens: ${api('lm15.I')}(${val(String(TOUR.maxTokens))})},`] : []),
     '}',
   ].join('\n'),
@@ -231,7 +231,7 @@ if out := response.Usage.OutputTokens; out != nil {
 };
 
 const r: Writer = {
-  tool: () => `search_cellar <- ${api('function_tool')}(
+  tool: () => `search_sightings <- ${api('function_tool')}(
   ${q(TOUR.tool)},
   description = ${q(TOUR.toolDescription)},
   parameters = ${api('json_object')}(
@@ -245,7 +245,7 @@ const r: Writer = {
       q(model),
       `list(${api('message_user')}(${q(TOUR.prompt)}))`,
       ...(p.system ? [`system = ${q(TOUR.system)}`] : []),
-      ...(p.tools ? ['tools = list(search_cellar)'] : []),
+      ...(p.tools ? ['tools = list(search_sightings)'] : []),
       ...(p.config ? [`config = ${api('config')}(max_tokens = ${val(String(TOUR.maxTokens))})`] : []),
     ];
     return `req <- ${api('request')}(\n${args.map(a => `  ${a}`).join(',\n')}\n)`;
@@ -265,7 +265,7 @@ response$usage$output_tokens`,
 };
 
 const julia: Writer = {
-  tool: () => `search_cellar = ${api('FunctionTool')}(
+  tool: () => `search_sightings = ${api('FunctionTool')}(
     name=${q(TOUR.tool)},
     description=${q(TOUR.toolDescription)},
     parameters=Dict(
@@ -277,7 +277,7 @@ const julia: Writer = {
   request: (model, p) => {
     const options = [
       ...(p.system ? [`system=${q(TOUR.system)}`] : []),
-      ...(p.tools ? ['tools=(search_cellar,)'] : []),
+      ...(p.tools ? ['tools=(search_sightings,)'] : []),
       ...(p.config ? [`config=${api('Config')}(max_tokens=${val(String(TOUR.maxTokens))})`] : []),
     ];
     const user = `    ${api('user')}(${q(TOUR.prompt)})`;
