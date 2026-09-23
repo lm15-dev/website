@@ -1,0 +1,221 @@
+---
+title: Get structured output
+description: Ask a model for an answer in a shape your program can read, describe that shape with a schema, and see what goes wrong when the schema leaves the model no honest answer, with real answers at each step.
+---
+
+import DocsExample from '../../../components/DocsExample.astro';
+import CapturedAnswer from '../../../components/CapturedAnswer.astro';
+import captures from '../../../data/structured-output-captures.json';
+import TOUR from '../../../data/tour-text.json';
+
+export const s = captures.steps;
+export const X = TOUR.extract;
+export const owlPlace = (model) => captures.providers[model].trap.data.sightings.find((x) => x.species.includes("owl")).place;
+
+The station's observers don't write rows. They write notes: "Three badgers
+came through overnight, one of them limping." The station's records are rows:
+a species, a count, a place. Someone has to turn one into the other, and on
+this page the model does it, in a shape your program can read without
+guessing.
+
+On this page you'll:
+
+- see why a plain answer, however good, is no use to a program;
+- describe the shape you want with a schema;
+- get an answer in that shape and use it as data;
+- watch a schema force a wrong answer, and fix it;
+- see which providers enforce a schema, and what LM15 does about the ones
+  that don't.
+
+The answers shown are real: we ran each step with `gpt-5.6-sol` through OpenAI
+Codex. The code follows the language, provider and model you chose at the top
+of the page.
+
+## A note, as the model sees it
+
+Here is this morning's note from the stream camera:
+
+<DocsExample recipe="so-note" />
+
+The assistant's instructions now say what its job is: turn each note into
+sighting records. Send the note, and print what comes back:
+
+<DocsExample recipe="so-plain" />
+
+<CapturedAnswer set="structured-output" step="plain" show="read" />
+
+That is a good answer for a person. It's a table, it has a column for the
+limp, it separates the badgers from the fox. And a program can do nothing with
+it. The columns are the model's choice, not yours; next time they may differ;
+and it's text, so to store the count you would have to find the number in it.
+Try to read it as data, and you get nothing, or an error: the text isn't JSON.
+
+## Describe the shape
+
+A **schema** says what shape an answer must have. Ours says: an object with
+one field, `sightings`, a list; each item an object with a `species` (text), a
+`count` (a whole number) and a `place`, which must be one of the station's
+three places. The three named fields are required, and no others are allowed.
+
+<DocsExample recipe="so-schema" />
+
+This is JSON Schema, the same notation a tool's inputs use in
+[Call your own functions](/docs/function-tools/). Read it as a form the model
+must fill in: `properties` are the fields, `required` the ones it can't leave
+blank, `enum` a fixed list of allowed values, and `additionalProperties: false`
+means it may not add fields of its own. The description on `species` is for
+the model, not for you: it says how to write the name.
+
+Notice what the schema leaves out. There is no date, because the program knows
+when the note was filed and can add it itself. Don't ask a model for what you
+already know.
+
+## Ask for that shape
+
+The schema goes into the request's settings as the answer format. `strict`
+asks the provider to follow it exactly. Everything else is the request you've
+sent before:
+
+<DocsExample recipe="so-ask" />
+
+<CapturedAnswer set="structured-output" step="ask" show="read" />
+
+Same note, same model. The answer is exactly the shape: two sightings, each
+with the three fields, and nothing else. The limp and the times are gone, too,
+because the schema has no field for them. A schema is a promise in both
+directions: you get every field you asked for, and only those. It's also
+shorter: {s.ask.output_tokens} output tokens, against {s.plain.output_tokens}
+for the table.
+
+## Use it as data
+
+Because the answer is JSON in a known shape, the program reads it as data, not
+as text:
+
+<DocsExample recipe="so-use" />
+
+```text
+3 badger at stream
+1 fox at stream
+```
+
+How you hold the data is your language's business: a dictionary, a typed
+object, a struct the response fills in. What every language has in common is
+that nothing here parses text. The count is a number the moment it arrives.
+
+## A note that doesn't fit
+
+Now a note from somewhere else on the station:
+
+<DocsExample recipe="so-note-barn" />
+
+The barn is not one of the schema's three places. Send it with the same schema
+and the same code, and look at where the owl went:
+
+<CapturedAnswer set="structured-output" step="trap" show="read" />
+
+The owl was on the barn roof. The schema allowed only oak grove, stream and
+meadow, so the model picked one. There was no error, no warning, and the
+answer is the right shape. It's also wrong, and it will sit in the station's
+records looking exactly like a true row.
+
+This is not one model's quirk. We sent the same note to five other providers;
+every one that enforced the schema put the owl in a listed place
+(OpenAI: {owlPlace("openai:gpt-5-mini")}; Anthropic:
+{owlPlace("anthropic:claude-haiku-4-5")}; Gemini:
+{owlPlace("gemini:gemini-2.5-flash")}; OpenRouter:
+{owlPlace("openrouter:openai/gpt-4o-mini")}). A schema is a form, and a form
+with no honest box gets filled in dishonestly.
+
+## Give it a way out
+
+The fix is one word. Add `"other"` to the places:
+
+<DocsExample recipe="so-schema-other" />
+
+<CapturedAnswer set="structured-output" step="fixed" show="read" />
+
+Now the owl is under `other`, which is true, and your program can decide what
+to do with such rows: keep them, flag them, ask the observer. Every model we
+tried did the same once the box existed.
+
+The rule behind it: a schema doesn't only describe the shape you want, it
+tells the model what it is allowed to say. Whenever a field is a closed list,
+ask yourself what the model should answer when none of the entries is right,
+and give it that answer. A boolean can carry doubt the same way (`certain:
+false`); a field can allow `null`. What matters is that the honest answer is
+one the schema accepts.
+
+## Providers differ
+
+A schema is a request to the provider, and providers treat it differently.
+Here is what happened to the same request on six of them:
+
+| Provider | The schema | The barn trap |
+|---|---|---|
+| OpenAI | followed | owl in {owlPlace("openai:gpt-5-mini")} |
+| Anthropic | followed (LM15 sends it in Anthropic's own form) | owl in {owlPlace("anthropic:claude-haiku-4-5")} |
+| Gemini | followed (in Gemini's own form) | owl in {owlPlace("gemini:gemini-2.5-flash")} |
+| OpenRouter | followed | owl in {owlPlace("openrouter:openai/gpt-4o-mini")} |
+| DeepSeek | refused by the provider: "This response_format type is unavailable now" | |
+| Z.AI | would be accepted and ignored | |
+
+The first four enforce it; LM15 translates the schema into whatever form each
+provider takes, so your request doesn't change. DeepSeek answers a schema
+request with an error, which LM15 passes on as an error.
+
+Z.AI is the interesting case: it accepts the schema and then ignores it, and
+would hand you Markdown while you think you asked for JSON. LM15 knows this
+about the provider and doesn't let it pass silently. In Python and TypeScript,
+the schema is dropped and the response records that it was, and why:
+
+<pre class="lm-code not-content"><code>{captures.providers["zai:glm-4.5-air"].ask.adaptations[0].reason}</code></pre>
+
+In R and Julia, the same request is refused before anything is sent. Either
+way, you find out from your program, not from a row that looks fine.
+
+The reason mentions `json_object`. That is the other answer format: "any valid
+JSON". It gets you JSON, but not your shape. Asked that way, DeepSeek answered
+with fields of its own choosing:
+
+<pre class="lm-code not-content"><code>{captures.extras.deepseek_json_object.text}</code></pre>
+
+Sensible fields, and none of them is `place`. If you need the shape, you need
+the schema, and a provider that enforces it.
+
+## The whole program
+
+Schema, note, request, and the data used, with the fixed places:
+
+<DocsExample recipe="so-program" />
+
+## Try it yourself
+
+Predict before you run.
+
+1. Send the deer note from the [Judgments page](/docs/judgments/) ("Two deer
+   browsing on fallen acorns... Too far to be sure of the species: roe or
+   fallow") with the fixed schema. What goes in `species`?
+2. Add a `time` field, a text, to each sighting, and send the stream note
+   again. Does the limp come back?
+3. Take `"other"` out again and send a note from the meadow. Anything wrong?
+
+<details>
+<summary>What to expect</summary>
+
+1. We got `"deer"`: the model didn't guess between roe and fallow, and nothing
+   in the schema let it say how sure it was. If you want to know, add a field
+   for it.
+2. The times, yes: they now have a field. The limp, no: there is still nowhere
+   to put it. A schema shapes what you hear back.
+3. Nothing. The trap only springs when a note doesn't fit the list, which is
+   why it's easy to miss until it matters.
+
+</details>
+
+## Next
+
+Structured output answers "what does the note say?". For "which of these is
+it, and how sure are you?", see [Ask for judgments with
+probabilities](/docs/judgments/): a choice, a scale or a yes/no, with a
+probability for each option.

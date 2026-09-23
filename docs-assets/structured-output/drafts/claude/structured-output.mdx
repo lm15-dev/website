@@ -1,0 +1,242 @@
+---
+title: Get structured output
+description: Turn free text into data your program can use. Describe the shape you want as a schema, read the answer as data, and avoid the trap of a closed list, with real answers at each step.
+---
+
+import DocsExample from '../../../components/DocsExample.astro';
+import CapturedAnswer from '../../../components/CapturedAnswer.astro';
+import captures from '../../../data/structured-output-captures.json';
+import TOUR from '../../../data/tour-text.json';
+
+export const s = captures.steps;
+export const owl = (step) => step.data.sightings.find((x) => x.species.includes('owl'));
+export const PROVIDER_NAMES = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google Gemini', openrouter: 'OpenRouter', deepseek: 'DeepSeek', zai: 'Z.AI' };
+export const providerRows = Object.entries(captures.providers).map(([id, run]) => {
+  const [provider, model] = id.split(':');
+  const dropped = run.ask.adaptations?.some((a) => a.field === 'config.response_format' && a.action === 'dropped');
+  const outcome = run.ask.error ? 'refused by the provider' : dropped ? 'not supported: LM15 dropped it, and said so' : 'shape followed';
+  const trap = run.trap.error || dropped ? '—' : owl(run.trap)?.place ?? '—';
+  return { name: PROVIDER_NAMES[provider] ?? provider, model, outcome, trap };
+});
+
+Observers at our wildlife station don’t write rows. They write notes, in their
+own words, whenever they check a camera or walk a path. The station wants each
+note as records it can store, count and search: the same kind of records the
+assistant searched in [Call your own functions](/docs/function-tools/).
+
+This page turns a note into records. The goal is an answer your program can
+use directly, every time, without picking it out of prose.
+
+On this page you’ll:
+
+- see why a plain answer isn’t data;
+- describe the shape you want as a **schema**;
+- read the answer as data, in your language;
+- fall into the most common schema trap, and get out of it;
+- see what happens with providers that can’t follow a schema.
+
+The answers shown are real: we ran each step with `gpt-5.6-sol` through
+OpenAI Codex.
+
+## A note, in the observer’s words
+
+Here is this morning’s note from the stream camera:
+
+<DocsExample recipe="so-note" />
+
+Two species, two counts, one place, and some details besides: one badger was
+limping, the fox came later. A person reads that at a glance. A program can’t.
+
+## Ask for records
+
+First, simply ask. The assistant’s instructions say what to do with a note;
+the note is the message:
+
+<DocsExample recipe="so-plain" />
+
+<CapturedAnswer set="structured-output" step="plain" />
+
+A tidy table, and a good answer for a person. For a program, it’s a puzzle.
+The model chose the columns (*Time observed*, *Detection method*), wrote the
+species with capital letters, and laid it out as Markdown. When we asked a
+second time, the columns changed. To store these records, your program would
+have to take the table apart, and trust that it looks the same tomorrow.
+
+What you want is to tell the model the shape of the answer, and get exactly
+that shape back.
+
+## Describe the shape
+
+A **schema** describes a piece of data: which fields it has, and what each may
+hold. Here is the shape of our records:
+
+<DocsExample recipe="so-schema" />
+
+Read it from the outside in:
+
+- The answer is an object with one field, `sightings`: a list (an array).
+- Each item of the list is an object with a `species` (text), a `count` (a
+  whole number) and a `place`.
+- The `place` must be one of the station’s places, listed once at the top.
+- `required` says which fields must be there; `additionalProperties: false`
+  says no others may be. The `description` tells the model what we mean by a
+  species, the way a tool’s description does.
+
+This is JSON Schema, the format most providers use for this. You only need
+these few words of it to begin.
+
+Pay attention to the list of places. A schema isn’t only the shape of the
+answer: it is what the model is *allowed* to say. We’ll come back to that.
+
+## Ask for that shape
+
+Put the schema in the request’s settings, as the answer format. The rest of
+the request doesn’t change:
+
+<DocsExample recipe="so-ask" />
+
+<CapturedAnswer set="structured-output" step="ask" show="read" />
+
+Exactly the shape we described: two records, lower-case species, a place from
+the list. The answer is also much shorter: {s.ask.output_tokens} tokens, against
+{s.plain.output_tokens} for the table.
+
+Notice what’s missing: the limping badger, and the times. The schema has no
+field for them, so the model left them out. That’s the schema doing its job.
+If you want something kept, give it a field.
+
+The `strict` setting asks the provider to follow the schema exactly, rather
+than treat it as a suggestion.
+
+## Use the records
+
+The answer’s text is now JSON, and LM15 reads it for you: you get the answer as
+your language’s own data, not as text. So you can use it directly:
+
+<DocsExample recipe="so-use" />
+
+For our note, that prints one line per sighting: `3 badger at stream`, then
+`1 fox at stream`. In Go, you describe the record as a struct and LM15 fills it; in
+the other languages you get the language’s usual data values (dictionaries,
+lists, JSON values) and pick out the fields.
+
+## A note that doesn’t fit
+
+The same program, a different night. Only the note changes:
+
+<DocsExample recipe="so-note-barn" />
+
+<CapturedAnswer set="structured-output" step="trap" />
+
+The owl was on the old barn roof. Our records say it was at the
+**{owl(s.trap).place}**.
+
+Nothing failed. The answer followed the schema to the letter, and the record
+looks like any other. It’s just wrong, and nothing in your program would ever
+notice. This is the most common mistake with schemas, and it’s not the model’s
+fault: we asked for one of three places, and the barn isn’t one of them. The
+schema left the model no honest answer, so it picked the closest one.
+
+Every provider that followed the schema did the same (see the table
+[further down](#when-a-provider-cant-follow-a-schema)).
+
+## Leave the model a way out
+
+Give the model a way to say “none of these”: add `"other"` to the places.
+
+<DocsExample recipe="so-schema-other" />
+
+<CapturedAnswer set="structured-output" step="fixed" />
+
+Now the owl is recorded under **{owl(s.fixed).place}**, which is true, and
+your program can find it: a record with place “other” is one a person should
+look at.
+
+Whenever a schema offers a fixed list, ask what the model should say when
+nothing on it fits, and put that answer on the list. The same goes for counts
+nobody made and species nobody could name: a field the model *must* fill will
+get filled.
+
+A schema can’t say what your places *mean*, though. The hares were in “the
+barn field”: meadow, or other? This model said meadow; in other runs, some
+models said other. If the difference matters to you, say what each place
+covers, in the schema’s descriptions or in the instructions.
+
+## The whole program
+
+Here is everything together, with the list of places fixed:
+
+<DocsExample recipe="so-program" />
+
+It sends one note and prints one line per sighting. In a real program, you
+would loop over the day’s notes and store each record, adding the date
+yourself: your program knows when a note was filed, so don’t ask the model for
+it. Ask a model only for what the text says.
+
+## When a provider can’t follow a schema
+
+Not every provider can hold a model to a schema. Here is the same request, with
+the fixed schema, sent to six providers, and the barn note with the original
+three places:
+
+<table>
+  <thead>
+    <tr><th>Provider</th><th>Model</th><th>With a schema</th><th>The owl, three places</th></tr>
+  </thead>
+  <tbody>
+    {providerRows.map((row) => (
+      <tr><td>{row.name}</td><td><code>{row.model}</code></td><td>{row.outcome}</td><td>{row.trap}</td></tr>
+    ))}
+  </tbody>
+</table>
+
+Each provider speaks its own dialect; LM15 translates the schema into each
+one’s form. What happens when a provider can’t follow it depends on the
+provider:
+
+- **Most follow it.** The answer is the shape you asked for.
+- **Some refuse it.** DeepSeek answered with an error: “This response_format
+  type is unavailable now”. LM15 passes the provider’s error on.
+- **Some would accept it and ignore it.** Z.AI takes the request, then writes
+  whatever it likes: here, Markdown again. LM15 knows this about Z.AI, and
+  won’t let it happen silently. Depending on the language, it either refuses
+  before sending, or sends the request without the schema and records what it
+  left out on the response, where your program can check.
+
+There is also a looser answer format, “any JSON”, which some providers support
+when they don’t support schemas. It guarantees JSON, not your shape: asked this
+way, DeepSeek returned valid JSON with fields of its own choosing (a time, a
+location, notes) and no place at all. If you use it, check the shape yourself.
+
+## Try it yourself
+
+Predict before you run each one.
+
+1. Send the note from the edge of the oak grove:
+   *{TOUR.extract.notes.deer}* What will the model write as the species?
+2. Take out `"other"` again, and send a note about a hedgehog in the station’s
+   car park. Where will the hedgehog be recorded?
+3. Add a `notes` field (text) to each sighting, and send the stream note again.
+   What will the badgers’ record say?
+
+<details>
+<summary>What to expect</summary>
+
+1. When we ran it, the model wrote **{s.deer.data.sightings[0].species}**, not
+   “roe deer” or “fallow deer”. Good: the note doesn’t settle the species, and
+   the model didn’t pretend it did. Don’t count on it, though; if the
+   difference matters, give the model a field for it, as you gave it
+   “other”.
+2. At one of the three places: the car park isn’t on the list. The same trap as
+   the owl.
+3. Probably the limp: now there is a field where it can go.
+
+</details>
+
+## Next
+
+A schema also works for decisions: which of these categories, where on this
+scale, yes or no. [Ask for judgments with probabilities](/docs/judgments/)
+builds on this page, and adds how sure the model was of each answer. The
+[Overview](/docs/) shows where the answer format sits among a request’s
+settings.
