@@ -1,0 +1,1431 @@
+{
+  "model": "openai-codex:gpt-5.6-sol",
+  "date": "2026-09-23",
+  "steps": {
+    "plain": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records."
+      },
+      "model": "gpt-5.6-sol",
+      "text": "| Species | Count | Time observed | Condition/notes | Detection method |\n|---|---:|---|---|---|\n| Badger | 3 | Overnight | One individual was limping | Stream camera |\n| Fox | 1 | Just before dawn | No unusual condition noted | Stream camera |",
+      "data": null,
+      "finish_reason": "stop",
+      "input_tokens": 59,
+      "output_tokens": 131,
+      "adaptations": []
+    },
+    "ask": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+        "config": {
+          "response_format": {
+            "type": "json_schema",
+            "name": "sightings",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "sightings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "species": {
+                        "type": "string",
+                        "description": "Common name, singular."
+                      },
+                      "count": {
+                        "type": "integer"
+                      },
+                      "place": {
+                        "type": "string",
+                        "enum": [
+                          "oak grove",
+                          "stream",
+                          "meadow"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "species",
+                      "count",
+                      "place"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "sightings"
+              ],
+              "additionalProperties": false
+            },
+            "strict": true
+          }
+        }
+      },
+      "model": "gpt-5.6-sol",
+      "text": "{\"sightings\":[{\"species\":\"badger\",\"count\":3,\"place\":\"stream\"},{\"species\":\"fox\",\"count\":1,\"place\":\"stream\"}]}",
+      "data": {
+        "sightings": [
+          {
+            "species": "badger",
+            "count": 3,
+            "place": "stream"
+          },
+          {
+            "species": "fox",
+            "count": 1,
+            "place": "stream"
+          }
+        ]
+      },
+      "finish_reason": "stop",
+      "input_tokens": 129,
+      "output_tokens": 41,
+      "adaptations": []
+    },
+    "trap": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+        "config": {
+          "response_format": {
+            "type": "json_schema",
+            "name": "sightings",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "sightings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "species": {
+                        "type": "string",
+                        "description": "Common name, singular."
+                      },
+                      "count": {
+                        "type": "integer"
+                      },
+                      "place": {
+                        "type": "string",
+                        "enum": [
+                          "oak grove",
+                          "stream",
+                          "meadow"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "species",
+                      "count",
+                      "place"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "sightings"
+              ],
+              "additionalProperties": false
+            },
+            "strict": true
+          }
+        }
+      },
+      "model": "gpt-5.6-sol",
+      "text": "{\"sightings\":[{\"species\":\"tawny owl\",\"count\":1,\"place\":\"oak grove\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
+      "data": {
+        "sightings": [
+          {
+            "species": "tawny owl",
+            "count": 1,
+            "place": "oak grove"
+          },
+          {
+            "species": "hare",
+            "count": 2,
+            "place": "meadow"
+          }
+        ]
+      },
+      "finish_reason": "stop",
+      "input_tokens": 128,
+      "output_tokens": 160,
+      "adaptations": []
+    },
+    "fixed": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+        "config": {
+          "response_format": {
+            "type": "json_schema",
+            "name": "sightings",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "sightings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "species": {
+                        "type": "string",
+                        "description": "Common name, singular."
+                      },
+                      "count": {
+                        "type": "integer"
+                      },
+                      "place": {
+                        "type": "string",
+                        "enum": [
+                          "oak grove",
+                          "stream",
+                          "meadow",
+                          "other"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "species",
+                      "count",
+                      "place"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "sightings"
+              ],
+              "additionalProperties": false
+            },
+            "strict": true
+          }
+        }
+      },
+      "model": "gpt-5.6-sol",
+      "text": "{\"sightings\":[{\"species\":\"tawny owl\",\"count\":1,\"place\":\"other\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
+      "data": {
+        "sightings": [
+          {
+            "species": "tawny owl",
+            "count": 1,
+            "place": "other"
+          },
+          {
+            "species": "hare",
+            "count": 2,
+            "place": "meadow"
+          }
+        ]
+      },
+      "finish_reason": "stop",
+      "input_tokens": 130,
+      "output_tokens": 105,
+      "adaptations": []
+    },
+    "deer": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "Dusk, edge of the oak grove. Two deer browsing on fallen acorns, one small with spots still showing. Too far to be sure of the species: roe or fallow."
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+        "config": {
+          "response_format": {
+            "type": "json_schema",
+            "name": "sightings",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "sightings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "species": {
+                        "type": "string",
+                        "description": "Common name, singular."
+                      },
+                      "count": {
+                        "type": "integer"
+                      },
+                      "place": {
+                        "type": "string",
+                        "enum": [
+                          "oak grove",
+                          "stream",
+                          "meadow",
+                          "other"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "species",
+                      "count",
+                      "place"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "sightings"
+              ],
+              "additionalProperties": false
+            },
+            "strict": true
+          }
+        }
+      },
+      "model": "gpt-5.6-sol",
+      "text": "{\"sightings\":[{\"species\":\"deer\",\"count\":2,\"place\":\"oak grove\"}]}",
+      "data": {
+        "sightings": [
+          {
+            "species": "deer",
+            "count": 2,
+            "place": "oak grove"
+          }
+        ]
+      },
+      "finish_reason": "stop",
+      "input_tokens": 140,
+      "output_tokens": 75,
+      "adaptations": []
+    }
+  },
+  "providers": {
+    "openai:gpt-5-mini": {
+      "ask": {
+        "request": {
+          "model": "openai:gpt-5-mini",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow",
+                            "other"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "model": "gpt-5-mini-2025-08-07",
+        "text": "{\"sightings\":[{\"species\":\"badger\",\"count\":3,\"place\":\"stream\"},{\"species\":\"fox\",\"count\":1,\"place\":\"stream\"}]}",
+        "data": {
+          "sightings": [
+            {
+              "species": "badger",
+              "count": 3,
+              "place": "stream"
+            },
+            {
+              "species": "fox",
+              "count": 1,
+              "place": "stream"
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "input_tokens": 131,
+        "output_tokens": 443,
+        "adaptations": []
+      },
+      "trap": {
+        "request": {
+          "model": "openai:gpt-5-mini",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "model": "gpt-5-mini-2025-08-07",
+        "text": "{\"sightings\":[{\"species\":\"tawny owl\",\"count\":1,\"place\":\"meadow\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
+        "data": {
+          "sightings": [
+            {
+              "species": "tawny owl",
+              "count": 1,
+              "place": "meadow"
+            },
+            {
+              "species": "hare",
+              "count": 2,
+              "place": "meadow"
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "input_tokens": 128,
+        "output_tokens": 442,
+        "adaptations": []
+      }
+    },
+    "anthropic:claude-haiku-4-5": {
+      "ask": {
+        "request": {
+          "model": "anthropic:claude-haiku-4-5",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow",
+                            "other"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "model": "claude-haiku-4-5-20251001",
+        "text": "{\"sightings\": [{\"species\": \"badger\", \"count\": 3, \"place\": \"stream\"}, {\"species\": \"fox\", \"count\": 1, \"place\": \"stream\"}]}",
+        "data": {
+          "sightings": [
+            {
+              "species": "badger",
+              "count": 3,
+              "place": "stream"
+            },
+            {
+              "species": "fox",
+              "count": 1,
+              "place": "stream"
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "input_tokens": 353,
+        "output_tokens": 48,
+        "adaptations": [
+          {
+            "field": "config.max_tokens",
+            "action": "defaulted",
+            "reason": "the Messages API requires max_tokens and none was set; the class default was used"
+          }
+        ]
+      },
+      "trap": {
+        "request": {
+          "model": "anthropic:claude-haiku-4-5",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "model": "claude-haiku-4-5-20251001",
+        "text": "{\"sightings\":[{\"species\":\"tawny owl\",\"count\":1,\"place\":\"meadow\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
+        "data": {
+          "sightings": [
+            {
+              "species": "tawny owl",
+              "count": 1,
+              "place": "meadow"
+            },
+            {
+              "species": "hare",
+              "count": 2,
+              "place": "meadow"
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "input_tokens": 347,
+        "output_tokens": 42,
+        "adaptations": [
+          {
+            "field": "config.max_tokens",
+            "action": "defaulted",
+            "reason": "the Messages API requires max_tokens and none was set; the class default was used"
+          }
+        ]
+      }
+    },
+    "gemini:gemini-2.5-flash": {
+      "ask": {
+        "request": {
+          "model": "gemini:gemini-2.5-flash",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow",
+                            "other"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "model": "gemini-2.5-flash",
+        "text": "{\"sightings\":[{\"species\":\"badger\",\"count\":3,\"place\":\"stream\"},{\"species\":\"fox\",\"count\":1,\"place\":\"stream\"}]}",
+        "data": {
+          "sightings": [
+            {
+              "species": "badger",
+              "count": 3,
+              "place": "stream"
+            },
+            {
+              "species": "fox",
+              "count": 1,
+              "place": "stream"
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "input_tokens": 49,
+        "output_tokens": 30,
+        "adaptations": []
+      },
+      "trap": {
+        "request": {
+          "model": "gemini:gemini-2.5-flash",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "model": "gemini-2.5-flash",
+        "text": "{\"sightings\":[{\"species\":\"owl\",\"count\":1,\"place\":\"meadow\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
+        "data": {
+          "sightings": [
+            {
+              "species": "owl",
+              "count": 1,
+              "place": "meadow"
+            },
+            {
+              "species": "hare",
+              "count": 2,
+              "place": "meadow"
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "input_tokens": 48,
+        "output_tokens": 31,
+        "adaptations": []
+      }
+    },
+    "openrouter:openai/gpt-4o-mini": {
+      "ask": {
+        "request": {
+          "model": "openrouter:openai/gpt-4o-mini",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow",
+                            "other"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "model": "openai/gpt-4o-mini",
+        "text": "{\"sightings\":[{\"species\":\"badger\",\"count\":3,\"place\":\"stream\"},{\"species\":\"fox\",\"count\":1,\"place\":\"stream\"}]}",
+        "data": {
+          "sightings": [
+            {
+              "species": "badger",
+              "count": 3,
+              "place": "stream"
+            },
+            {
+              "species": "fox",
+              "count": 1,
+              "place": "stream"
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "input_tokens": 137,
+        "output_tokens": 32,
+        "adaptations": []
+      },
+      "trap": {
+        "request": {
+          "model": "openrouter:openai/gpt-4o-mini",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "model": "openai/gpt-4o-mini",
+        "text": "{\"sightings\":[{\"species\":\"tawny owl\",\"count\":1,\"place\":\"oak grove\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
+        "data": {
+          "sightings": [
+            {
+              "species": "tawny owl",
+              "count": 1,
+              "place": "oak grove"
+            },
+            {
+              "species": "hare",
+              "count": 2,
+              "place": "meadow"
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "input_tokens": 134,
+        "output_tokens": 36,
+        "adaptations": []
+      }
+    },
+    "deepseek:deepseek-chat": {
+      "ask": {
+        "request": {
+          "model": "deepseek:deepseek-chat",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow",
+                            "other"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "error": "InvalidRequestError: This response_format type is unavailable now (invalid_request_error) (deepseek, HTTP 400)"
+      },
+      "trap": {
+        "request": {
+          "model": "deepseek:deepseek-chat",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "error": "InvalidRequestError: This response_format type is unavailable now (invalid_request_error) (deepseek, HTTP 400)"
+      }
+    },
+    "zai:glm-4.5-air": {
+      "ask": {
+        "request": {
+          "model": "zai:glm-4.5-air",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow",
+                            "other"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "model": "glm-4.5-air",
+        "text": "# Wildlife Sighting Records\n\n## Record 1\n- **Species:** Badger\n- **Number:** 3\n- **Date:** Today\n- **Time:** Overnight\n- **Location:** Stream camera\n- **Notes:** One individual observed limping\n\n## Record 2\n- **Species:** Fox\n- **Number:** 1\n- **Date:** Today\n- **Time:** Just before dawn\n- **Location:** Stream camera\n- **Notes:** None specified",
+        "data": null,
+        "finish_reason": "stop",
+        "input_tokens": 55,
+        "output_tokens": 360,
+        "adaptations": [
+          {
+            "field": "config.response_format",
+            "action": "dropped",
+            "reason": "this server accepts response_format type 'json_schema' and does not apply it; use {'type': 'json_object'} and describe the shape in the prompt"
+          }
+        ]
+      },
+      "trap": {
+        "request": {
+          "model": "zai:glm-4.5-air",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+          "config": {
+            "response_format": {
+              "type": "json_schema",
+              "name": "sightings",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sightings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "species": {
+                          "type": "string",
+                          "description": "Common name, singular."
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "place": {
+                          "type": "string",
+                          "enum": [
+                            "oak grove",
+                            "stream",
+                            "meadow"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "species",
+                        "count",
+                        "place"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sightings"
+                ],
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          }
+        },
+        "model": "glm-4.5-air",
+        "text": "**Sighting Record 1**\n- Date: [Not recorded]\n- Time: Around midnight\n- Location: Old barn roof\n- Species: Tawny owl (Strix aluco) - tentative ID\n- Count: 1 individual\n- Notes: Calling/vocalizing\n\n**Sighting Record 2**\n- Date: [Not recorded] - presumed same day as owl sighting\n- Time: First light (dawn)\n- Location: Barn field\n- Species: European hare (Lepus europaeus)\n- Count: 2 individuals\n- Notes: Observed at dawn",
+        "data": null,
+        "finish_reason": "stop",
+        "input_tokens": 55,
+        "output_tokens": 412,
+        "adaptations": [
+          {
+            "field": "config.response_format",
+            "action": "dropped",
+            "reason": "this server accepts response_format type 'json_schema' and does not apply it; use {'type': 'json_object'} and describe the shape in the prompt"
+          }
+        ]
+      }
+    }
+  },
+  "extras": {
+    "zai_refuse": {
+      "request": {
+        "model": "zai:glm-4.5-air",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records.",
+        "config": {
+          "response_format": {
+            "type": "json_schema",
+            "name": "sightings",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "sightings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "species": {
+                        "type": "string",
+                        "description": "Common name, singular."
+                      },
+                      "count": {
+                        "type": "integer"
+                      },
+                      "place": {
+                        "type": "string",
+                        "enum": [
+                          "oak grove",
+                          "stream",
+                          "meadow",
+                          "other"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "species",
+                      "count",
+                      "place"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "sightings"
+              ],
+              "additionalProperties": false
+            },
+            "strict": true
+          }
+        }
+      },
+      "error": "UnsupportedFeatureError: zai: config.response_format would be dropped: this server accepts response_format type 'json_schema' and does not apply it; use {'type': 'json_object'} and describe the shape in the prompt (adaptations='refuse')"
+    },
+    "deepseek_json_object": {
+      "request": {
+        "model": "deepseek:deepseek-chat",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records. Answer in JSON.",
+        "config": {
+          "response_format": {
+            "type": "json_object"
+          }
+        }
+      },
+      "model": "deepseek-flash",
+      "text": "{\"sightings\": [{\"species\": \"badger\", \"count\": 3, \"notes\": \"one limping\", \"time\": \"overnight\", \"location\": \"stream camera\"}, {\"species\": \"fox\", \"count\": 1, \"notes\": null, \"time\": \"just before dawn\", \"location\": \"stream camera\"}]}",
+      "data": {
+        "sightings": [
+          {
+            "species": "badger",
+            "count": 3,
+            "notes": "one limping",
+            "time": "overnight",
+            "location": "stream camera"
+          },
+          {
+            "species": "fox",
+            "count": 1,
+            "notes": null,
+            "time": "just before dawn",
+            "location": "stream camera"
+          }
+        ]
+      },
+      "finish_reason": "stop",
+      "input_tokens": 80,
+      "output_tokens": 76,
+      "adaptations": []
+    }
+  }
+}

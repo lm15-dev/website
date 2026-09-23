@@ -10,7 +10,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build-playground.mjs && astro build && node unfinished.mjs dist && node scripts/check-links.mjs",
     "check": "astro check && tsc -p tsconfig.playground.json --noEmit",
-    "test": "node --experimental-strip-types --test-force-exit --test tests/code_view.test.ts tests/first_request_captures.test.ts tests/function_tools_captures.test.ts tests/docs_example_widths.test.ts tests/provider_examples.test.ts tests/judge.test.ts tests/judge_examples.test.ts tests/packaging.test.ts tests/error_display.test.ts tests/four_runtimes.test.ts tests/progress.test.ts tests/rust_bridge.test.ts",
+    "test": "node --experimental-strip-types --test-force-exit --test tests/code_view.test.ts tests/first_request_captures.test.ts tests/function_tools_captures.test.ts tests/structured_output_captures.test.ts tests/docs_example_widths.test.ts tests/provider_examples.test.ts tests/judge.test.ts tests/judge_examples.test.ts tests/packaging.test.ts tests/error_display.test.ts tests/four_runtimes.test.ts tests/progress.test.ts tests/rust_bridge.test.ts",
     "test:docs-examples": "node --experimental-strip-types --test-force-exit --test tests/docs_examples_run.test.ts",
     "test:browser": "node --experimental-strip-types --test tests/playground.test.ts tests/judge_page.test.ts tests/published.test.ts tests/error_diagnostics_page.test.ts tests/theme.test.ts tests/docs-setup.test.ts tests/four_runtimes_page.test.ts",
     "test:integration": "node --experimental-strip-types --test-force-exit --test tests/integration/*.test.ts",

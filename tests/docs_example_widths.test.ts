@@ -12,7 +12,7 @@ import { WIDTH, tourPrograms } from '../src/data/tour-examples.ts';
 import { exampleSource } from '../src/components/home-example/examples.ts';
 
 const LANGUAGES = ['python', 'typescript', 'rust', 'go', 'r', 'julia'] as const;
-const WHOLE = new Set(['tour-first', 'tour-program', 'tools-loop']);
+const WHOLE = new Set(['tour-first', 'tour-program', 'tools-loop', 'so-program']);
 /** The homepage's box: 64 columns at 1280px (measured). */
 const HOME_WIDTH = 64;
 const selection = { provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5' };

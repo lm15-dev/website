@@ -62,6 +62,11 @@ class Handler(BaseHTTPRequestHandler):
             payload = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
+        elif body.get("response_format", {}).get("type") == "json_schema":
+            answer = json.dumps(TOUR["extract"]["fixtureAnswer"])
+            payload = json.dumps({**base, "choices": [{"index": 0, "message": {"role": "assistant", "content": answer}, "finish_reason": "stop"}], "usage": USAGE})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
         elif wants_call(body):
             payload = json.dumps({**base, "choices": [{"index": 0, "message": {"role": "assistant", "content": None, "tool_calls": [CALL]}, "finish_reason": "tool_calls"}], "usage": USAGE})
             self.send_response(200)

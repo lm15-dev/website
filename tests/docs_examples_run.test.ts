@@ -30,7 +30,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { exampleSource, LANGUAGES, type Language } from '../src/components/home-example/examples.ts';
-import { tourPrograms, type TourProgram } from '../src/data/tour-examples.ts';
+import { TOUR, tourPrograms, type TourProgram } from '../src/data/tour-examples.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const FIXTURE = join(ROOT, 'scripts/docs-fixture-server.py');
@@ -147,6 +147,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     const replies = `
 .docs_reply <- '{"id":"chatcmpl-docs","object":"chat.completion","created":0,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","content":"${REPLY}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}'
 .docs_call <- '{"id":"chatcmpl-docs","object":"chat.completion","created":0,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_docs_1","type":"function","function":{"name":"search_sightings","arguments":"{\\\\"query\\\\": \\\\"oak grove\\\\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}'
+.docs_structured <- jsonlite::toJSON(list(id = "chatcmpl-docs", object = "chat.completion", created = 0L, model = "test-model", choices = list(list(index = 0L, message = list(role = "assistant", content = ${JSON.stringify(JSON.stringify(TOUR.extract.fixtureAnswer))}), finish_reason = "stop")), usage = list(prompt_tokens = 12L, completion_tokens = 5L, total_tokens = 17L)), auto_unbox = TRUE)
 .docs_chunk <- function(delta, finish = "null", extra = "") paste0('data: {"id":"chatcmpl-docs","object":"chat.completion.chunk","created":0,"model":"test-model","choices":', delta, extra, '}\\n\\n')
 .docs_sse <- c(
   .docs_chunk('[{"index":0,"delta":{"role":"assistant","content":"Probably "},"finish_reason":null}]'),
@@ -164,7 +165,8 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       assert.notEqual(source, p.source, `r ${p.name}: no router to give the fake transport`);
       writeFileSync(join(dir, `${p.name}.R`), source + '\n');
       const call = 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_call)';
-      const replyList = [...(p.toolCall ? [call] : []), ...Array((p.requests ?? 1) - (p.toolCall ? 1 : 0)).fill(reply)].join(', ');
+      const answer = p.structured ? 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_structured)' : reply;
+      const replyList = [...(p.toolCall ? [call] : []), ...Array((p.requests ?? 1) - (p.toolCall ? 1 : 0)).fill(answer)].join(', ');
       writeFileSync(join(dir, `run-${p.name}.R`), `${replies}\n.docs_transport <- lm15::fake_transport(list(${replyList}))\nsource(${JSON.stringify(join(dir, `${p.name}.R`))}, print.eval = TRUE)\nfor (w in attr(.docs_transport, "requests")()) cat(rawToChar(w$body), "\\n", file = ${JSON.stringify(join(dir, `${p.name}.jsonl`))}, append = TRUE, sep = "")\n`);
       const stdout = nix(`R_LIBS=${JSON.stringify(lib)} Rscript --no-save ${JSON.stringify(join(dir, `run-${p.name}.R`))} 2>/dev/null`);
       const bodies = readFileSync(join(dir, `${p.name}.jsonl`), 'utf8').trim().split('\n').map(line => JSON.parse(line));

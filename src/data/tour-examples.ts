@@ -99,7 +99,8 @@ export type Step = 'request' | 'system' | 'tools' | 'config';
 const STEPS: readonly Step[] = ['request', 'system', 'tools', 'config'];
 /** What the page can show: a step's request, reading the response, streaming, a follow-up, or the whole program. */
 export type TourView = Step | 'first' | 'response' | 'stream' | 'program' | 'followup' | 'forgetful'
-  | 'tools-search' | 'tools-define' | 'tools-vague' | 'tools-ask' | 'tools-answer' | 'tools-loop';
+  | 'tools-search' | 'tools-define' | 'tools-vague' | 'tools-ask' | 'tools-answer' | 'tools-loop'
+  | 'so-note' | 'so-plain' | 'so-schema' | 'so-ask' | 'so-use' | 'so-note-barn' | 'so-schema-other' | 'so-program';
 
 interface Parts { system: boolean; tools: boolean; config: boolean }
 const partsOf = (step: Step): Parts => {
@@ -128,12 +129,26 @@ interface Writer {
   answerTool(): string;
   /** The whole exchange as a loop, capped at TOUR.maxTurns rounds. */
   toolLoop(model: string): string;
+  /** Structured output: one field note, as a string variable. */
+  soNote(note: NoteKey): string;
+  /** Send the note with no answer format, print the text. */
+  soPlain(model: string): string;
+  /** The sightings schema; `other` adds "other" to the places. */
+  soSchema(other: boolean): string;
+  /** Send the note asking for the schema; print the data. */
+  soAsk(model: string): string;
+  /** Use the data: one line per sighting. */
+  soUse(): string;
   /** A whole program around `body`: imports, and whatever the language needs to run it. */
   program(body: string, uses: Uses): string;
   /** The line that makes the router, when the program streams. */
   router(): string;
 }
-interface Uses { tool: boolean; config: boolean; stream: boolean; search?: boolean; loop?: boolean }
+interface Uses { tool: boolean; config: boolean; stream: boolean; search?: boolean; loop?: boolean; schema?: boolean; typed?: boolean }
+type NoteKey = keyof typeof TOUR.extract.notes;
+const X = TOUR.extract;
+/** The places, as quoted values in any language's list syntax. */
+const placeList = (other: boolean) => [...X.places, ...(other ? [X.other] : [])].map(p => q(p)).join(', ');
 
 const q = (text: string) => `"${val(text)}"`;
 const indent = (text: string, by: string) => text.split('\n').map(line => (line ? by + line : line)).join('\n');
@@ -238,6 +253,58 @@ for turn in range(${val(String(TOUR.maxTurns))}):
     messages.append(${api('Message.tool')}(results))
 else:
     raise RuntimeError("still calling tools after ${TOUR.maxTurns} turns")`,
+  soNote: key => `note = ${q(X.notes[key])}`,
+  soPlain: model => `request = ${api('Request')}(
+    model=${q(model)},
+    system=${q(X.system)},
+    messages=[${api('Message.user')}(note)],
+)
+router = ${api('LMRouter')}()
+response = ${api('router.complete')}(request)
+print(response.text)`,
+  soSchema: other => `places = [${placeList(other)}]
+sighting_schema = {
+    "type": "object",
+    "properties": {
+        "sightings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "species": {
+                        "type": "string",
+                        "description": ${q(X.speciesDescription)},
+                    },
+                    "count": {"type": "integer"},
+                    "place": {
+                        "type": "string",
+                        "enum": places,
+                    },
+                },
+                "required": ["species", "count", "place"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["sightings"],
+    "additionalProperties": False,
+}`,
+  soAsk: model => `request = ${api('Request')}(
+    model=${q(model)},
+    system=${q(X.system)},
+    messages=[${api('Message.user')}(note)],
+    config=${api('Config')}(response_format={
+        "type": "json_schema",
+        "name": "sightings",
+        "schema": sighting_schema,
+        "strict": True,
+    }),
+)
+router = ${api('LMRouter')}()
+response = ${api('router.complete')}(request)
+print(response.${api('data')})`,
+  soUse: () => `for s in response.${api('data')}["sightings"]:
+    print(s["count"], s["species"], "at", s["place"])`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['FunctionTool'] : [])].sort();
     return `${uses.search ? `${dim('import json')}\n\n` : ''}${dim(`from lm15 import ${names.join(', ')}`)}\n\n${body}`;
@@ -351,8 +418,65 @@ for (let turn = 0; ; turn++) {
   );
   messages.push(${api('Message.tool')}(results));
 }`,
+  soNote: key => `const note = ${q(X.notes[key])};`,
+  soPlain: model => `const request: ${api('Request')} = {
+  model: ${q(model)},
+  system: ${q(X.system)},
+  messages: [${api('Message.user')}(note)],
+};
+const router = new ${api('LMRouter')}();
+const response = await ${api('router.complete')}(request);
+console.log(response.text);`,
+  soSchema: other => `const places = [${placeList(other)}];
+const sightingSchema = {
+  type: "object",
+  properties: {
+    sightings: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          species: {
+            type: "string",
+            description: ${q(X.speciesDescription)},
+          },
+          count: { type: "integer" },
+          place: {
+            type: "string",
+            enum: places,
+          },
+        },
+        required: ["species", "count", "place"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["sightings"],
+  additionalProperties: false,
+};`,
+  soAsk: model => `const request: ${api('Request')} = {
+  model: ${q(model)},
+  system: ${q(X.system)},
+  messages: [${api('Message.user')}(note)],
+  config: {
+    responseFormat: {
+      type: "json_schema",
+      name: "sightings",
+      schema: sightingSchema,
+      strict: true,
+    },
+  },
+};
+const router = new ${api('LMRouter')}();
+const response = await ${api('router.complete')}(request);
+console.log(response.${api('data')});`,
+  soUse: () => `type Sighting = { species: string; count: number; place: string };
+const data = response.${api('data')} as { sightings: Sighting[] };
+for (const s of data.sightings) {
+  console.log(s.count, s.species, "at", s.place);
+}`,
   program: (body, uses) => {
-    const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : [])];
+    const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : []), ...(uses.schema || uses.typed ? ['type Request'] : [])];
     return `${dim(`import { ${names.join(', ')} } from "lm15";`)}\n\n${body}`;
   },
 };
@@ -480,9 +604,71 @@ for turn in 0.. {
     }
     messages.push(${api('Message::tool_results')}(results)?);
 }`,
+  soNote: key => `let note = ${q(X.notes[key])};`,
+  soPlain: model => `let request = ${api('Request')} {
+    model: ${q(model)}.into(),
+    system: Some(${q(X.system)}.into()),
+    messages: vec![${api('Message::user')}(note)?],
+    ${dim('..Default::default()')}
+};
+let router = ${api('LMRouter::new')}();
+let response = ${api('router.complete')}(&request).await?;
+println!("{}", response.${api('text')}().unwrap_or_default());`,
+  soSchema: other => `let places = [${placeList(other)}];
+let sighting_schema = serde_json::json!({
+    "type": "object",
+    "properties": {
+        "sightings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "species": {
+                        "type": "string",
+                        "description": ${q(X.speciesDescription)}
+                    },
+                    "count": { "type": "integer" },
+                    "place": {
+                        "type": "string",
+                        "enum": places
+                    }
+                },
+                "required": ["species", "count", "place"],
+                "additionalProperties": false
+            }
+        }
+    },
+    "required": ["sightings"],
+    "additionalProperties": false
+});`,
+  soAsk: model => `let format = serde_json::json!({
+    "type": "json_schema",
+    "name": "sightings",
+    "schema": sighting_schema,
+    "strict": true
+});
+let request = ${api('Request')} {
+    model: ${q(model)}.into(),
+    system: Some(${q(X.system)}.into()),
+    messages: vec![${api('Message::user')}(note)?],
+    config: ${api('Config')} {
+        response_format: format.as_object().cloned(),
+        ${dim('..Default::default()')}
+    },
+    ${dim('..Default::default()')}
+};
+let router = ${api('LMRouter::new')}();
+let response = ${api('router.complete')}(&request).await?;
+let data = response.${api('data')}().unwrap_or_default();
+println!("{data}");`,
+  soUse: () => `for s in data["sightings"].as_array().into_iter().flatten() {
+    let species = s["species"].as_str().unwrap_or_default();
+    let place = s["place"].as_str().unwrap_or_default();
+    println!("{} {species} at {place}", s["count"]);
+}`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.loop ? ['FinishReason'] : []), ...(uses.search ? ['JsonObject'] : [])].sort();
-    const deps = ['lm15', 'tokio (macros, rt-multi-thread)', ...(uses.tool ? ['serde_json'] : []), ...(uses.stream ? ['futures-util'] : [])];
+    const deps = ['lm15', 'tokio (macros, rt-multi-thread)', ...(uses.tool || uses.schema ? ['serde_json'] : []), ...(uses.stream ? ['futures-util'] : [])];
     return [
       ...(uses.stream ? [dim('use futures_util::StreamExt;')] : []),
       ...(uses.search ? [dim('use serde_json::Value;')] : []),
@@ -638,6 +824,73 @@ ${dim('        if err != nil {\n            panic(err)\n        }')}
     }
     messages = append(messages, ${api('lm15.ToolMessageParts')}(results...))
 }`,
+  soNote: key => `note := ${q(X.notes[key])}`,
+  soPlain: model => `request := &${api('lm15.Request')}{
+    Model:    ${q(model)},
+    System:   ${api('lm15.System')}(${q(X.system)}),
+    Messages: []${api('lm15.Message')}{${api('lm15.UserMessage')}(note)},
+}
+router := ${api('lm15.NewRouter')}()
+response, err := ${api('router.Complete')}(context.Background(), request)
+${dim('if err != nil {\n    panic(err)\n}')}
+fmt.Println(response.${api('TextOr')}(""))`,
+  soSchema: other => `places := []any{${placeList(other)}}
+sightingSchema := lm15.JSONObject{
+    "type": "object",
+    "properties": lm15.JSONObject{
+        "sightings": lm15.JSONObject{
+            "type": "array",
+            "items": lm15.JSONObject{
+                "type": "object",
+                "properties": lm15.JSONObject{
+                    "species": lm15.JSONObject{
+                        "type":        "string",
+                        "description": ${q(X.speciesDescription)},
+                    },
+                    "count": lm15.JSONObject{"type": "integer"},
+                    "place": lm15.JSONObject{
+                        "type": "string",
+                        "enum": places,
+                    },
+                },
+                "required": []any{"species", "count", "place"},
+                "additionalProperties": false,
+            },
+        },
+    },
+    "required":             []any{"sightings"},
+    "additionalProperties": false,
+}`,
+  soAsk: model => `request := &${api('lm15.Request')}{
+    Model:    ${q(model)},
+    System:   ${api('lm15.System')}(${q(X.system)}),
+    Messages: []${api('lm15.Message')}{${api('lm15.UserMessage')}(note)},
+    Config: ${api('lm15.Config')}{
+        ResponseFormat: lm15.JSONObject{
+            "type":   "json_schema",
+            "name":   "sightings",
+            "schema": sightingSchema,
+            "strict": true,
+        },
+    },
+}
+router := ${api('lm15.NewRouter')}()
+response, err := ${api('router.Complete')}(context.Background(), request)
+${dim('if err != nil {\n    panic(err)\n}')}
+fmt.Println(response.${api('TextOr')}(""))`,
+  soUse: () => `var record struct {
+    Sightings []struct {
+        Species string \`json:"species"\`
+        Count   int    \`json:"count"\`
+        Place   string \`json:"place"\`
+    } \`json:"sightings"\`
+}
+if err := response.${api('ParseJSON')}(&record); err != nil {
+    panic(err)
+}
+for _, s := range record.Sightings {
+    fmt.Println(s.Count, s.Species, "at", s.Place)
+}`,
   program: (body, uses) => [
     dim(`package main\n\nimport (\n    "context"\n${uses?.search ? '    "encoding/json"\n' : ''}    "fmt"\n${uses?.search ? '    "strings"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {`),
     indent(body, '    '),
@@ -752,6 +1005,60 @@ if (response$finish_reason == "tool_call") {
   stop("still calling tools after ${TOUR.maxTurns} turns")
 }
 ${api('response_text')}(response)`,
+  soNote: key => `note <- ${q(X.notes[key])}`,
+  soPlain: model => `req <- ${api('request')}(
+  ${q(model)},
+  list(${api('message_user')}(note)),
+  system = ${q(X.system)}
+)
+router <- ${api('new_router')}()
+response <- ${api('complete')}(router, req)
+${api('response_text')}(response)`,
+  soSchema: other => `places <- ${api('json_array')}(${placeList(other)})
+sighting_schema <- ${api('json_object')}(
+  type = "object",
+  properties = ${api('json_object')}(
+    sightings = ${api('json_object')}(
+      type = "array",
+      items = ${api('json_object')}(
+        type = "object",
+        properties = ${api('json_object')}(
+          species = ${api('json_object')}(
+            type = "string",
+            description = ${q(X.speciesDescription)}
+          ),
+          count = ${api('json_object')}(type = "integer"),
+          place = ${api('json_object')}(
+            type = "string",
+            enum = places
+          )
+        ),
+        required = ${api('json_array')}("species", "count", "place"),
+        additionalProperties = FALSE
+      )
+    )
+  ),
+  required = ${api('json_array')}("sightings"),
+  additionalProperties = FALSE
+)`,
+  soAsk: model => `req <- ${api('request')}(
+  ${q(model)},
+  list(${api('message_user')}(note)),
+  system = ${q(X.system)},
+  config = ${api('config')}(response_format = ${api('json_object')}(
+    type = "json_schema",
+    name = "sightings",
+    schema = sighting_schema,
+    strict = TRUE
+  ))
+)
+router <- ${api('new_router')}()
+response <- ${api('complete')}(router, req)
+record <- ${api('parse_json')}(response)
+str(record)`,
+  soUse: () => `for (s in record$sightings) {
+  cat(s$count, s$species, "at", s$place, "\\n")
+}`,
   program: body => `${dim('library(lm15)')}\n\n${body}`,
 };
 
@@ -855,6 +1162,60 @@ for turn in 1:${val(String(TOUR.maxTurns))}
     push!(messages, ${api('tool_message')}(results...))
 end
 answered || error("still calling tools after ${TOUR.maxTurns} turns")`,
+  soNote: key => `note = ${q(X.notes[key])}`,
+  soPlain: model => `req = ${api('Request')}(
+    ${q(model)},
+    ${api('user')}(note);
+    system=${q(X.system)},
+)
+router = ${api('LMRouter')}()
+response = ${api('complete')}(router, req)
+println(${api('text')}(response))`,
+  soSchema: other => `places = [${placeList(other)}]
+sighting_schema = Dict(
+    "type" => "object",
+    "properties" => Dict(
+        "sightings" => Dict(
+            "type" => "array",
+            "items" => Dict(
+                "type" => "object",
+                "properties" => Dict(
+                    "species" => Dict(
+                        "type" => "string",
+                        "description" => ${q(X.speciesDescription)},
+                    ),
+                    "count" => Dict("type" => "integer"),
+                    "place" => Dict(
+                        "type" => "string",
+                        "enum" => places,
+                    ),
+                ),
+                "required" => ["species", "count", "place"],
+                "additionalProperties" => false,
+            ),
+        ),
+    ),
+    "required" => ["sightings"],
+    "additionalProperties" => false,
+)`,
+  soAsk: model => `req = ${api('Request')}(
+    ${q(model)},
+    ${api('user')}(note);
+    system=${q(X.system)},
+    config=${api('Config')}(response_format=Dict(
+        "type" => "json_schema",
+        "name" => "sightings",
+        "schema" => sighting_schema,
+        "strict" => true,
+    )),
+)
+router = ${api('LMRouter')}()
+response = ${api('complete')}(router, req)
+record = ${api('parse_json')}(response)
+println(record)`,
+  soUse: () => `for s in record["sightings"]
+    println(s["count"], " ", s["species"], " at ", s["place"])
+end`,
   program: body => `${dim('using LM15')}\n\n${body}`,
 };
 
@@ -872,6 +1233,11 @@ function fitted(language: Language, w: Writer): Writer {
     askTool: model => f(w.askTool(model)),
     answerTool: () => f(w.answerTool()),
     toolLoop: model => f(w.toolLoop(model)),
+    soNote: key => f(w.soNote(key)),
+    soPlain: model => f(w.soPlain(model)),
+    soSchema: other => f(w.soSchema(other)),
+    soAsk: model => f(w.soAsk(model)),
+    soUse: () => f(w.soUse()),
     program: (body, uses) => w.program(body, uses),
     router: () => f(w.router()),
   };
@@ -898,6 +1264,14 @@ function marked(language: Language, view: TourView, model: string): string {
     case 'tools-ask': return w.askTool(model);
     case 'tools-answer': return w.answerTool();
     case 'tools-loop': return toolLoopProgram(w, model);
+    case 'so-note': return w.soNote('stream');
+    case 'so-plain': return w.soPlain(model);
+    case 'so-schema': return w.soSchema(false);
+    case 'so-ask': return w.soAsk(model);
+    case 'so-use': return w.soUse();
+    case 'so-note-barn': return w.soNote('barn');
+    case 'so-schema-other': return w.soSchema(true);
+    case 'so-program': return soProgram(w, model, 'stream', true);
     case 'followup': return w.followUp(model, true);
     case 'forgetful': return w.followUp(model, false);
   }
@@ -906,6 +1280,11 @@ function marked(language: Language, view: TourView, model: string): string {
 /** The tools page's whole program: the records, their search, the tool, the loop. */
 function toolLoopProgram(w: Writer, model: string): string {
   return w.program(`${w.search()}\n\n${w.tool()}\n\n${w.toolLoop(model)}`, { tool: true, config: false, stream: false, search: true, loop: true });
+}
+
+/** The structured-output page's whole program: the schema, a note, the request, the data used. */
+function soProgram(w: Writer, model: string, note: NoteKey, other: boolean): string {
+  return w.program(`${w.soSchema(other)}\n\n${w.soNote(note)}\n\n${w.soAsk(model)}\n\n${w.soUse()}`, { tool: false, config: true, stream: false, schema: true });
 }
 
 /** The first-request page's first program: the request, sent, its text printed. */
@@ -938,6 +1317,8 @@ export interface TourProgram {
   toolCall?: boolean;
   /** What stdout must contain (default: the stand-in's text answer). */
   expect?: string[];
+  /** The stand-in answers with the structured-output JSON (TOUR.extract.fixtureAnswer). */
+  structured?: boolean;
 }
 
 export function tourPrograms(language: Language, provider: string, model: string): TourProgram[] {
@@ -960,5 +1341,11 @@ export function tourPrograms(language: Language, provider: string, model: string
     { name: 'tools-answer', source: finish(w.program(`${w.search()}\n\n${w.tool()}\n\n${w.askTool(id)}\n\n${w.answerTool()}`, { ...tools, search: true })).text, streams: false, toolCall: true, requests: 2 },
     { name: 'tools-loop', source: finish(toolLoopProgram(w, id)).text, streams: false, toolCall: true, requests: 2 },
   ];
-  return [{ name: 'first', source: finish(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: finish(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms];
+  // The structured-output page: plain text; the schema asked and used; the fixed schema on the barn note.
+  const structured: TourProgram[] = [
+    { name: 'so-plain', source: finish(w.program(`${w.soNote('stream')}\n\n${w.soPlain(id)}`, { tool: false, config: false, stream: false, typed: true })).text, streams: false },
+    { name: 'so-ask', source: finish(soProgram(w, id, 'stream', false)).text, streams: false, structured: true, expect: ['badger', 'stream'] },
+    { name: 'so-fixed', source: finish(soProgram(w, id, 'barn', true)).text, streams: false, structured: true, expect: ['badger'] },
+  ];
+  return [{ name: 'first', source: finish(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: finish(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured];
 }

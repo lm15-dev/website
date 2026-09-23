@@ -1,14 +1,21 @@
 ---
-// One real answer recorded by scripts/capture-first-request.py, shown as it came back.
-import captures from '../data/first-request-captures.json';
+// One real answer recorded by a scripts/capture-*.py script, shown as it came back.
+import firstRequest from '../data/first-request-captures.json';
+import structuredOutput from '../data/structured-output-captures.json';
+
+/** The recordings a page can show: `set` names the file, `step` the answer in it. */
+const SETS = { 'first-request': firstRequest, 'structured-output': structuredOutput } as const;
 
 interface Props {
-  step: keyof typeof captures.steps;
+  set?: keyof typeof SETS;
+  step: string;
   /** "text": the answer; "read": the answer with its stop reason and token counts; "facts": only those; "error": what LM15 raised. */
   show?: 'text' | 'read' | 'facts' | 'error';
 }
-const { step, show = 'text' } = Astro.props;
-const answer = captures.steps[step] as { text?: string | null; finish_reason?: string; input_tokens?: number | null; output_tokens?: number | null; pieces?: number; error?: string };
+const { set = 'first-request', step, show = 'text' } = Astro.props;
+const captures = SETS[set];
+const answer = (captures.steps as Record<string, unknown>)[step] as { text?: string | null; finish_reason?: string; input_tokens?: number | null; output_tokens?: number | null; pieces?: number; error?: string };
+if (!answer) throw new Error(`CapturedAnswer: no step ${step} in ${set}`);
 const [provider, model] = captures.model.split(':');
 const label = provider === 'openai-codex' ? 'OpenAI Codex' : provider;
 const date = new Date(`${captures.date}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
