@@ -12,22 +12,21 @@ import TOUR from '../../../data/tour-text.json';
 export const s = captures.steps;
 
 The goal of this page is to get a real answer from a model as quickly as
-possible, then change one thing at a time and see what changes. The
-[Overview](/docs/) explains the ideas behind each part; here we skip the theory
-and practise.
+possible. You’ll install LM15, set an API key, and ask a question. Then we’ll
+change one thing at a time, and look at what changes. The [Overview](/docs/)
+explains the ideas behind each part; here we’ll skip the theory and focus on
+the practice.
 
-On this page you’ll:
+On this page, you’ll learn how to:
 
-- install LM15 and set an API key;
 - ask a question and read everything that comes back;
 - give the model instructions;
-- ask a follow-up, and see why the model needs the conversation;
+- carry a conversation into a follow-up question;
 - watch an answer arrive as it’s written.
 
-Choose your language, provider, and model at the top left of the page; every
-example follows your choice. The answers shown are real: we ran each step with
-`gpt-5.6-sol` through OpenAI Codex. Your answers will be worded differently,
-and that’s normal.
+The code follows the language, provider, and model you picked at the top left
+of the page. The answers shown are real: we ran each step with `gpt-5.6-sol`
+through OpenAI Codex. Yours will be worded differently, and that’s normal.
 
 ## Install
 
@@ -56,7 +55,8 @@ Three things happened:
 3. The provider’s answer came back as a **response**. Its text is the text of
    the message the model wrote.
 
-That answer is long, and it’s a list. Hold that thought.
+The answer is long, and it’s written as a list. We’ll come back to that when we
+give the model instructions.
 
 ## Read the whole response
 
@@ -84,9 +84,9 @@ apply to the whole request. Change the request to this:
 
 <CapturedAnswer step="instructed" show="read" />
 
-Same question: {s.instructed.output_tokens} tokens instead of
-{s.first.output_tokens}, two sentences, and it answers as the station’s
-assistant.
+The question is the same, but the answer is different: it’s two sentences
+long ({s.instructed.output_tokens} tokens instead of {s.first.output_tokens}),
+and it answers as the station’s assistant.
 
 ## Ask a follow-up
 
@@ -105,8 +105,9 @@ the first answer:
 
 <CapturedAnswer step="followup" show="read" />
 
-Now it knows. Look at the input: {s.followup.input_tokens} tokens, against
-{s.forgetful.input_tokens} for the question alone. Each request sends the whole
+This time the model knows which animals you mean. The cost is in the input:
+{s.followup.input_tokens} tokens, against {s.forgetful.input_tokens} for the
+question alone. Each request sends the whole
 conversation again, and you pay for it again.
 
 Send the model’s whole message, not just its text. A message can carry things
@@ -149,7 +150,7 @@ provider, so choose a model that provider serves, and set its API key too.
 
 <CapturedAnswer step="limited" show="error" />
 
-Nothing was sent, and nothing was spent.
+The request was never sent, so it didn’t cost anything.
 
 ## Try it yourself
 

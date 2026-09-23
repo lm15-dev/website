@@ -5,23 +5,27 @@ description: A quick tour of the parts of an LM15 request and response, built ar
 
 import DocsExample from '../../../components/DocsExample.astro';
 
-In this guide, you’ll learn to make model calls with LM15. We’ll explain what
-each step does and why LM15 works the way it does, so you can build on it.
+Every company that serves language models has its own API, and every
+programming language has its own libraries for calling them. Each one has its
+own way to write a request, read an answer, stream it, and call a tool, so
+moving from one to another means learning the same ideas again. LM15 is one
+way to do all of that, for many providers, in six languages. You learn it
+once, and use it everywhere.
 
-Choose your **language, provider, and model** at the top left of the page. Changing
-languages changes the code examples, not the explanation: LM15 uses the same
-ideas across languages and providers. Your chosen provider and model appear in
-the examples, ready to copy. Choose the provider your API key belongs to and a
-model you can access.
+This guide will teach you how to use LM15. This page is a quick tour of the
+parts of a request and a response, with the smallest code that shows each one.
+[Make your first request](/docs/first-request/) then goes through them slowly,
+with real answers, and each page after that adds one ability.
 
-This guide is for people who like to learn by reading, with examples and
-explanations side by side.
+Choose your **language, provider, and model** at the top left of the page. The
+code examples follow your choice; the explanations don’t change, because LM15
+works the same way in every language and with every provider. Pick the provider
+your API key belongs to, and a model your account can use.
 
-To get going quickly, try the [playground](/playground/): build a request in your
-browser, send it, and see the code that makes it.
-
-If a coding agent is writing your code, point it to the [LM15 skill](/skill.md)
-or to [`llms.txt`](/llms.txt).
+If you’d rather learn by trying things, the [playground](/playground/) lets you
+build a request in your browser, send it, and see the code that makes it. If a
+coding agent is writing your code, point it to the [LM15 skill](/skill.md) or to
+[`llms.txt`](/llms.txt).
 
 ## The example we’ll build
 

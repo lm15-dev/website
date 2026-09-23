@@ -11,22 +11,23 @@ import TOUR from '../../../data/tour-text.json';
 export const described = captures.described.turns;
 export const vague = captures.vague.turns;
 
-Our wildlife station keeps its own records of what its cameras and observers
-have seen. A model can’t see them. But it can ask your program to look, if you
-offer it a **tool**: a function your program runs on the model’s behalf.
+A model knows a lot, but it knows nothing about your data. It can’t read your
+database, check today’s readings, or look through your records. What it can
+do is ask your program to do those things for it. You describe a function as a
+**tool**; the model asks for it when it needs it; your program runs it and
+sends back the result.
 
-On this page you’ll:
-
-- describe a function as a tool;
-- see the model ask for it instead of answering;
-- run the function yourself and send back the result;
-- write the loop that keeps going until the model answers;
-- see why describing a tool’s inputs matters.
+On this page, you’ll give our wildlife station’s assistant a way to search the
+station’s records. We’ll start by describing a search function as a tool, and
+see the model ask for it. Then we’ll run the search and send back the result,
+and write the loop that keeps going until the model has what it needs. We’ll
+finish with a common mistake: a tool the model can’t use well because its
+inputs aren’t described.
 
 LM15 never runs your functions. It carries the model’s request to your program,
-and your result back to the model. What runs, when, and with which checks is
-decided by your code. The exchanges shown are real: we ran them with
-`gpt-5.6-sol` through OpenAI Codex.
+and your result back to the model; what runs, when, and after which checks is
+up to your code. The exchanges shown are real: we ran them with `gpt-5.6-sol`
+through OpenAI Codex.
 
 ## The station’s records
 
@@ -34,7 +35,7 @@ Four sightings, and a function that searches them by species, place, or date:
 
 <DocsExample recipe="tools-search" />
 
-It’s ordinary code; LM15 isn’t involved yet.
+This is ordinary code; LM15 isn’t involved yet.
 
 ## Describe it as a tool
 
@@ -55,8 +56,8 @@ Ask the station’s question, with the tool in the request:
 <ToolExchange run="described" show="call" />
 
 Instead of text, the model answered with a **tool call**: which tool, and with
-what input. Its finish reason is `tool_call`. Nothing has run: the call is a
-request to your program.
+what input. Its finish reason is `tool_call`. Nothing has run yet: the call is
+a request to your program, and it’s up to your program to act on it.
 
 ## Run it and answer
 
@@ -97,8 +98,8 @@ removed:
 
 The model searched for `{vague[0].calls[0].input.query}`. Our search expects
 just `oak grove`, so it found nothing, and the model reported that the station
-has no sightings there. Nothing failed: every step did what it was asked, and
-the answer is still wrong.
+has no sightings there. This is a subtle but important problem: every step did
+what it was asked, so nothing reported an error, but the answer is wrong.
 
 The model knows only what your description tells it. Describe each input the
 way you would for a new colleague, with an example. And when your function

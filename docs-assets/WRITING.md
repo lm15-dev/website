@@ -89,23 +89,73 @@ on a common problem ("Overplotting"), and examples each preceded by a comment
 saying why it is there. A guide teaches; a reference is looked up. Link to
 the reference rather than list every option in a guide.
 
+### How to open a page
+
+The opening is the most important part of a page. ggplot2's companion book,
+*R for Data Science* (Wickham, Çetinkaya-Rundel, Grolemund,
+<https://r4ds.hadley.nz/>), opens every chapter the same way, and so do we:
+
+1. **A sentence that is true about the reader's work, with a tension in it.**
+   It says why the topic matters before naming it.
+   - "Visualization is an important tool for generating insight, but it's rare
+     that you get the data in exactly the right form you need to make the
+     graph you want." (*Data transformation*)
+   - "Working with data provided by R packages is a great way to learn data
+     science tools, but you want to apply what you've learned to your own data
+     at some point." (*Data import*)
+   - "One of the best ways to improve your reach as a data scientist is to
+     write functions." (*Functions*)
+2. **One plain sentence naming the tool and what it does.** "In this chapter,
+   you will learn a consistent way to organize your data in R using a system
+   called tidy data."
+3. **The route, as prose.** "We'll start by…, then…, next… We'll finish
+   with…". A reader sees the whole page in four sentences.
+4. **Prerequisites,** briefly: what the page builds on, where the answers come
+   from.
+
+Don't open inside the story ("Observers at our station don't write rows"): the
+story comes after the reader knows why they are reading. Don't open with
+"In this guide" or "The goal of this page" unless the next words say something
+worth reading.
+
+Examples on our site: `structured-output.mdx` ("Language models are good at
+reading text written for people… The trouble is that their answers are written
+for people too.") and `function-tools.mdx` ("A model knows a lot, but it knows
+nothing about your data.").
+
 ### Voice
 
-- Talk to the reader as "you"; the authors are "we". Plain, friendly, direct.
-  ggplot2: "You might guess that by substituting `geom_point()` for a
-  different geom function, you'd get a different type of plot. That's a
-  great guess!"
-- Short sentences. One idea per paragraph.
-- The reader knows their programming language. They do not know LM15, and
-  may be new to language-model APIs. A curious sixteen-year-old who can code
-  must be able to follow.
-- Spelling: American English (the existing pages mix both; they will be aligned).
+Write like *R for Data Science* and the ggplot2 book: calm, expository,
+confident, warm. Read two chapters of either before you start.
+
+- Talk to the reader as "you"; the authors are "we". Use contractions.
+- Explain in full sentences that follow from each other. Let the example carry
+  the surprise; state the lesson plainly: "This is a subtle but important
+  problem." "A good rule of thumb is…" "It's important to remember that…"
+- Key ideas as crisp rules, the way *Data tidying* defines tidy data: "Each
+  variable is a column; each column is a variable."
+- A little warmth is welcome ("a bit of a mouthful", "(and more!)"); cleverness
+  isn't.
+- The reader knows their programming language. They do not know LM15, and may
+  be new to language-model APIs. A curious sixteen-year-old who can code must
+  be able to follow.
+- Spelling: American English.
 - No marketing words: never "powerful", "seamless", "robust", "simply",
   "just", "easy". Show instead.
-- No AI tics: no "Let's dive in", no "In this section, we'll explore", no
-  summaries that repeat the page, no rhetorical "Why does this matter?",
-  no lists of three adjectives, no em-dash chains. Write like the ggplot2
-  book does.
+
+**The habits that make text sound machine-written.** Our first drafts had all
+of these; the R4DS and ggplot2 books have none:
+
+- dramatic fragments: "Nothing failed." "Exactly the shape we described."
+  "Not roe, not fallow.";
+- slogans in bold, and aphorisms: "A form with no honest box gets filled in
+  anyway." "A field that must be filled will be filled.";
+- stage directions: "Look again.", "Notice what's missing:", "Keep an eye on
+  those details.", "Hold that thought.";
+- "This isn't X. It's Y." and "Not A, but B" constructions;
+- a colon in every other sentence, and lists of three for rhythm;
+- "Let's dive in", "In this section, we'll explore", summaries that repeat
+  the page, rhetorical "Why does this matter?".
 
 ## The station, so far
 

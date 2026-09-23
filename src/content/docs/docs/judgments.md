@@ -3,12 +3,13 @@ title: "Ask for judgments with probabilities"
 description: Declare the answers you accept — a set of keys, ordered levels, yes/no — and get the pick plus a probability per option, from TypeSafe's Jev natively and from other models honestly.
 ---
 
-Sometimes you don't want a model to write. You want it to *decide*: which of
-these categories, where on a scale you defined, yes or no — for many items,
-with a probability per option you can put in a table. TypeSafe's Jev does
-exactly that natively. Ordinary models can be made to answer the same
-questions. LM15 gives both one request shape and is honest about which
-numbers were measured.
+Sometimes you don't want a model to write, you want it to decide: which
+category something belongs to, where it falls on a scale, yes or no. And you
+often want to know how sure it was, so you can sort the confident answers from
+the doubtful ones, or put the numbers in a table. TypeSafe's Jev answers these
+questions directly, with a probability for every option. Other models can
+answer them too, without the probabilities. LM15 sends both the same request,
+and tells you which numbers were actually measured.
 
 :::note[Status]
 Ratified 2026-09-17 ([contract entry](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-17-judgments.md),
