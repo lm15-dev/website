@@ -3,6 +3,7 @@ import starlight from '@astrojs/starlight';
 import { readFileSync } from 'node:fs';
 import { sidebar } from './navigation.mjs';
 import { socialImageHead } from './social-card.mjs';
+import { codeStyle, codeThemes } from './src/styles/code-theme.mjs';
 
 // Development-only refresh for the standalone playground. None of these routes is published.
 const playgroundDev = {
@@ -44,6 +45,15 @@ export default defineConfig({
       editLink: { baseUrl: 'https://github.com/lm15-dev/website/edit/main/' },
       sidebar,
       customCss: ['./src/styles/docs.css'],
+      // Markdown code blocks in the playground's colours (src/styles/code-theme.mjs).
+      expressiveCode: {
+        themes: codeThemes,
+        // The colours are CSS variables chosen for contrast in theme.css; Expressive Code cannot read them to adjust.
+        minSyntaxHighlightingColorContrast: 0,
+        styleOverrides: codeStyle,
+        // Long lines wrap and continue under their own indent, four columns in, as in the playground (code-view.ts CONTINUATION).
+        defaultProps: { wrap: true, preserveIndent: true, hangingIndent: 4 },
+      },
     }),
     playgroundDev,
   ],

@@ -8,7 +8,7 @@ let timer;
 let restartTimer;
 let restartRequested = false;
 let stopping = false;
-const watcher = watch(['src/playground', 'src/styles/theme.css', 'public', 'sources.json', 'social-card.mjs'], { ignoreInitial: true });
+const watcher = watch(['src/playground', 'src/styles/theme.css', 'src/styles/code.css', 'public', 'sources.json', 'social-card.mjs'], { ignoreInitial: true });
 const navigationWatcher = watch(['navigation.mjs', 'social-card.mjs', 'src/content/docs'], { ignoreInitial: true });
 
 function startAstro() {

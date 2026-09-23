@@ -39,6 +39,7 @@ export function buildPlayground() {
   }
   copy(join(root, 'src/playground/app.css'), 'playground/app.css');
   copy(join(root, 'src/styles/theme.css'), 'playground/theme.css');
+  copy(join(root, 'src/styles/code.css'), 'playground/code.css');
   const wheels = readdirSync(join(sdk, 'runtime')).filter(name => /^lm15-.*-py3-none-any\.whl$/.test(name));
   if (wheels.length !== 1) throw new Error('Expected one Python wheel');
   copy(join(sdk, 'runtime', wheels[0]), 'vendor/python/lm15.whl');

@@ -1,6 +1,7 @@
 import { DEFAULT_SELECTION, LANGUAGES, PROVIDERS, RECIPES, readSelection, refreshModels, validModel, type DocSelection, type Recipe } from '../data/docs-examples';
 
 import { setupPickers } from './home-example/picker';
+import { renderCode } from '../playground/code-view';
 
 const languageKey = 'lm15-docs-language';
 let selection: DocSelection = { ...DEFAULT_SELECTION };
@@ -45,7 +46,7 @@ function render(): void {
       ? `MissingCredentialError: no API key found for provider '${provider.id}'.\nSet ${env} in the environment, or pass\nRouterConfig(api_keys={'${provider.id}': "..."}).` : '';
   }
   for (const root of document.querySelectorAll<HTMLElement>('[data-docs-example]')) {
-    root.querySelector('[data-doc-source]')!.textContent = RECIPES[root.dataset['recipe'] as Recipe](selection);
+    renderCode(root.querySelector<HTMLElement>('[data-doc-source]')!, RECIPES[root.dataset['recipe'] as Recipe](selection));
     root.querySelector('[data-doc-status]')!.textContent = '';
   }
 }

@@ -25,18 +25,19 @@
   --lm-code-api-dark: #ffaf70;
   --lm-code-api: var(--lm-code-api-light);
 
-  /* Cool blue/teal code colors, with warm amber separating numeric values.
-     Keep the same token meanings in both code panels; brightness changes by mode. */
-  --lm-code-string-light: #006b70;
-  --lm-code-string-dark: #86d9d0;
-  --lm-code-number-light: #9c4f16;
-  --lm-code-number-dark: #e8b581;
-  --lm-code-comment-light: #5f6f86;
-  --lm-code-comment-dark: #a0afc3;
-  --lm-code-keyword: var(--lm-accent);
-  --lm-code-string: var(--lm-code-string-light);
-  --lm-code-number: var(--lm-code-number-light);
-  --lm-code-comment: var(--lm-code-comment-light);
+  /* Every code panel (playground, docs examples, docs code blocks): its
+     ground, its ink, and the grey for comments and language plumbing.
+     Values take --lm-accent and LM15's calls --lm-code-api (code.css). */
+  --lm-code-bg-light: #fafcfb;
+  --lm-code-bg-dark: #111914;
+  --lm-code-ink-light: #111;
+  --lm-code-ink-dark: #e5e5e5;
+  --lm-code-muted-light: #666;
+  --lm-code-muted-dark: #aaa;
+  --lm-code-bg: var(--lm-code-bg-light);
+  --lm-code-ink: var(--lm-code-ink-light);
+  --lm-code-muted: var(--lm-code-muted-light);
+  --lm-code-font: ui-monospace, "SFMono-Regular", Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -45,9 +46,9 @@
     --lm-accent-soft: var(--lm-accent-soft-dark);
     --lm-accent-strong: var(--lm-accent-strong-dark);
     --lm-code-api: var(--lm-code-api-dark);
-    --lm-code-string: var(--lm-code-string-dark);
-    --lm-code-number: var(--lm-code-number-dark);
-    --lm-code-comment: var(--lm-code-comment-dark);
+    --lm-code-bg: var(--lm-code-bg-dark);
+    --lm-code-ink: var(--lm-code-ink-dark);
+    --lm-code-muted: var(--lm-code-muted-dark);
   }
 }
 
@@ -57,7 +58,7 @@
   --lm-accent-soft: var(--lm-accent-soft-dark);
   --lm-accent-strong: var(--lm-accent-strong-dark);
   --lm-code-api: var(--lm-code-api-dark);
-  --lm-code-string: var(--lm-code-string-dark);
-  --lm-code-number: var(--lm-code-number-dark);
-  --lm-code-comment: var(--lm-code-comment-dark);
+  --lm-code-bg: var(--lm-code-bg-dark);
+  --lm-code-ink: var(--lm-code-ink-dark);
+  --lm-code-muted: var(--lm-code-muted-dark);
 }

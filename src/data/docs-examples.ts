@@ -1,4 +1,5 @@
-import { LANGUAGES, PROVIDERS as HOME_PROVIDERS, exampleSource, type Language } from '../components/home-example/examples';
+import { LANGUAGES, PROVIDERS as HOME_PROVIDERS, exampleCode, type Language } from '../components/home-example/examples';
+import type { Code } from '../playground/marks';
 
 import savedCatalog from './models-catalog.json';
 import { fetchCatalog, isModelId, recentModels } from './model-catalog';
@@ -32,9 +33,10 @@ export const SETUP: Record<Language, { href: string; text: string }> = {
 
 // Each recipe supplies separately written language versions. Provider and model
 // are data inputs; prose and arbitrary source code are never search-and-replaced.
+// A recipe returns marked code (playground/marks.ts), so the docs colour it as the playground does.
 export const RECIPES = {
-  'first-request': (selection: DocSelection) => exampleSource(selection.language, selection.provider || 'provider', selection.model || 'model'),
-};
+  'first-request': (selection: DocSelection) => exampleCode(selection.language, selection.provider || 'provider', selection.model || 'model'),
+} satisfies Record<string, (selection: DocSelection) => Code>;
 export type Recipe = keyof typeof RECIPES;
 
 export function validModel(value: string): boolean {

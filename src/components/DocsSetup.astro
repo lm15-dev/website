@@ -51,7 +51,7 @@ const { step } = Astro.props;
     <p>On macOS or Linux, run the command below in the terminal where you’ll run
       your code. Replace <code>your-api-key</code> with your own key.</p>
     <p data-doc-key-prompt>Choose a provider above to fill in the variable name below.</p>
-    <pre><code data-doc-key-posix>export YOUR_PROVIDER_API_KEY="your-api-key"</code></pre>
+    <pre class="lm-code"><code data-doc-key-posix>export YOUR_PROVIDER_API_KEY="your-api-key"</code></pre>
     <details>
       <summary>First time setting an environment variable?</summary>
       <p>An environment variable is a named value your terminal passes to the
@@ -59,9 +59,9 @@ const { step } = Astro.props;
         don’t need to put it in your code.</p>
       <p>The command above works in Bash and Zsh, the usual shells on macOS and
         Linux. In Windows PowerShell, use:</p>
-      <pre><code data-doc-key-powershell>$env:YOUR_PROVIDER_API_KEY = "your-api-key"</code></pre>
+      <pre class="lm-code"><code data-doc-key-powershell>$env:YOUR_PROVIDER_API_KEY = "your-api-key"</code></pre>
       <p>In Windows Command Prompt, use:</p>
-      <pre><code data-doc-key-cmd>set YOUR_PROVIDER_API_KEY=your-api-key</code></pre>
+      <pre class="lm-code"><code data-doc-key-cmd>set YOUR_PROVIDER_API_KEY=your-api-key</code></pre>
       <p>These commands apply to the current terminal. Run your example from that
         same terminal; set the key again when you open a new one. An already-open
         notebook or editor won’t automatically pick it up.</p>
@@ -80,7 +80,7 @@ const { step } = Astro.props;
         <summary>Forgot to set the key?</summary>
         <p>Python reports which provider needs a key and which variable to set.
           For your selected provider, the message begins:</p>
-        <pre><code data-doc-key-error-source></code></pre>
+        <pre class="lm-code"><code data-doc-key-error-source></code></pre>
         <p>Set the named variable, then run your code again from the same terminal.</p>
       </details>
     </div>
@@ -91,5 +91,5 @@ const { step } = Astro.props;
   [hidden] { display: none !important; }
   details { margin-block: 1rem; }
   summary { cursor: pointer; font-weight: 600; }
-  pre { overflow-x: auto; }
+  pre.lm-code { overflow-x: auto; padding: .75rem 1rem; border: 1px solid var(--sl-color-gray-5); font-size: var(--sl-text-code, .875rem); }
 </style>

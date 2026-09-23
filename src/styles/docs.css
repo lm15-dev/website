@@ -1,4 +1,5 @@
 @import './theme.css';
+@import './code.css';
 
 :root {
   --sl-color-accent-low: var(--lm-accent-soft);

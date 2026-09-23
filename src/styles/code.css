@@ -1,0 +1,27 @@
+/* Code as the playground shows it, shared with the docs.
+   A generator marks what its code means (src/playground/marks.ts) and these
+   classes colour it: the reader's values in the brand blue, LM15's calls in
+   its warm complement, comments and language plumbing in grey, the rest ink.
+   The docs' Markdown code blocks take the same colours by syntax
+   (code-theme.mjs). Colours live in theme.css. */
+
+.lm-code {
+  color: var(--lm-code-ink);
+  background: var(--lm-code-bg);
+  font-family: var(--lm-code-font);
+  line-height: 1.8;
+  tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lm-code code { font: inherit; color: inherit; background: none; padding: 0; }
+/* One block per source line, each keeping its newline so the text copies exactly:
+   a wrapped line continues under its own indent (code-view.ts). */
+.lm-code .line { display: block; min-height: 1.8em; padding-left: calc(var(--indent, 0) * 1ch); text-indent: calc(var(--indent, 0) * -1ch); }
+
+.tok-value { color: var(--lm-accent); }
+.tok-api { color: var(--lm-code-api); }
+.tok-comment { color: var(--lm-code-muted); font-style: italic; }
+.tok-dim { color: var(--lm-code-muted); }
+.tok-dim .tok-comment { color: inherit; }
+.tok-opaque { color: var(--lm-code-muted); }

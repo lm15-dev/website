@@ -1,4 +1,5 @@
 import { CONNECTIONS } from '../../playground/connections';
+import { api, comment, dim, finish, plain, val, type Code } from '../../playground/marks';
 
 export const LANGUAGES = [
   { id: 'python', label: 'Python', file: 'example.py' },
@@ -30,47 +31,51 @@ export const PROVIDERS = CONNECTIONS.filter(choice => choice.env && !('judgments
 
 export const INITIAL = { language: 'python' as Language, provider: 'provider', model: 'model' };
 const MODEL = '«model»';
-const prompt = 'Explain why the sky is blue.';
+const prompt = val('Explain why the sky is blue.');
 
-/** Real router APIs: only the provider:model string changes between providers. */
-export function exampleParts(language: Language): [string, string] {
+/**
+ * Real router APIs: only the provider:model string changes between providers.
+ * Marked as the playground marks its code (marks.ts): LM15's calls, the values
+ * a reader chose, comments, and the language's plumbing.
+ */
+function markedExample(language: Language): string {
   const examples: Record<Language, string> = {
-    python: `from lm15 import LMRouter, Message, Request
+    python: `${dim('from lm15 import LMRouter, Message, Request')}
 
-router = LMRouter()
-response = router.complete(Request(
+router = ${api('LMRouter')}()
+response = ${api('router.complete')}(${api('Request')}(
     model="${MODEL}",
-    messages=(Message.user("${prompt}"),),
+    messages=(${api('Message.user')}("${prompt}"),),
 ))
 
 print(response.text)`,
-    typescript: `import { LMRouter, Message } from "lm15";
+    typescript: `${dim('import { LMRouter, Message } from "lm15";')}
 
-const router = new LMRouter();
-const response = await router.complete({
+const router = new ${api('LMRouter')}();
+const response = await ${api('router.complete')}({
   model: "${MODEL}",
-  messages: [Message.user("${prompt}")],
+  messages: [${api('Message.user')}("${prompt}")],
 });
 
 console.log(response.text);`,
-    rust: `use lm15::{LMRouter, Message, Request};
+    rust: `${dim('use lm15::{LMRouter, Message, Request};')}
 
-// Dependencies: lm15, tokio (macros, rt-multi-thread)
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let router = LMRouter::new();
-    let request = Request {
+${comment('// Dependencies: lm15, tokio (macros, rt-multi-thread)')}
+${dim(`#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {`)}
+    let router = ${api('LMRouter::new')}();
+    let request = ${api('Request')} {
         model: "${MODEL}".into(),
-        messages: vec![Message::user(
+        messages: vec![${api('Message::user')}(
             "${prompt}"
         )?],
-        ..Default::default()
+        ${dim('..Default::default()')}
     };
-    let response = router.complete(&request).await?;
-    println!("{}", response.text().unwrap_or_default());
-    Ok(())
-}`,
-    go: `package main
+    let response = ${api('router.complete')}(&request).await?;
+    println!("{}", response.${api('text')}().unwrap_or_default());
+${dim(`    Ok(())
+}`)}`,
+    go: `${dim(`package main
 
 import (
     "context"
@@ -78,47 +83,56 @@ import (
     lm15 "github.com/lm15-dev/lm15-go"
 )
 
-func main() {
-    router := lm15.NewRouter()
-    response, err := router.Complete(context.Background(),
-        &lm15.Request{
+func main() {`)}
+    router := ${api('lm15.NewRouter')}()
+    response, err := ${api('router.Complete')}(context.Background(),
+        &${api('lm15.Request')}{
             Model: "${MODEL}",
-            Messages: []lm15.Message{
-                lm15.UserMessage("${prompt}"),
+            Messages: []${api('lm15.Message')}{
+                ${api('lm15.UserMessage')}("${prompt}"),
             },
         })
-    if err != nil {
+${dim(`    if err != nil {
         panic(err)
-    }
-    fmt.Println(response.TextOr(""))
-}`,
-    r: `library(lm15)
+    }`)}
+    fmt.Println(response.${api('TextOr')}(""))
+${dim('}')}`,
+    r: `${dim('library(lm15)')}
 
-router <- new_router()
-req <- request(
+router <- ${api('new_router')}()
+req <- ${api('request')}(
   "${MODEL}",
-  list(message_user("${prompt}"))
+  list(${api('message_user')}("${prompt}"))
 )
-response <- complete(router, req)
+response <- ${api('complete')}(router, req)
 
-response_text(response)`,
-    julia: `using LM15
+${api('response_text')}(response)`,
+    julia: `${dim('using LM15')}
 
-router = LMRouter()
-req = Request(
+router = ${api('LMRouter')}()
+req = ${api('Request')}(
     "${MODEL}",
-    user("${prompt}")
+    ${api('user')}("${prompt}")
 )
-response = complete(router, req)
+response = ${api('complete')}(router, req)
 
-println(text(response))`,
+println(${api('text')}(response))`,
   };
-  const [before, after] = examples[language].split(MODEL);
+  return examples[language];
+}
+
+/** The plain source around the model string, for the homepage's inline provider and model controls. */
+export function exampleParts(language: Language): [string, string] {
+  const [before, after] = plain(markedExample(language)).split(MODEL);
   // The editable field renders the quotes too, so they stay attached on narrow screens.
   return [before!.slice(0, -1), after!.slice(1)];
 }
 
+/** The example with its marks, for code shown the way the playground shows it. `provider:model` is the reader's value. */
+export function exampleCode(language: Language, provider: string, model: string): Code {
+  return finish(markedExample(language).replace(MODEL, val(`${provider}:${model}`, 'model')));
+}
+
 export function exampleSource(language: Language, provider: string, model: string): string {
-  const [before, after] = exampleParts(language);
-  return `${before}"${provider}:${model}"${after}`;
+  return exampleCode(language, provider, model).text;
 }
