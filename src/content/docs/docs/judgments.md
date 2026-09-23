@@ -12,8 +12,8 @@ numbers were measured.
 
 :::note[Status]
 Ratified 2026-09-17 ([contract entry](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-17-judgments.md),
-mapping rule MAP-14). Implemented in the Python reference; the TypeScript
-port carries the data types so far, the other ports follow.
+mapping rule MAP-14). Implemented in Python, TypeScript, Rust, and Go. The
+examples on this page are in Python for now.
 :::
 
 ## Describe the answers as a schema

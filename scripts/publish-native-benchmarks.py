@@ -99,7 +99,9 @@ def main():
             if language=='rust': links=f'[source]({base}/src/main.rs) · [manifest]({base}/Cargo.toml) · [lockfile]({base}/Cargo.lock)'
             else: links=f'[source]({base}/main.go) · [module]({base}/go.mod)'
             lines.append(f"- {record['label']}: {links}")
-        lines+=['','Run the coordinator through `rcargo run` from `website/benchmarks/native/`. Use a fresh server work directory and the exact input snapshots recorded with the run. See the repository’s `benchmarks/native/README.md` for the workflow. Reproducing the LM15 Go row requires the retained working-tree snapshot; checking out its base commit is not equivalent.','']
+        lm15_row=('Reproducing the LM15 Go row requires the retained working-tree snapshot; checking out its base commit is not equivalent.'
+                  if language=='go' else 'The LM15 row is built from the Rust commit linked above.')
+        lines+=['','Run the coordinator through `rcargo run` from `website/benchmarks/native/`. Use a fresh server work directory and the exact input snapshots recorded with the run. See the repository’s `benchmarks/native/README.md` for the workflow. '+lm15_row,'']
         report=ROOT/f'src/content/docs/docs/benchmarks/{language}.md'; report.parent.mkdir(parents=True,exist_ok=True); report.write_text('\n'.join(lines))
     text="// Measured server data. Regenerate with scripts/publish-native-benchmarks.py.\nimport type { BenchmarkSuite } from './benchmarks';\n\n"
     for language,suite in suites.items(): text+=f'export const {language.upper()}_BENCHMARKS = '+json.dumps(suite,indent=2,ensure_ascii=False)+' satisfies BenchmarkSuite;\n\n'

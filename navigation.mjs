@@ -72,7 +72,13 @@ export const sidebar = [
   ] },
   { label: 'Project', items: [
     { label: 'About LM15', slug: 'about' },
-    { label: 'Benchmarks', slug: 'benchmarks' },
+    { label: 'Benchmarks', items: [
+      { label: 'Overview', slug: 'benchmarks' },
+      { label: 'Python', slug: 'docs/benchmarks/python' },
+      { label: 'TypeScript on Node.js', slug: 'docs/benchmarks/node' },
+      { label: 'Rust', slug: 'docs/benchmarks/rust' },
+      { label: 'Go', slug: 'docs/benchmarks/go' },
+    ] },
     { label: 'Releases', slug: 'releases' },
     { label: 'Shared contract', link: 'https://github.com/lm15-dev/lm15-contract' },
     { label: 'Contributing', slug: 'contributing' },
