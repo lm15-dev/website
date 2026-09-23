@@ -1,0 +1,197 @@
+---
+title: Get structured output
+description: Turn wildlife field notes into sighting records your program can use, and learn how a schema can force a wrong answer.
+---
+
+import DocsExample from '../../../components/DocsExample.astro';
+import CapturedAnswer from '../../../components/CapturedAnswer.astro';
+
+At the wildlife station, observers write what they saw in their own words.
+The station keeps sightings as records. To add a note to those records, you
+need an answer your program can read: a species, a count, and a place for
+each sighting.
+
+In this guide, you’ll turn one note into records. Then you’ll try a note that
+doesn’t fit the allowed places, see what goes wrong, and change the schema so
+the model can give an honest answer.
+
+Choose your language, provider, and model at the top of the page. The code
+follows your selection. The answers below are **real recordings** from
+`gpt-5.6-sol` through OpenAI Codex on 23 September 2026, not promises of what
+your model will say. If you’re following along, run the snippets in order:
+later snippets reuse names from earlier ones.
+
+## Start with the field note
+
+A camera at the stream caught three badgers overnight and a fox before dawn.
+Here is the observer’s note:
+
+<DocsExample recipe="so-note" />
+
+Ask the model to turn it into records, without saying what a record should
+look like:
+
+<DocsExample recipe="so-plain" />
+
+<CapturedAnswer set="structured-output" step="plain" />
+
+The table tells a *person* about the badgers and fox. But a program would
+have to find the table, decide which row is which, and make sense of columns
+the model chose for itself. Another answer might not be a table at all. We
+need to describe the answer’s shape before asking for it.
+
+## Describe a record
+
+A **schema** describes which fields an answer must have and what can go in
+them. We want a list called `sightings`. Each item has a species name, an
+integer count, and a place chosen from the station’s three named areas:
+
+<DocsExample recipe="so-schema" />
+
+The outer object has `sightings`; its value is an array. Each item in that
+array is an object with three required fields. `additionalProperties: false`
+means the model cannot add fields we haven’t named. The examples set
+`strict: true` when requesting the answer, asking a provider that supports
+it to follow this schema exactly.
+
+Notice what the schema does **not** include: the badger’s limp or the time
+of either sighting. They appeared in the table but have nowhere to go in
+this record. Add fields for details you need to keep. A schema is a choice
+about what to preserve, not only how to format it.
+
+Nor do we ask the model for the filing date. The station already knows when
+it received the note; your program can attach that date itself.
+
+## Ask for that shape
+
+Send the same note again, this time putting the schema in the request’s
+answer format:
+
+<DocsExample recipe="so-ask" />
+
+<CapturedAnswer set="structured-output" step="ask" />
+
+This time the answer has exactly the list we asked for: three badgers and
+one fox, both at the stream. The model used 41 output tokens, rather than
+131 for the earlier table. That is what happened in these two runs; a
+schema is not a general promise to save tokens.
+
+The answer is JSON text on this connection. LM15 also lets you read its
+parsed data, without scraping text or stripping a code fence. Use it:
+
+<DocsExample recipe="so-use" />
+
+The program can now work with two sightings, rather than with a paragraph
+that happens to contain their names. In Go the example reads into a struct;
+the other languages read the same fields from the parsed data.
+
+## What if a note doesn’t fit?
+
+Try a different note. An owl was calling from the **old barn roof**; two
+hares were in the barn field:
+
+<DocsExample recipe="so-note-barn" />
+
+Keep the three-place schema and run the request from *Ask for that shape*
+again:
+
+<CapturedAnswer set="structured-output" step="trap" />
+
+The answer has the right fields and an allowed place for each animal. But
+the owl was **not** at the oak grove. That place came from the schema, not
+the note. The barn roof was not an available answer, so the model supplied
+one that was. There was no parsing error to warn us.
+
+This is the difference between **a valid record** and **a true record**.
+Checking the shape can catch a missing count or an invalid place name. It
+cannot tell you whether the place actually matches the observation.
+
+## Give it a way to say “none of these”
+
+Change one part of the schema: add `other` to the allowed places.
+
+<DocsExample recipe="so-schema-other" />
+
+With the barn note still in `note`, run the request again:
+
+<CapturedAnswer set="structured-output" step="fixed" />
+
+The owl is now under `other`, not at a location where it was never seen.
+The hares are under `meadow` in this recorded answer; another model chose
+`other` for “barn field.” Adding an escape hatch stopped the forced guess
+about the roof, but it did **not** define where a barn field belongs. If
+that distinction matters, define the places more carefully, or keep the
+observer’s original location in a separate field. Do not treat `other` as
+an exact location.
+
+The same principle applies to species. In another recorded note, the
+observer could not tell whether two deer were roe or fallow. The model
+returned `"deer"`, not a guessed species. If your schema offers only
+`"roe deer"` and `"fallow deer"`, it may force the guess the note avoided.
+
+## Put the pieces together
+
+Here is one complete program: the schema with `other`, the first field
+note, the request, and code that reads each sighting. Copy it as one piece
+rather than assembling the earlier snippets:
+
+<DocsExample recipe="so-program" />
+
+You can change the note while keeping the same schema. Check the records
+before you save them: a response in the requested shape is still a model’s
+reading of an observation.
+
+## Check what your provider did
+
+An LM15 request can describe this shape across providers; that doesn’t mean
+every provider can enforce it. In the recorded calls on 23 September 2026,
+OpenAI, Anthropic, Gemini, and an OpenAI model through OpenRouter returned
+the requested sighting shape. DeepSeek returned an error: it did not accept
+this `json_schema` format. Z.AI returned Markdown when called through
+Python: LM15 recorded that the schema was dropped, rather than pretending
+it had been enforced.
+
+The Z.AI outcome differs among LM15 languages today. R and Julia **refuse**
+the unsupported schema before sending; Python and TypeScript **record that
+they dropped it**. Either way, don’t save the answer as a sighting record on
+the assumption that the provider honored the schema. Check what happened
+for your provider and SDK. These are observations about the named models and
+SDK versions, not a claim about every model offered by each provider.
+
+Some providers offer an “any JSON” mode too. It asks for JSON, not *your*
+fields. With that mode, DeepSeek returned valid JSON whose fields included
+`location` and `notes`, not this page’s `place`. Choose it when any JSON is
+what you want, not as a substitute for checking the shape of a station
+record.
+
+## Try it yourself
+
+Predict before you run each change.
+
+1. Leave `other` in the schema and use the deer note from the station. What
+   should the species field say if the note can’t distinguish roe from fallow?
+2. Remove `additionalProperties: false` from the item schema. What extra
+   details might the model include? Would that preserve the limp? Would your
+   program be ready to store the extra field?
+3. Keep the original three places. Would a validator catch the owl’s wrong
+   location? What could catch it instead?
+
+<details>
+<summary>What to expect</summary>
+
+1. “Deer” is supported by the note; choosing roe or fallow is not. The
+   recorded run answered `"deer"`.
+2. The shape would permit extra fields, but it would not require the model
+   to include them. Decide which details matter, name those fields in the
+   schema, then check the answer before storing it.
+3. No. “Oak grove” is an allowed value, so the record passes the schema.
+   The note itself, or a person checking the record against it, supplies
+   the missing evidence.
+
+</details>
+
+## Next
+
+If you need a model to pick from named answers rather than extract a record,
+[ask for judgments with probabilities](/docs/judgments/). The choice, a
+scale, or a yes/no answer is also structured data, with a different job.
