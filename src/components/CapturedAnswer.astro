@@ -2,6 +2,7 @@
 // One real answer recorded by a scripts/capture-*.py script, shown as it came back.
 import firstRequest from '../data/first-request-captures.json';
 import structuredOutput from '../data/structured-output-captures.json';
+import { readableText } from '../data/readable-json.ts';
 
 /** The recordings a page can show: `set` names the file, `step` the answer in it. */
 const SETS = { 'first-request': firstRequest, 'structured-output': structuredOutput } as const;
@@ -18,14 +19,16 @@ const answer = (captures.steps as Record<string, unknown>)[step] as { text?: str
 if (!answer) throw new Error(`CapturedAnswer: no step ${step} in ${set}`);
 const [provider, model] = captures.model.split(':');
 const label = provider === 'openai-codex' ? 'OpenAI Codex' : provider;
-const date = new Date(`${captures.date}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const date = new Date(`${captures.date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const count = (n: number | null | undefined) => (n == null ? 'not reported' : n.toLocaleString('en'));
+// JSON answers are laid out for reading (only whitespace changes); other answers as they came.
+const shown = readableText(answer.text ?? '');
 ---
 <figure class="captured not-content">
   <figcaption>{show === 'error' ? 'What LM15 raised' : show === 'facts' ? 'The rest of that answer' : 'What came back'} <span>{model} through {label}, {date}</span></figcaption>
   {show === 'error'
     ? <pre class="captured-text">{answer.error}</pre>
-    : show !== 'facts' && <pre class="captured-text">{answer.text}</pre>}
+    : show !== 'facts' && <pre class="captured-text">{shown}</pre>}
   {(show === 'read' || show === 'facts') && (
     <dl class="captured-facts">
       <div><dt>finish reason</dt><dd>{answer.finish_reason}</dd></div>

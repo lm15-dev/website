@@ -64,6 +64,11 @@ wildlife research station. Turn each field note into sighting records."
 
 ## Run, not recorded
 
+- The plain answer's layout is not stable: an earlier run of the same request
+  (same model) produced a table with the columns Species, Count, Time
+  observed, Location, Notes; the recorded one has Species, Count, Time
+  observed, Condition/notes, Detection method.
+
 - The fix across models (barn note, with "other"): gpt-5.6-sol, gpt-5-mini,
   claude-haiku-4-5 and gemini-2.5-flash all put the owl under "other". The
   hares split: meadow (gpt-5.6-sol, claude-haiku-4-5), other (gpt-5-mini,
@@ -74,13 +79,13 @@ wildlife research station. Turn each field note into sighting records."
 
 ## Differences between languages
 
-- **A provider that would ignore the schema (Z.AI):** Python and TypeScript
-  drop it and record an adaptation on the response (`response.adaptations`);
-  both checked. R and Julia refuse before sending (checked offline:
-  R: "zai: JSON schema output cannot be represented by this provider's wire
-  format."; Julia: "JSON schema enforcement cannot be carried by this
-  provider (zai)"). Rust and Go implement the same adaptation rule as Python
-  and TypeScript; not checked for this case.
+- **A provider that would ignore the schema (Z.AI):** Python, TypeScript,
+  Rust and Go drop it and record an adaptation on the response; all four
+  checked (Python live; TypeScript, Rust and Go with the router's offline
+  `plan`, at the website's pinned versions). R and Julia refuse before
+  sending (checked offline: R: "zai: JSON schema output cannot be represented
+  by this provider's wire format."; Julia: "JSON schema enforcement cannot be
+  carried by this provider (zai)").
 - **Adaptations on the response:** Python, TypeScript, Rust, Go carry them.
   R and Julia have none. A page must not tell R or Julia readers to read them.
 - **The example's code differences** (in `code.md`): Go fills a typed struct
