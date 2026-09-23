@@ -341,8 +341,8 @@ export function examplePython(connection: Connection, settings: Settings, messag
   lines.push("", ...client.lines, "", `request = ${api("Request")}(`, `    model=${qv(connection.model, "model")},`);
   if (settings.system.trim()) lines.push(`    system=${qv(settings.system.trim(), "system")},`);
   if (messages.length) {
-    lines.push("    messages=(", ...messages.flatMap((m, i) => pyMessage(m, i, "        ")), `        ${api("Message.user")}(${qv(prompt, "draft")}),`, "    ),");
-  } else lines.push(`    messages=(${api("Message.user")}(${qv(prompt, "draft")}),),`);
+    lines.push("    messages=[", ...messages.flatMap((m, i) => pyMessage(m, i, "        ")), `        ${api("Message.user")}(${qv(prompt, "draft")}),`, "    ],");
+  } else lines.push(`    messages=[${api("Message.user")}(${qv(prompt, "draft")})],`);
   lines.push(...configLines(settings, "python"), ")", "");
   if (streamed) lines.push(`result = ${api("AsyncResponseStream")}(${api("lm.stream")}(request), request)  ${comment("# Stop closes the stream")}`, `async for ${chunk} in result:`, `    print(${chunk}, end="", flush=True)`, "", comment("# Keep the reply for the next turn."), `response = await ${api("result.response")}()`);
   else lines.push(`response = await ${api("lm.complete")}(request)  ${comment("# one piece: this API has no stream")}`);

@@ -45,7 +45,7 @@ function markedExample(language: Language): string {
 router = ${api('LMRouter')}()
 response = ${api('router.complete')}(${api('Request')}(
     model="${MODEL}",
-    messages=(${api('Message.user')}("${prompt}"),),
+    messages=[${api('Message.user')}("${prompt}")],
 ))
 
 print(response.text)`,

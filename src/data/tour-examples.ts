@@ -62,8 +62,8 @@ const python: Writer = {
     `request = ${api('Request')}(`,
     `    model=${q(model)},`,
     ...(p.system ? [`    system=${q(TOUR.system)},`] : []),
-    `    messages=(${api('Message.user')}(${q(TOUR.prompt)}),),`,
-    ...(p.tools ? [`    tools=(${api('tool')}(${TOUR.tool}),),`] : []),
+    `    messages=[${api('Message.user')}(${q(TOUR.prompt)})],`,
+    ...(p.tools ? [`    tools=[${api('tool')}(${TOUR.tool})],`] : []),
     ...(p.config ? [`    config=${api('Config')}(max_tokens=${val(String(TOUR.maxTokens))}),`] : []),
     ')',
   ].join('\n'),
@@ -270,7 +270,7 @@ const julia: Writer = {
   request: (model, p) => {
     const options = [
       ...(p.system ? [`system=${q(TOUR.system)}`] : []),
-      ...(p.tools ? ['tools=(sightings_tool,)'] : []),
+      ...(p.tools ? ['tools=[sightings_tool]'] : []),
       ...(p.config ? [`config=${api('Config')}(max_tokens=${val(String(TOUR.maxTokens))})`] : []),
     ];
     const user = `    ${api('user')}(${q(TOUR.prompt)})`;

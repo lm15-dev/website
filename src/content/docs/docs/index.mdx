@@ -101,6 +101,11 @@ types of its inputs. In the other languages, you write them out: a running
 program can’t see the types of a function’s inputs. Either way, the model
 receives a name, a description, and a schema.
 
+In Python and Julia, the function itself doesn’t go into the request: you turn it
+into a tool first. A request holds only data, so you can print it, save it, or
+compare it, and what it holds is exactly what the model receives. Your function
+stays yours, ready to run when the model asks for it.
+
 Offering a tool doesn’t make the model use it. If it wants to, it answers with a **tool call** instead of text:
 the name and the input. Your program decides whether to run it, then sends the
 result back in the next request.
