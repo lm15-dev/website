@@ -54,16 +54,21 @@ const q = (text: string) => `"${val(text)}"`;
 const indent = (text: string, by: string) => text.split('\n').map(line => (line ? by + line : line)).join('\n');
 
 const python: Writer = {
-  // tool(fn) reads the name, the docstring's first line and the type hints: the same tool the other languages write out.
-  tool: () => `def ${TOUR.tool}(query: str) -> list[dict]:
-    """${val(TOUR.toolDescription)}"""
-    return []  ${comment("# look up your station's records here")}`,
+  tool: () => `${TOUR.tool} = ${api('FunctionTool')}(
+    name=${q(TOUR.tool)},
+    description=${q(TOUR.toolDescription)},
+    parameters={
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"],
+    },
+)`,
   request: (model, p) => [
     `request = ${api('Request')}(`,
     `    model=${q(model)},`,
     ...(p.system ? [`    system=${q(TOUR.system)},`] : []),
     `    messages=[${api('Message.user')}(${q(TOUR.prompt)})],`,
-    ...(p.tools ? [`    tools=[${api('tool')}(${TOUR.tool})],`] : []),
+    ...(p.tools ? [`    tools=[${TOUR.tool}],`] : []),
     ...(p.config ? [`    config=${api('Config')}(max_tokens=${val(String(TOUR.maxTokens))}),`] : []),
     ')',
   ].join('\n'),
@@ -79,7 +84,7 @@ for text in stream:
 print()
 print(stream.usage.output_tokens, "tokens")`,
   program: (body, uses) => {
-    const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['tool'] : [])].sort();
+    const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['FunctionTool'] : [])].sort();
     return `${dim(`from lm15 import ${names.join(', ')}`)}\n\n${body}`;
   },
 };
@@ -260,17 +265,19 @@ response$usage$output_tokens`,
 };
 
 const julia: Writer = {
-  // @tool reads the name and typed inputs from the definition (and adds "additionalProperties": false).
-  tool: () => `sightings_tool = ${api('@tool')}(
-    ${q(TOUR.toolDescription)},
-    function ${TOUR.tool}(query::String)
-        return []  ${comment("# look up your station's records here")}
-    end,
+  tool: () => `${TOUR.tool} = ${api('FunctionTool')}(
+    name=${q(TOUR.tool)},
+    description=${q(TOUR.toolDescription)},
+    parameters=Dict(
+        "type" => "object",
+        "properties" => Dict("query" => Dict("type" => "string")),
+        "required" => ["query"],
+    ),
 )`,
   request: (model, p) => {
     const options = [
       ...(p.system ? [`system=${q(TOUR.system)}`] : []),
-      ...(p.tools ? ['tools=[sightings_tool]'] : []),
+      ...(p.tools ? [`tools=[${TOUR.tool}]`] : []),
       ...(p.config ? [`config=${api('Config')}(max_tokens=${val(String(TOUR.maxTokens))})`] : []),
     ];
     const user = `    ${api('user')}(${q(TOUR.prompt)})`;

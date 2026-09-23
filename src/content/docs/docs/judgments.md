@@ -25,8 +25,8 @@ declare their answer set. Three shapes count:
 - `type: boolean` — **yes/no**
 - an integer `enum` `0..n-1` (or `anyOf` of `const` with `title`/`description`) — **ordered levels**
 
-The helpers only emit that schema, the way `tool(fn)` emits a tool schema.
-A hand-written `{"enum": ["a", "b"]}` already qualifies.
+The helpers only emit that schema. A hand-written `{"enum": ["a", "b"]}`
+already qualifies.
 
 ```python
 from lm15 import LMRouter, Request, Message, Config, judgments, choice, score, yes_no
