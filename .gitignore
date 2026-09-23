@@ -13,3 +13,4 @@ examples/rust/target/
 benchmarks/native/inputs/
 benchmarks/native/target/
 benchmarks/native/__pycache__/
+.docs-run-*/

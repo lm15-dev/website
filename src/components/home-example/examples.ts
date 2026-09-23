@@ -1,5 +1,5 @@
-import { CONNECTIONS } from '../../playground/connections';
-import { api, comment, dim, finish, plain, val, type Code } from '../../playground/marks';
+import { CONNECTIONS } from '../../playground/connections.ts';
+import { api, comment, dim, finish, plain, val, type Code } from '../../playground/marks.ts';
 
 export const LANGUAGES = [
   { id: 'python', label: 'Python', file: 'example.py' },

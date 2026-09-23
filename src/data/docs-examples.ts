@@ -1,5 +1,6 @@
 import { LANGUAGES, PROVIDERS as HOME_PROVIDERS, exampleCode, type Language } from '../components/home-example/examples';
 import type { Code } from '../playground/marks';
+import { tourCode, type TourView } from './tour-examples';
 
 import savedCatalog from './models-catalog.json';
 import { fetchCatalog, isModelId, recentModels } from './model-catalog';
@@ -31,11 +32,21 @@ export const SETUP: Record<Language, { href: string; text: string }> = {
   julia: { href: 'https://github.com/lm15-dev/lm15-jl#readme', text: 'Set up LM15 using the Julia SDK guide.' },
 };
 
+/** The Overview's tour (tour-examples.ts): one request, a part at a time. */
+const tour = (view: TourView) => (selection: DocSelection) => tourCode(selection.language, view, selection.provider || 'provider', selection.model || 'model');
+
 // Each recipe supplies separately written language versions. Provider and model
 // are data inputs; prose and arbitrary source code are never search-and-replaced.
 // A recipe returns marked code (playground/marks.ts), so the docs colour it as the playground does.
 export const RECIPES = {
   'first-request': (selection: DocSelection) => exampleCode(selection.language, selection.provider || 'provider', selection.model || 'model'),
+  'tour-request': tour('request'),
+  'tour-system': tour('system'),
+  'tour-tools': tour('tools'),
+  'tour-config': tour('config'),
+  'tour-response': tour('response'),
+  'tour-stream': tour('stream'),
+  'tour-program': tour('program'),
 } satisfies Record<string, (selection: DocSelection) => Code>;
 export type Recipe = keyof typeof RECIPES;
 

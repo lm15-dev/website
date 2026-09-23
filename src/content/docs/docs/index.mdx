@@ -1,10 +1,12 @@
 ---
 title: LM15 overview
-description: Make your first model call, learn how LM15 works, and build on the same ideas across languages and providers.
+description: A quick tour of the parts of an LM15 request and response, built around one running example, in the language and with the provider you choose.
 ---
 
-In this guide, you’ll learn to make your first model call with LM15. We’ll explain
-what each step does and why LM15 works the way it does, so you can build on it.
+import DocsExample from '../../../components/DocsExample.astro';
+
+In this guide, you’ll learn to make model calls with LM15. We’ll explain what
+each step does and why LM15 works the way it does, so you can build on it.
 
 Choose your **language, provider, and model** at the top left of the page. Changing
 languages changes the code examples, not the explanation: LM15 uses the same
@@ -21,9 +23,143 @@ browser, send it, and see the code that makes it.
 If a coding agent is writing your code, point it to the [LM15 skill](/skill.md)
 or to [`llms.txt`](/llms.txt).
 
-## The LM15 contract
+## The example we’ll build
 
-<a href="https://xkcd.com/927/" style="display: block; margin-top: 2.5rem;">
+Throughout this guide, we build one small program: a **sommelier for a home
+wine cellar**. First you ask it what to open with dinner. Over the following
+pages, it looks through the bottles you actually own, keeps track of a
+conversation, reads a label from a photo, and scores tasting notes. Each page
+adds one ability to the same program.
+
+This page is a quick tour. It names the parts of a request and a response, and
+shows each one in the smallest amount of code. Don’t worry if not everything
+makes sense yet: the pages that follow go through each part slowly.
+
+## The parts of a request
+
+A **request** describes what you want. A **response** records what came back.
+
+```text
+Request
+  model          which model to ask                       required
+  messages       the conversation so far                  required
+  system         instructions for the whole request       optional
+  tools          functions the model may ask you to run   optional
+  config         settings, such as a length limit         optional
+    ↓
+Response
+  message        what the model said
+  finish_reason  why it stopped
+  usage          what the provider counted
+```
+
+Only `model` and `messages` are required. Leaving out an optional part isn’t
+the same as setting it to zero or switching it off: it means you haven’t asked
+for anything, and the provider does what it normally does.
+
+## Model and messages
+
+Here is the smallest request: a model, and one message from you.
+
+<DocsExample recipe="tour-request" />
+
+**`model`** names the model you want. With the router, `provider:model` also
+names the provider to contact; the router removes the prefix before passing the
+name on. A model name belongs to one provider, so changing providers usually
+means changing the model name too.
+
+**`messages`** is the conversation, in order. Each message has a **role**
+(`user`, `assistant`, `tool`, or `developer`) that says who it is from, and one
+or more **parts**. A part is one piece of content: some text, an image, a call to
+a tool. To continue a conversation, you send the earlier messages again,
+followed by the new one. [Keep a conversation](/docs/conversations/) shows how.
+
+Nothing is sent yet: a request is just a value. It goes to the provider when you
+hand it to a client, [further down](#the-response).
+
+## System instructions
+
+**`system`** holds instructions for the whole request: who the model should be,
+and how to answer. It sits beside the messages, not inside them.
+
+<DocsExample recipe="tour-system" />
+
+## Tools
+
+**`tools`** lists functions the model may ask your program to run. Our
+sommelier can’t know what’s in your cellar, so we offer it a way to look:
+
+<DocsExample recipe="tour-tools" />
+
+A tool has a name, a description the model reads, and a **schema** describing
+its inputs: here, one piece of text called `query`. Offering a tool doesn’t make
+the model use it. If it wants to, it answers with a **tool call** instead of text:
+the name and the input. Your program decides whether to run it, then sends the
+result back in the next request.
+
+LM15 never runs your functions for you. [Call your own functions](/docs/function-tools/)
+walks through that loop. Some providers also run tools of their own, such as web
+search; [Use provider tools](/docs/provider-tools/) covers those.
+
+## Settings
+
+**`config`** holds settings for how to generate the answer. Here, a limit on how
+many tokens (pieces of words) the answer may use:
+
+<DocsExample recipe="tour-config" />
+
+Each setting has its own rules. A token limit must be positive, for example.
+Other settings include temperature, a required answer format, reasoning effort,
+caching, and which tool the model must use. A setting you use still needs a
+provider and model that support it. Options that only one provider has go in
+`config.extensions`, under that provider’s own names.
+[Control generation](/docs/generation/) goes through them.
+
+## The response
+
+A **client** sends the request and gives you back a response. Here, the router
+picks the provider from the model name and reads its API key from the
+environment ([Make your first request](/docs/first-request/) sets that up):
+
+<DocsExample recipe="tour-response" />
+
+The response always has the same three parts, whichever provider answered:
+
+- **The message** the model wrote. Its text is what you usually want, but a
+  message can also hold tool calls, images, or reasoning.
+- **The finish reason:** `stop` when the model finished, `length` when it hit
+  your limit, `tool_call` when it is waiting for your program to run a tool.
+- **Usage:** the tokens the provider counted. A count the provider didn’t report
+  is empty, not zero.
+
+Keep the whole message, not only its text. It can carry data the provider needs
+to continue the conversation.
+
+## Streaming
+
+A long answer can take a while. **Streaming** shows it as it’s written. It uses
+the same request; only the way you receive the answer changes:
+
+<DocsExample recipe="tour-stream" />
+
+At the end, you get the same complete response as before, with its finish
+reason and usage. [Stream a response](/docs/streaming/) explains the pieces a
+stream is made of.
+
+## Putting it together
+
+Here is the whole program: model, messages, instructions, a length limit, and
+the answer streamed as it’s written. It uses the provider and model you chose at
+the top of the page.
+
+<DocsExample recipe="tour-program" />
+
+The tool is left out. Once a model can call a tool, your program has to be ready
+to answer it, and that loop has its own page.
+
+## Why a fifteenth standard?
+
+<a href="https://xkcd.com/927/" style="display: block; margin-top: 1.5rem;">
   <img src="https://imgs.xkcd.com/comics/standards.png" alt="XKCD’s ‘Standards’: an attempt to unite fourteen competing standards creates a fifteenth." style="display: block; margin-inline: auto; max-width: 100%; height: auto;" />
 </a>
 
@@ -34,9 +170,10 @@ or to [`llms.txt`](/llms.txt).
 </p>
 
 LM15 is first and foremost a **contract**: a shared format for requests and
-responses, to and from language models (large and small), with precise rules for what each field means. It also defines how
-responses arrive piece by piece when streaming. Each language implementation
-follows this contract, using the conventions of its language.
+responses, to and from language models (large and small), with precise rules
+for what each field means. It also defines how responses arrive piece by piece
+when streaming. Each language implementation follows this contract, using the
+conventions of its language.
 
 An **adapter** translates an LM15 request into the format a provider accepts,
 then translates the answer back into an LM15 response. Your application works
@@ -61,102 +198,22 @@ and return an answer that follows the response rules. If the system cannot
 honor part of the request, report that rather than silently ignore it. Applications
 can then use the connection through the same contract.
 
-In a nutshell, a request describes what you want; a response records what came back:
+## What else you can express
 
-```text
-Request
-  model · messages · system instructions · tools · settings
-    ↓
-Adapter ↔ model or service
-    ↓
-Response
-  message · finish reason · usage
-```
+LM15 is not limited to the features every provider has in common. Features
+shared by several providers have common fields; options only one provider has
+go in **extensions**, under the provider’s own names. On the response side,
+**provider_data** keeps the provider’s original answer beside the shared fields.
+That separation shows you exactly where your code relies on one provider.
 
-System instructions, tools, and settings are optional. With streaming, the same
-request produces the answer piece by piece, followed by a final event carrying
-the finish reason and any reported usage.
-
-Each part of the request has its own smaller contract:
-
-### Model: which model to call
-
-`model` is a required, non-empty string naming the model you want. When using
-the router, `provider:model` also names the provider to contact. The router
-removes that prefix before passing the model name to the adapter.
-
-A model name belongs to a particular service. Changing providers may require
-changing the model name too.
-
-### Messages: what the model receives
-
-`messages` is an ordered list with at least one message. Each message contains:
-
-- **A role:** `user`, `assistant`, `tool`, or `developer`—who the message is from.
-- **Parts:** one or more pieces of content, each with its own type and fields.
-  A text part holds text; an image part identifies an image; a tool-call part
-  holds the call’s ID, function name, and input.
-
-The role determines which parts belong in a message. For example, tool results
-belong in tool messages, not user messages. To continue a conversation, include
-previous messages and the new turn. Keep the full assistant message: it may
-carry provider data needed for the next call, beyond the visible text.
-
-The optional `system` field is separate from this list. It holds instructions
-that apply to the request as a whole.
-
-### Tools: what the model can use
-
-`tools` lists the tools offered for this request. Each has a unique name and is
-one of two kinds:
-
-- **Function tool:** a name, an optional description, and a schema describing
-  its inputs—their names, types, and which are required. The model can request
-  a call; your application decides whether and how to execute it, then returns
-  a result with the matching call ID.
-- **Built-in tool:** a name and optional configuration for a tool the provider
-  runs, such as web search. LM15 does not ask your application to run it again.
-
-Declaring a tool makes it available; it does not require the model to use it.
-Tool-choice settings control that separately.
-
-### Settings: how to generate the answer
-
-`config` holds optional settings such as the output-token limit, temperature,
-response format, reasoning effort, caching, and tool choice. Each setting has
-its own allowed values and rules. For example, a token limit must be positive;
-a tool-choice restriction can only name tools offered in the request.
-
-Leaving a setting out is different from setting it to zero or switching it off.
-It means you have not requested a value. A valid setting still needs support
-from the chosen provider and model; provider-specific options go in
-`config.extensions`.
-
-## Capabilities
-
-What can we express through this contract? LM15 is not limited to the features
-that every provider has in common. Features shared by multiple providers have
-common fields; provider-specific options belong in **extensions**, where you
-can use the provider’s own names and values. On the response side,
-**provider_data** preserves the provider’s original answer alongside the shared
-response fields.
-
-That separation is useful: it makes clear where your code relies on a
-provider-specific option rather than a shared feature. Shared does not mean
-universal, though—you still need a model and provider that support what you ask.
-
-The shared capabilities include:
-
-- **Streaming**
-- **Tools**
-- **Structured output**
-- **Reasoning and continuation**
-- **Prompt caching**
-- **Media**
-- **Errors and usage**
-
-Separate APIs cover files, batches, media generation, video jobs, and realtime
-sessions.
+Shared does not mean universal, though: you still need a provider and model that
+support what you ask. The shared capabilities include
+[streaming](/docs/streaming/), [tools](/docs/function-tools/),
+[structured output](/docs/structured-output/),
+[reasoning](/docs/reasoning/), [prompt caching](/docs/prompt-caching/),
+[images and documents](/docs/media-inputs/), and
+[errors and usage](/docs/errors-and-retries/). Separate APIs cover files,
+batches, media generation, video jobs, and realtime sessions.
 
 Next, [make your first request](/docs/first-request/): install LM15, set one API
 key, and send a request in the language you chose.
