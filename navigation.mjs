@@ -4,7 +4,6 @@ export const sidebar = [
   { label: 'Start here', items: [
     { label: 'Overview', slug: 'docs' },
     { label: 'Make your first request', slug: 'docs/first-request' },
-    { label: 'Requests, responses, and providers', slug: 'docs/core-concepts' },
   ] },
   { label: 'Connect', items: [
     { label: 'Connect a provider', slug: 'docs/providers' },

@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { readFileSync } from 'node:fs';
 import { sidebar } from './navigation.mjs';
+import { withoutUnfinished } from './unfinished.mjs';
 import { socialImageHead } from './social-card.mjs';
 import { codeStyle, codeThemes } from './src/styles/code-theme.mjs';
 
@@ -43,7 +44,7 @@ export default defineConfig({
       disable404Route: true, // src/pages/404.astro owns the shared not-found page.
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/lm15-dev' }],
       editLink: { baseUrl: 'https://github.com/lm15-dev/website/edit/main/' },
-      sidebar,
+      sidebar: withoutUnfinished(sidebar),
       customCss: ['./src/styles/docs.css'],
       // Markdown code blocks in the playground's colours (src/styles/code-theme.mjs).
       expressiveCode: {
