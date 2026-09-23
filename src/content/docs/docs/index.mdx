@@ -95,8 +95,13 @@ look:
 <DocsExample recipe="tour-tools" />
 
 A tool has a name, a description the model reads, and a **schema** describing
-its inputs: here, one piece of text called `query`. Offering a tool doesn’t make
-the model use it. If it wants to, it answers with a **tool call** instead of text:
+its inputs: here, one piece of text called `query`. In Python and Julia, LM15
+reads all three from an ordinary function: its name, its description, and the
+types of its inputs. In the other languages, you write them out: a running
+program can’t see the types of a function’s inputs. Either way, the model
+receives a name, a description, and a schema.
+
+Offering a tool doesn’t make the model use it. If it wants to, it answers with a **tool call** instead of text:
 the name and the input. Your program decides whether to run it, then sends the
 result back in the next request.
 

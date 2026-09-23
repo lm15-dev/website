@@ -184,10 +184,24 @@ for (const { id } of LANGUAGES) {
   test(`docs examples run in ${id}`, { timeout: 2_400_000, skip: !wanted.has(id) && 'not in LM15_DOCS_LANGUAGES' }, t => runners[id](t));
 }
 
+/**
+ * The one stated difference: Julia's `@tool` derives a closed schema
+ * (`"additionalProperties": false`), where Python's `tool(fn)` and the
+ * hand-written schemas leave it open. Removed before comparing, and only there.
+ */
+function withoutJuliaClosedSchema(bodies: unknown[]): unknown[] {
+  return JSON.parse(JSON.stringify(bodies), (key, value) =>
+    key === 'parameters' && value && typeof value === 'object' && value.additionalProperties === false
+      ? Object.fromEntries(Object.entries(value).filter(([k]) => k !== 'additionalProperties'))
+      : value);
+}
+
 test('every language sends the same request as Python', t => {
   const reference = results.get('python');
   if (!reference) return t.skip('Python did not run');
   for (const [language, bodies] of results) {
-    for (const [name, sent] of bodies) assert.deepEqual(sent, reference.get(name), `${language} ${name}`);
+    for (const [name, sent] of bodies) {
+      assert.deepEqual(language === 'julia' ? withoutJuliaClosedSchema(sent) : sent, reference.get(name), `${language} ${name}`);
+    }
   }
 });
