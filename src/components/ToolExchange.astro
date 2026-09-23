@@ -1,0 +1,48 @@
+---
+// A real tool exchange recorded by scripts/capture-function-tools.py, turn by turn.
+import captures from '../data/function-tools-captures.json';
+
+interface Props {
+  run: 'vague' | 'described';
+  /** "call": the model's first reply (the call); "rest": what the search returned and the answer; "all": both. */
+  show?: 'call' | 'rest' | 'all';
+}
+const { run, show = 'all' } = Astro.props;
+type Turn = { finish_reason: string; input_tokens: number | null; output_tokens: number | null; calls: { name: string; input: Record<string, unknown> }[]; results?: string[]; text: string | null };
+const turns = captures[run].turns as Turn[];
+const [provider, model] = captures.model.split(':');
+const label = provider === 'openai-codex' ? 'OpenAI Codex' : provider;
+const date = new Date(`${captures.date}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const rows: { who: string; body: string; facts?: string }[] = [];
+turns.forEach((turn, index) => {
+  const facts = `finish reason ${turn.finish_reason} · ${turn.input_tokens ?? '?'} tokens in, ${turn.output_tokens ?? '?'} out`;
+  if (turn.calls.length && (show !== 'rest' || index > 0)) {
+    rows.push({ who: 'The model asked', body: turn.calls.map(c => `${c.name}(${JSON.stringify(c.input)})`).join('\n'), facts });
+  }
+  if (show === 'call') return;
+  for (const result of turn.results ?? []) rows.push({ who: 'Your search returned', body: result });
+  if (!turn.calls.length) rows.push({ who: 'The model answered', body: turn.text ?? '', facts });
+});
+const shown = show === 'call' ? rows.slice(0, 1) : rows;
+---
+<figure class="exchange not-content">
+  <figcaption>What happened <span>{model} through {label}, {date}</span></figcaption>
+  {shown.map(row => (
+    <div class="turn">
+      <div class="who">{row.who}</div>
+      <pre>{row.body}</pre>
+      {row.facts && <div class="facts">{row.facts}</div>}
+    </div>
+  ))}
+</figure>
+
+<style>
+  .exchange { margin: 1rem 0 1.5rem; border: 1px solid var(--sl-color-gray-5); border-left: 3px solid var(--lm-accent); background: var(--sl-color-bg); }
+  figcaption { padding: .45rem .9rem; font-size: .8rem; font-weight: 600; color: var(--sl-color-gray-2); border-bottom: 1px solid var(--sl-color-gray-5); }
+  figcaption span { font-weight: 400; margin-left: .4rem; }
+  .turn { padding: .6rem .9rem .7rem; }
+  .turn + .turn { border-top: 1px dashed var(--sl-color-gray-5); }
+  .who { font-size: .8rem; font-weight: 600; color: var(--sl-color-gray-2); margin-bottom: .25rem; }
+  pre { margin: 0; padding: 0; font-family: var(--lm-code-font); font-size: var(--sl-text-code, .875rem); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--sl-color-text); background: none; border: 0; }
+  .facts { margin-top: .3rem; font-size: .8rem; color: var(--sl-color-gray-2); }
+</style>

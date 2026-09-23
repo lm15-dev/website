@@ -30,7 +30,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { exampleSource, LANGUAGES, type Language } from '../src/components/home-example/examples.ts';
-import { tourPrograms } from '../src/data/tour-examples.ts';
+import { tourPrograms, type TourProgram } from '../src/data/tour-examples.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const FIXTURE = join(ROOT, 'scripts/docs-fixture-server.py');
@@ -40,7 +40,7 @@ const sdk = (variable: string, name: string) => resolve(process.env[variable] ??
 const pins = JSON.parse(readFileSync(join(ROOT, 'node_modules/lm15/runtime/sources.json'), 'utf8')) as Record<string, string>;
 const wanted = new Set((process.env['LM15_DOCS_LANGUAGES'] ?? LANGUAGES.map(l => l.id).join(',')).split(','));
 
-interface Program { name: string; source: string; streams: boolean; requests?: number }
+type Program = TourProgram;
 /** Everything the docs run: the first request, and the Overview's tour. */
 function programs(language: Language): Program[] {
   return [{ name: 'first-request', source: exampleSource(language, 'ollama', 'test-model'), streams: false }, ...tourPrograms(language, 'ollama', 'test-model')];
@@ -59,8 +59,9 @@ function sealed(command: string[], cwd: string, env: NodeJS.ProcessEnv = process
 const have = (tool: string) => spawnSync('sh', ['-c', `command -v ${tool}`]).status === 0;
 const results = new Map<Language, Map<string, unknown[]>>();
 
-function record(language: Language, name: string, stdout: string, bodies: unknown[], requests = 1): void {
-  assert.ok(stdout.includes(REPLY), `${language} ${name}: the answer was not printed:\n${stdout}`);
+function record(language: Language, p: Program, stdout: string, bodies: unknown[]): void {
+  const name = p.name, requests = p.requests ?? 1;
+  for (const expected of p.expect ?? [REPLY]) assert.ok(stdout.includes(expected), `${language} ${name}: "${expected}" was not printed:\n${stdout}`);
   assert.equal(bodies.length, requests, `${language} ${name}: expected ${requests} request(s), saw ${bodies.length}`);
   if (!results.has(language)) results.set(language, new Map());
   results.get(language)!.set(name, bodies);
@@ -89,7 +90,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     for (const p of programs('python')) {
       writeFileSync(join(dir, `${p.name}.py`), p.source + '\n');
       const out = sealed(['python3', `${p.name}.py`], dir, { ...process.env, PYTHONPATH: join(dir, 'site') });
-      record('python', p.name, out.stdout, out.bodies, p.requests);
+      record('python', p, out.stdout, out.bodies);
     }
   },
   typescript() {
@@ -103,7 +104,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       execFileSync(process.execPath, [join(ROOT, 'node_modules/typescript/bin/tsc'), '-p', join(dir, 'tsconfig.json')], { stdio: 'pipe' });
       for (const p of list) {
         const out = sealed([process.execPath, '--experimental-strip-types', '--no-warnings', `${p.name}.ts`], dir);
-        record('typescript', p.name, out.stdout, out.bodies, p.requests);
+        record('typescript', p, out.stdout, out.bodies);
       }
     } finally { rmSync(dir, { recursive: true, force: true }); }
   },
@@ -119,7 +120,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     execFileSync(have('rcargo') ? 'rcargo' : 'cargo', ['build', '--release', '--quiet'], { cwd: dir, stdio: 'pipe', timeout: 1_200_000 });
     for (const p of list) {
       const out = sealed([join(dir, 'target/release', p.name.replace(/-/g, '_'))], dir);
-      record('rust', p.name, out.stdout, out.bodies, p.requests);
+      record('rust', p, out.stdout, out.bodies);
     }
   },
   go(t) {
@@ -132,7 +133,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       writeFileSync(join(dir, p.name, 'main.go'), p.source + '\n');
       execFileSync('go', ['build', '-mod=mod', '-o', join(dir, `${p.name}.bin`), `./${p.name}`], { cwd: dir, stdio: 'pipe', timeout: 300_000 });
       const out = sealed([join(dir, `${p.name}.bin`)], dir);
-      record('go', p.name, out.stdout, out.bodies, p.requests);
+      record('go', p, out.stdout, out.bodies);
     }
   },
   r(t) {
@@ -145,6 +146,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     const dir = mkdtempSync(join(tmpdir(), 'lm15-docs-r-'));
     const replies = `
 .docs_reply <- '{"id":"chatcmpl-docs","object":"chat.completion","created":0,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","content":"${REPLY}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}'
+.docs_call <- '{"id":"chatcmpl-docs","object":"chat.completion","created":0,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_docs_1","type":"function","function":{"name":"search_sightings","arguments":"{\\\\"query\\\\": \\\\"oak grove\\\\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}'
 .docs_chunk <- function(delta, finish = "null", extra = "") paste0('data: {"id":"chatcmpl-docs","object":"chat.completion.chunk","created":0,"model":"test-model","choices":', delta, extra, '}\\n\\n')
 .docs_sse <- c(
   .docs_chunk('[{"index":0,"delta":{"role":"assistant","content":"Probably "},"finish_reason":null}]'),
@@ -161,11 +163,12 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       const source = p.source.replace('new_router()', 'new_router(transport = .docs_transport)');
       assert.notEqual(source, p.source, `r ${p.name}: no router to give the fake transport`);
       writeFileSync(join(dir, `${p.name}.R`), source + '\n');
-      const replyList = Array(p.requests ?? 1).fill(reply).join(', ');
+      const call = 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_call)';
+      const replyList = [...(p.toolCall ? [call] : []), ...Array((p.requests ?? 1) - (p.toolCall ? 1 : 0)).fill(reply)].join(', ');
       writeFileSync(join(dir, `run-${p.name}.R`), `${replies}\n.docs_transport <- lm15::fake_transport(list(${replyList}))\nsource(${JSON.stringify(join(dir, `${p.name}.R`))}, print.eval = TRUE)\nfor (w in attr(.docs_transport, "requests")()) cat(rawToChar(w$body), "\\n", file = ${JSON.stringify(join(dir, `${p.name}.jsonl`))}, append = TRUE, sep = "")\n`);
       const stdout = nix(`R_LIBS=${JSON.stringify(lib)} Rscript --no-save ${JSON.stringify(join(dir, `run-${p.name}.R`))} 2>/dev/null`);
       const bodies = readFileSync(join(dir, `${p.name}.jsonl`), 'utf8').trim().split('\n').map(line => JSON.parse(line));
-      record('r', p.name, stdout, bodies, p.requests);
+      record('r', p, stdout, bodies);
     }
   },
   julia(t) {
@@ -182,7 +185,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       // Nix resolves julia outside the namespace; the program runs inside it.
       const bin = execFileSync('nix', ['shell', 'nixpkgs#julia-bin', '-c', 'sh', '-c', 'command -v julia'], { encoding: 'utf8' }).trim();
       const out = sealed([bin, `--project=${project}`, `${p.name}.jl`], dir);
-      record('julia', p.name, out.stdout, out.bodies, p.requests);
+      record('julia', p, out.stdout, out.bodies);
     }
   },
 };
@@ -191,10 +194,25 @@ for (const { id } of LANGUAGES) {
   test(`docs examples run in ${id}`, { timeout: 2_400_000, skip: !wanted.has(id) && 'not in LM15_DOCS_LANGUAGES' }, t => runners[id](t));
 }
 
+/**
+ * A tool result is the program's own JSON: each language's encoder spaces and
+ * orders keys its own way (Python `", "`, Go sorted keys), and LM15 sends it
+ * verbatim. Tool results are compared as data; everything else byte for byte.
+ */
+function withToolResultsAsData(bodies: unknown[]): unknown[] {
+  return (bodies as { messages?: { role: string; content?: unknown }[] }[]).map(body => ({
+    ...body,
+    messages: body.messages?.map(m => {
+      if (m.role !== 'tool' || typeof m.content !== 'string') return m;
+      try { return { ...m, content: JSON.parse(m.content) }; } catch { return m; }
+    }),
+  }));
+}
+
 test('every language sends the same request as Python', t => {
   const reference = results.get('python');
   if (!reference) return t.skip('Python did not run');
   for (const [language, bodies] of results) {
-    for (const [name, sent] of bodies) assert.deepEqual(sent, reference.get(name), `${language} ${name}`);
+    for (const [name, sent] of bodies) assert.deepEqual(withToolResultsAsData(sent), withToolResultsAsData(reference.get(name)!), `${language} ${name}`);
   }
 });

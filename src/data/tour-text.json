@@ -5,5 +5,34 @@
   "tool": "search_sightings",
   "toolDescription": "Find the station's recorded sightings by species, place or date.",
   "maxTokens": 1000,
-  "tinyLimit": 16
+  "tinyLimit": 16,
+  "toolQuestion": "Which animals has the station recorded at the oak grove?",
+  "queryDescription": "One species, place or date, such as 'oak grove' or '2026-09-18'.",
+  "sightings": [
+    {
+      "date": "2026-09-18",
+      "place": "oak grove",
+      "species": "wood mouse",
+      "count": 4
+    },
+    {
+      "date": "2026-09-19",
+      "place": "oak grove",
+      "species": "roe deer",
+      "count": 2
+    },
+    {
+      "date": "2026-09-20",
+      "place": "stream",
+      "species": "red fox",
+      "count": 1
+    },
+    {
+      "date": "2026-09-21",
+      "place": "oak grove",
+      "species": "wild boar",
+      "count": 3
+    }
+  ],
+  "maxTurns": 5
 }

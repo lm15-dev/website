@@ -1,0 +1,252 @@
+{
+  "model": "openai-codex:gpt-5.6-sol",
+  "date": "2026-09-23",
+  "vague": {
+    "model": "gpt-5.6-sol",
+    "turns": [
+      {
+        "request": {
+          "model": "openai-codex:gpt-5.6-sol",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Which animals has the station recorded at the oak grove?"
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Answer in two sentences.",
+          "tools": [
+            {
+              "type": "function",
+              "name": "search_sightings",
+              "description": "Find the station's recorded sightings by species, place or date.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        },
+        "finish_reason": "tool_call",
+        "input_tokens": 82,
+        "output_tokens": 23,
+        "calls": [
+          {
+            "name": "search_sightings",
+            "input": {
+              "query": "place: oak grove"
+            }
+          }
+        ],
+        "text": null,
+        "results": [
+          "[]"
+        ]
+      },
+      {
+        "request": {
+          "model": "openai-codex:gpt-5.6-sol",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Which animals has the station recorded at the oak grove?"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "parts": [
+                {
+                  "type": "tool_call",
+                  "id": "call_6slBche1CfS8PySHiFtf5M3z",
+                  "name": "search_sightings",
+                  "input": {
+                    "query": "place: oak grove"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "parts": [
+                {
+                  "type": "tool_result",
+                  "id": "call_6slBche1CfS8PySHiFtf5M3z",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "[]"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Answer in two sentences.",
+          "tools": [
+            {
+              "type": "function",
+              "name": "search_sightings",
+              "description": "Find the station's recorded sightings by species, place or date.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "input_tokens": 119,
+        "output_tokens": 64,
+        "calls": [],
+        "text": "The station has no recorded animal sightings at the oak grove. The database search returned no entries for that location."
+      }
+    ]
+  },
+  "described": {
+    "model": "gpt-5.6-sol",
+    "turns": [
+      {
+        "request": {
+          "model": "openai-codex:gpt-5.6-sol",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Which animals has the station recorded at the oak grove?"
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Answer in two sentences.",
+          "tools": [
+            {
+              "type": "function",
+              "name": "search_sightings",
+              "description": "Find the station's recorded sightings by species, place or date.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "One species, place or date, such as 'oak grove' or '2026-09-18'."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        },
+        "finish_reason": "tool_call",
+        "input_tokens": 105,
+        "output_tokens": 21,
+        "calls": [
+          {
+            "name": "search_sightings",
+            "input": {
+              "query": "oak grove"
+            }
+          }
+        ],
+        "text": null,
+        "results": [
+          "[{\"date\": \"2026-09-18\", \"place\": \"oak grove\", \"species\": \"wood mouse\", \"count\": 4}, {\"date\": \"2026-09-19\", \"place\": \"oak grove\", \"species\": \"roe deer\", \"count\": 2}, {\"date\": \"2026-09-21\", \"place\": \"oak grove\", \"species\": \"wild boar\", \"count\": 3}]"
+        ]
+      },
+      {
+        "request": {
+          "model": "openai-codex:gpt-5.6-sol",
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "text": "Which animals has the station recorded at the oak grove?"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "parts": [
+                {
+                  "type": "tool_call",
+                  "id": "call_7Uox1CsMlPB6rPYvICkET1Ui",
+                  "name": "search_sightings",
+                  "input": {
+                    "query": "oak grove"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "parts": [
+                {
+                  "type": "tool_result",
+                  "id": "call_7Uox1CsMlPB6rPYvICkET1Ui",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "[{\"date\": \"2026-09-18\", \"place\": \"oak grove\", \"species\": \"wood mouse\", \"count\": 4}, {\"date\": \"2026-09-19\", \"place\": \"oak grove\", \"species\": \"roe deer\", \"count\": 2}, {\"date\": \"2026-09-21\", \"place\": \"oak grove\", \"species\": \"wild boar\", \"count\": 3}]"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "system": "You are the field assistant for a wildlife research station. Answer in two sentences.",
+          "tools": [
+            {
+              "type": "function",
+              "name": "search_sightings",
+              "description": "Find the station's recorded sightings by species, place or date.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "One species, place or date, such as 'oak grove' or '2026-09-18'."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "input_tokens": 234,
+        "output_tokens": 40,
+        "calls": [],
+        "text": "The station has recorded wood mice, roe deer, and wild boar at the oak grove. The sightings included four wood mice, two roe deer, and three wild boar."
+      }
+    ]
+  }
+}

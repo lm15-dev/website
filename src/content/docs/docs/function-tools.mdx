@@ -1,0 +1,135 @@
+---
+title: Call your own functions
+description: Let a model use your program's functions. Describe a function as a tool, run the calls the model asks for, send back the results, and see why describing the inputs matters, with real exchanges at each step.
+---
+
+import DocsExample from '../../../components/DocsExample.astro';
+import ToolExchange from '../../../components/ToolExchange.astro';
+import captures from '../../../data/function-tools-captures.json';
+import TOUR from '../../../data/tour-text.json';
+
+export const described = captures.described.turns;
+export const vague = captures.vague.turns;
+
+Our wildlife station keeps its own records of what its cameras and observers
+have seen. A model can’t see them. But it can ask your program to look, if you
+offer it a **tool**: a function your program runs on the model’s behalf.
+
+On this page you’ll:
+
+- describe a function as a tool;
+- see the model ask for it instead of answering;
+- run the function yourself and send back the result;
+- write the loop that keeps going until the model answers;
+- see why describing a tool’s inputs matters.
+
+LM15 never runs your functions. It carries the model’s request to your program,
+and your result back to the model. What runs, when, and with which checks is
+decided by your code. The exchanges shown are real: we ran them with
+`gpt-5.6-sol` through OpenAI Codex.
+
+## The station’s records
+
+Four sightings, and a function that searches them by species, place, or date:
+
+<DocsExample recipe="tools-search" />
+
+It’s ordinary code; LM15 isn’t involved yet.
+
+## Describe it as a tool
+
+The model never sees your function. It sees a description: a name, what the
+tool does, and a **schema** for its input.
+
+<DocsExample recipe="tools-define" />
+
+The input has a description of its own, saying what a good search term looks
+like. We’ll see [why that matters](#describe-the-inputs) at the end of the page.
+
+## Offer the tool
+
+Ask the station’s question, with the tool in the request:
+
+<DocsExample recipe="tools-ask" />
+
+<ToolExchange run="described" show="call" />
+
+Instead of text, the model answered with a **tool call**: which tool, and with
+what input. Its finish reason is `tool_call`. Nothing has run: the call is a
+request to your program.
+
+## Run it and answer
+
+Run each call, and send the results back after the model’s own message. Each
+result carries the id of the call it answers:
+
+<DocsExample recipe="tools-answer" />
+
+<ToolExchange run="described" show="rest" />
+
+The model answered from your records. Your program chose to run the search
+without asking anyone, because it only reads. A tool that writes, sends, or
+spends is different: check the call before running it, and ask a person when
+it matters. A model can ask for anything; your program decides.
+
+## The loop
+
+A model may ask for a tool more than once (search the grove, then the stream)
+or for several at once. So keep going until it answers with text, and stop
+after a few rounds:
+
+<DocsExample recipe="tools-loop" />
+
+Each round sends the whole conversation: your question, every message the model
+wrote, every set of results. When the model asks for several tools at once,
+answer them all in one tool message, as the loop does. The limit of
+{TOUR.maxTurns} rounds stops a confused model from looping, and spending,
+forever.
+
+## Describe the inputs
+
+What happens without the input’s description? Here is the same tool with it
+removed:
+
+<DocsExample recipe="tools-vague" />
+
+<ToolExchange run="vague" />
+
+The model searched for `{vague[0].calls[0].input.query}`. Our search expects
+just `oak grove`, so it found nothing, and the model reported that the station
+has no sightings there. Nothing failed: every step did what it was asked, and
+the answer is still wrong.
+
+The model knows only what your description tells it. Describe each input the
+way you would for a new colleague, with an example. And when your function
+can’t make sense of an input, say so in the result rather than return nothing:
+the model can then try again.
+
+## Try it yourself
+
+Predict before you run each one.
+
+1. Ask “What did the station see on 2026-09-20?” What will the model search
+   for, and what will it answer?
+2. Ask “Has the station ever recorded a badger?” What will your function
+   return, and what should the model say?
+3. Remove the limit on rounds. What could go wrong?
+
+<details>
+<summary>What to expect</summary>
+
+1. It searches for the date, `2026-09-20`, finds the red fox, and says so.
+2. An empty list. The model should say there is no record of a badger, which
+   is true here; in the vague example above, the same empty answer led to a
+   wrong one.
+3. A model that keeps asking for tools would keep your program calling it, and
+   paying for each call, with no end.
+
+</details>
+
+## Next
+
+The same loop works for any function: a database query, a calculation, a
+sensor reading. [Use provider tools](/docs/provider-tools/) covers tools the
+provider runs for you, such as web search, and the [Overview](/docs/) shows
+where tools sit among the other parts of a request.

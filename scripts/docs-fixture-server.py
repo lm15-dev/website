@@ -7,12 +7,26 @@ JSON object per line). Run it inside a network namespace with no route out
 (`unshare -rn`), so an example that tried to reach a real provider would fail.
 """
 import json
+import pathlib
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 LOG = sys.argv[1]
 REPLY = "Probably wood mice."
 USAGE = {"prompt_tokens": 12, "completion_tokens": 5, "total_tokens": 17}
+# The tools page's question is answered with a call to its tool, as a model would.
+TOUR = json.loads((pathlib.Path(__file__).parent.parent / "src/data/tour-text.json").read_text())
+CALL = {"id": "call_docs_1", "type": "function", "function": {"name": TOUR["tool"], "arguments": json.dumps({"query": "oak grove"})}}
+
+
+def text_of(message):
+    content = message.get("content")
+    return content if isinstance(content, str) else "".join(p.get("text", "") for p in content or [])
+
+
+def wants_call(body):
+    last = body["messages"][-1]
+    return bool(body.get("tools")) and last["role"] == "user" and text_of(last) == TOUR["toolQuestion"]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -48,6 +62,10 @@ class Handler(BaseHTTPRequestHandler):
             payload = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
+        elif wants_call(body):
+            payload = json.dumps({**base, "choices": [{"index": 0, "message": {"role": "assistant", "content": None, "tool_calls": [CALL]}, "finish_reason": "tool_calls"}], "usage": USAGE})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
         else:
             payload = json.dumps({**base, "choices": [{"index": 0, "message": {"role": "assistant", "content": REPLY}, "finish_reason": "stop"}], "usage": USAGE})
             self.send_response(200)
