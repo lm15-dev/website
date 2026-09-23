@@ -1,9 +1,9 @@
-import { LANGUAGES, PROVIDERS as HOME_PROVIDERS, exampleCode, type Language } from '../components/home-example/examples';
-import type { Code } from '../playground/marks';
-import { tourCode, type TourView } from './tour-examples';
+import { LANGUAGES, PROVIDERS as HOME_PROVIDERS, exampleCode, type Language } from '../components/home-example/examples.ts';
+import type { Code } from '../playground/marks.ts';
+import { tourCode, type TourView } from './tour-examples.ts';
 
-import savedCatalog from './models-catalog.json';
-import { fetchCatalog, isModelId, recentModels } from './model-catalog';
+import savedCatalog from './models-catalog.json' with { type: 'json' };
+import { fetchCatalog, isModelId, recentModels } from './model-catalog.ts';
 
 export { LANGUAGES };
 const alphabetically = (a: string, b: string) => a.localeCompare(b, 'en', { sensitivity: 'base' });
@@ -39,7 +39,6 @@ const tour = (view: TourView) => (selection: DocSelection) => tourCode(selection
 // are data inputs; prose and arbitrary source code are never search-and-replaced.
 // A recipe returns marked code (playground/marks.ts), so the docs colour it as the playground does.
 export const RECIPES = {
-  'first-request': (selection: DocSelection) => exampleCode(selection.language, selection.provider || 'provider', selection.model || 'model'),
   'tour-first': tour('first'),
   'tour-request': tour('request'),
   'tour-followup': tour('followup'),

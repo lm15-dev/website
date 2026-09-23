@@ -34,5 +34,6 @@
       "count": 3
     }
   ],
-  "maxTurns": 5
+  "maxTurns": 5,
+  "homePrompt": "What eats acorns at night?"
 }

@@ -41,7 +41,15 @@
   font: 14px/1.75 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   margin: 0; padding: 40px 18px 22px;
   color: var(--example-code-ink);
-  white-space: pre-wrap; overflow-wrap: anywhere;
+  /* Code keeps its lines (each language fits 64 columns at 1280px); a narrower screen scrolls it sideways. */
+  white-space: pre; overflow-wrap: normal; overflow-x: auto;
+  /* A soft shadow on an edge with more code past it (see src/styles/code.css). */
+  background:
+    linear-gradient(to right, var(--example-surface) 40%, transparent) left / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--example-surface) 40%, transparent) right / 2rem 100% no-repeat local,
+    linear-gradient(to right, color-mix(in srgb, var(--example-code-ink) 16%, transparent), transparent) left / .8rem 100% no-repeat scroll,
+    linear-gradient(to left, color-mix(in srgb, var(--example-code-ink) 16%, transparent), transparent) right / .8rem 100% no-repeat scroll,
+    var(--example-surface);
 }
 .example-code code { font: inherit; }
 .example-fields { white-space: normal; }

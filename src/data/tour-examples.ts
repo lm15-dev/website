@@ -11,13 +11,88 @@
  * Marks (playground/marks.ts): `val` for what the reader chose or may change,
  * `api` for LM15's names, `dim` for the language's plumbing, `comment`.
  */
-import { api, comment, dim, finish, val, type Code } from '../playground/marks.ts';
+import { api, comment, dim, finish, plain, val, type Code } from '../playground/marks.ts';
 import type { Language } from '../components/home-example/examples.ts';
 
 import TEXT from './tour-text.json' with { type: 'json' };
 
 /** The wording the docs' examples share with scripts/capture-first-request.py. */
 export const TOUR = TEXT;
+
+/**
+ * Columns an example may use: what a docs code box shows at 1280px without
+ * wrapping (measured). Rust and Go pieces go inside `main`, four columns in.
+ * tests/docs_example_widths.test.ts holds every example to it.
+ */
+export const WIDTH = 72;
+const BUDGET: Record<Language, number> = { python: WIDTH, typescript: WIDTH, r: WIDTH, julia: WIDTH, rust: WIDTH - 4, go: WIDTH - 4 };
+
+/** A marked string literal: its opening mark (with the value's source, if any) and its text. */
+const LITERAL = /"(\u0001(?:\u0006[^\u0006]*\u0006)?)([^\u0005"]*)\u0005"/g;
+
+/**
+ * A line too long because of a text value, broken the way the language's own
+ * formatter would: Python `("a " "b")`, TypeScript/Go `"a " + "b"`, Julia
+ * `"a " * "b"`, Rust `concat!("a ", "b")`, R `paste("a", "b")`. The string the
+ * program builds is unchanged (the run test compares the wire in every
+ * language). Lines too long for other reasons are laid out by hand.
+ */
+function fitLine(language: Language, line: string): string {
+  const budget = BUDGET[language];
+  const plainLine = plain(line);
+  if (plainLine.length <= budget) return line;
+  let longest: RegExpExecArray | undefined;
+  for (const m of line.matchAll(LITERAL)) if (!longest || m[2]!.length > longest[2]!.length) longest = m as RegExpExecArray;
+  if (!longest || longest[2]!.length < 20) return line;
+  const [whole, open, text] = longest as unknown as [string, string, string];
+  const prefix = line.slice(0, longest.index), suffix = line.slice(longest.index! + whole.length);
+  const indent = /^ */.exec(plain(prefix))![0], inner = indent + '    ';
+  const piece = (t: string) => `"${open}${t}\u0005"`;
+  const r = language === 'r';
+  // Words into pieces that fit an inner line; R's paste() puts the spaces back.
+  // Two quotes, the trailing space, and the joiner (` +`, ` *`, `,`).
+  const room = budget - inner.length - 5;
+  const pieces: string[] = [];
+  for (const word of text.split(' ')) {
+    const last = pieces.at(-1);
+    if (last !== undefined && (last + ' ' + word).length <= room) pieces[pieces.length - 1] = last + ' ' + word;
+    else pieces.push(word);
+  }
+  const parts = r ? pieces : pieces.map((p, i) => (i < pieces.length - 1 ? p + ' ' : p));
+  const opens = /[([{]\s*$/.test(plain(prefix));
+  switch (language) {
+    case 'python':
+      return opens
+        ? [prefix.trimEnd(), ...parts.map(p => inner + piece(p)), indent + suffix.trimStart()].join('\n')
+        : [prefix + '(', ...parts.map(p => inner + piece(p)), indent + ')' + suffix].join('\n');
+    case 'rust':
+      return [prefix + 'concat!(', ...parts.map(p => `${inner}${piece(p)},`), indent + ')' + suffix].join('\n');
+    case 'r':
+      return [prefix + 'paste(', ...parts.map((p, i) => inner + piece(p) + (i < parts.length - 1 ? ',' : '')), indent + ')' + suffix].join('\n');
+    default: {
+      const join = language === 'julia' ? ' *' : ' +';
+      const close = language === 'go' ? ',' : language === 'typescript' ? ',' : '';
+      return opens
+        ? [prefix.trimEnd(), ...parts.map((p, i) => inner + piece(p) + (i < parts.length - 1 ? join : close)), indent + suffix.trimStart()].join('\n')
+        : [prefix.trimEnd(), ...parts.map((p, i) => inner + piece(p) + (i < parts.length - 1 ? join : suffix))].join('\n');
+    }
+  }
+}
+
+/** A list of names, comma-separated, wrapped at WIDTH (rustfmt's layout for a long `use`). */
+function wrapNames(names: readonly string[], indent: string): string {
+  const lines = [indent];
+  for (const name of names) {
+    const current = lines[lines.length - 1]!;
+    const next = current === indent ? `${indent}${name},` : `${current} ${name},`;
+    if (next.length <= WIDTH || current === indent) lines[lines.length - 1] = next;
+    else lines.push(`${indent}${name},`);
+  }
+  return lines.join('\n');
+}
+
+/** Every line of a piece fitted to the language's budget. */
+const fit = (language: Language, text: string) => text.split('\n').map(line => fitLine(language, line)).join('\n');
 
 /** How much of the request a step shows: each adds one part to the one before. */
 export type Step = 'request' | 'system' | 'tools' | 'config';
@@ -108,13 +183,14 @@ print(stream.usage.output_tokens, "tokens")`,
   ].join('\n'),
   search: () => [
     'SIGHTINGS = [',
-    ...TOUR.sightings.map(x => `    {"date": ${q(x.date)}, "place": ${q(x.place)}, "species": ${q(x.species)}, "count": ${val(String(x.count))}},`),
+    ...TOUR.sightings.flatMap(x => [`    {"date": ${q(x.date)}, "place": ${q(x.place)},`, `     "species": ${q(x.species)}, "count": ${val(String(x.count))}},`]),
     ']',
     '',
     '',
     'def search_sightings(query):',
     '    query = query.lower()',
-    '    return [s for s in SIGHTINGS if query in (s["species"], s["place"], s["date"])]',
+    '    return [s for s in SIGHTINGS',
+    '            if query in (s["species"], s["place"], s["date"])]',
   ].join('\n'),
   askTool: model => `request = ${api('Request')}(
     model=${q(model)},
@@ -124,14 +200,21 @@ print(stream.usage.output_tokens, "tokens")`,
 )
 router = ${api('LMRouter')}()
 response = ${api('router.complete')}(request)
-print(response.finish_reason)  ${comment('# "tool_call": it wants your program to run a tool')}
+print(response.finish_reason)  ${comment('# "tool_call"')}
 for call in response.tool_calls:
     print(call.name, call.input)`,
-  answerTool: () => `results = {call.id: json.dumps(search_sightings(**call.input)) for call in response.tool_calls}
+  answerTool: () => `results = {
+    call.id: json.dumps(search_sightings(**call.input))
+    for call in response.tool_calls
+}
 followup = ${api('Request')}(
     model=request.model,
     system=request.system,
-    messages=[*request.messages, response.message, ${api('Message.tool')}(results)],
+    messages=[
+        *request.messages,
+        response.message,
+        ${api('Message.tool')}(results),
+    ],
     tools=request.tools,
 )
 print(${api('router.complete')}(followup).text)`,
@@ -148,11 +231,13 @@ for turn in range(${val(String(TOUR.maxTurns))}):
     if response.finish_reason != "tool_call":
         print(response.text)
         break
-    messages.append(${api('Message.tool')}({
-        call.id: json.dumps(search_sightings(**call.input)) for call in response.tool_calls
-    }))
+    results = {
+        call.id: json.dumps(search_sightings(**call.input))
+        for call in response.tool_calls
+    }
+    messages.append(${api('Message.tool')}(results))
 else:
-    raise RuntimeError("the model was still calling tools after ${TOUR.maxTurns} turns")`,
+    raise RuntimeError("still calling tools after ${TOUR.maxTurns} turns")`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['FunctionTool'] : [])].sort();
     return `${uses.search ? `${dim('import json')}\n\n` : ''}${dim(`from lm15 import ${names.join(', ')}`)}\n\n${body}`;
@@ -205,12 +290,13 @@ console.log(response.usage.outputTokens, "tokens");`,
   ].join('\n'),
   search: () => [
     'const SIGHTINGS = [',
-    ...TOUR.sightings.map(x => `  { date: ${q(x.date)}, place: ${q(x.place)}, species: ${q(x.species)}, count: ${val(String(x.count))} },`),
+    ...TOUR.sightings.flatMap(x => [`  { date: ${q(x.date)}, place: ${q(x.place)},`, `    species: ${q(x.species)}, count: ${val(String(x.count))} },`]),
     '];',
     '',
     'function searchSightings(query: string) {',
     '  const q = query.toLowerCase();',
-    '  return SIGHTINGS.filter((s) => [s.species, s.place, s.date].includes(q));',
+    '  return SIGHTINGS.filter((s) =>',
+    '    [s.species, s.place, s.date].includes(q));',
     '}',
   ].join('\n'),
   askTool: model => `const request = {
@@ -221,19 +307,31 @@ console.log(response.usage.outputTokens, "tokens");`,
 };
 const router = new ${api('LMRouter')}();
 const response = await ${api('router.complete')}(request);
-console.log(response.finishReason);  ${comment('// "tool_call": it wants your program to run a tool')}
-for (const call of response.toolCalls) console.log(call.name, call.input);`,
-  answerTool: () => `const results = Object.fromEntries(response.toolCalls.map((call) =>
-  [call.id, JSON.stringify(searchSightings(String(call.input["query"])))]));
+console.log(response.finishReason);  ${comment('// "tool_call"')}
+for (const call of response.toolCalls) {
+  console.log(call.name, call.input);
+}`,
+  answerTool: () => `const results = Object.fromEntries(
+  response.toolCalls.map((call) => [
+    call.id,
+    JSON.stringify(searchSightings(String(call.input["query"]))),
+  ]),
+);
 const followup = {
   ...request,
-  messages: [...request.messages, response.message, ${api('Message.tool')}(results)],
+  messages: [
+    ...request.messages,
+    response.message,
+    ${api('Message.tool')}(results),
+  ],
 };
 console.log((await ${api('router.complete')}(followup)).text);`,
   toolLoop: model => `const router = new ${api('LMRouter')}();
 const messages = [${api('Message.user')}(${q(TOUR.toolQuestion)})];
 for (let turn = 0; ; turn++) {
-  if (turn === ${val(String(TOUR.maxTurns))}) throw new Error("the model was still calling tools after ${TOUR.maxTurns} turns");
+  if (turn === ${val(String(TOUR.maxTurns))}) {
+    throw new Error("still calling tools after ${TOUR.maxTurns} turns");
+  }
   const response = await ${api('router.complete')}({
     model: ${q(model)},
     system: ${q(TOUR.system)},
@@ -245,8 +343,13 @@ for (let turn = 0; ; turn++) {
     console.log(response.text);
     break;
   }
-  messages.push(${api('Message.tool')}(Object.fromEntries(response.toolCalls.map((call) =>
-    [call.id, JSON.stringify(searchSightings(String(call.input["query"])))]))));
+  const results = Object.fromEntries(
+    response.toolCalls.map((call) => [
+      call.id,
+      JSON.stringify(searchSightings(String(call.input["query"]))),
+    ]),
+  );
+  messages.push(${api('Message.tool')}(results));
 }`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : [])];
@@ -282,12 +385,13 @@ println!("{}", response.${api('text')}().unwrap_or_default());`,
   response: () => `let router = ${api('LMRouter::new')}();
 let response = ${api('router.complete')}(&request).await?;
 println!("{}", response.${api('text')}().unwrap_or_default());
-println!("{}", response.finish_reason); ${comment('// "stop", "length", "tool_call"…')}
-${comment('// None means the provider did not report it.')}
-if let (Some(input), Some(output)) = (response.usage.input_tokens, response.usage.output_tokens) {
-    println!("{input} {output}");
-}`,
-  stream: () => `let mut stream = ${api('ResponseStream::new')}(${api('router.stream')}(&request), &request);
+${comment('// "stop", "length", "tool_call"…')}
+println!("{}", response.finish_reason);
+let usage = &response.usage;
+${comment('// None: not reported')}
+println!("{:?} {:?}", usage.input_tokens, usage.output_tokens);`,
+  stream: () => `let events = ${api('router.stream')}(&request);
+let mut stream = ${api('ResponseStream::new')}(events, &request);
 while let Some(text) = stream.${api('text_chunks')}().next().await {
     print!("{}", text?);
 }
@@ -306,16 +410,19 @@ if let Some(tokens) = response.usage.output_tokens {
     history ? '    messages,' : `    messages: vec![${api('Message::user')}(${q(TOUR.followUp)})?],`,
     `    ${dim('..Default::default()')}`,
     '};',
-    `println!("{}", ${api('router.complete')}(&followup).await?.${api('text')}().unwrap_or_default());`,
+    `let answer = ${api('router.complete')}(&followup).await?;`,
+    `println!("{}", answer.${api('text')}().unwrap_or_default());`,
   ].join('\n'),
   search: () => [
-    'fn search_sightings(query: &str) -> Vec<serde_json::Value> {',
+    'fn search_sightings(input: &JsonObject) -> Vec<Value> {',
     '    let sightings = serde_json::json!([',
-    ...TOUR.sightings.map(x => `        { "date": ${q(x.date)}, "place": ${q(x.place)}, "species": ${q(x.species)}, "count": ${val(String(x.count))} },`),
+    ...TOUR.sightings.flatMap(x => [`        { "date": ${q(x.date)}, "place": ${q(x.place)},`, `          "species": ${q(x.species)}, "count": ${val(String(x.count))} },`]),
     '    ]);',
-    '    let query = query.to_lowercase();',
+    '    let query = input.get("query").and_then(|q| q.as_str());',
+    '    let query = query.unwrap_or_default().to_lowercase();',
+    '    let fields = ["species", "place", "date"];',
     '    sightings.as_array().into_iter().flatten()',
-    '        .filter(|s| ["species", "place", "date"].iter().any(|key| s[*key] == query.as_str()))',
+    '        .filter(|s| fields.iter().any(|f| s[*f] == query.as_str()))',
     '        .cloned()',
     '        .collect()',
     '}',
@@ -329,25 +436,28 @@ if let Some(tokens) = response.usage.output_tokens {
 };
 let router = ${api('LMRouter::new')}();
 let response = ${api('router.complete')}(&request).await?;
-println!("{}", response.finish_reason); ${comment('// "tool_call": it wants your program to run a tool')}
+println!("{}", response.finish_reason); ${comment('// "tool_call"')}
 for call in response.${api('tool_calls')}() {
-    println!("{} {}", call.name, serde_json::Value::Object(call.input.clone()));
+    let input = serde_json::Value::Object(call.input.clone());
+    println!("{} {input}", call.name);
 }`,
   answerTool: () => `let mut results = Vec::new();
 for call in response.${api('tool_calls')}() {
-    let query = call.input.get("query").and_then(|q| q.as_str()).unwrap_or_default();
-    results.push((call.id.clone(), serde_json::to_string(&search_sightings(query))?));
+    let found = search_sightings(&call.input);
+    let json = serde_json::to_string(&found)?;
+    results.push((call.id.clone(), json));
 }
 let mut messages = request.messages.clone();
 messages.push(response.message.clone());
 messages.push(${api('Message::tool_results')}(results)?);
 let followup = ${api('Request')} { messages, ..request.clone() };
-println!("{}", ${api('router.complete')}(&followup).await?.${api('text')}().unwrap_or_default());`,
+let answer = ${api('router.complete')}(&followup).await?;
+println!("{}", answer.${api('text')}().unwrap_or_default());`,
   toolLoop: model => `let router = ${api('LMRouter::new')}();
 let mut messages = vec![${api('Message::user')}(${q(TOUR.toolQuestion)})?];
 for turn in 0.. {
     if turn == ${val(String(TOUR.maxTurns))} {
-        return Err("the model was still calling tools after ${TOUR.maxTurns} turns".into());
+        return Err("still calling tools after ${TOUR.maxTurns} turns".into());
     }
     let request = ${api('Request')} {
         model: ${q(model)}.into(),
@@ -364,17 +474,20 @@ for turn in 0.. {
     }
     let mut results = Vec::new();
     for call in response.${api('tool_calls')}() {
-        let query = call.input.get("query").and_then(|q| q.as_str()).unwrap_or_default();
-        results.push((call.id.clone(), serde_json::to_string(&search_sightings(query))?));
+        let found = search_sightings(&call.input);
+        let json = serde_json::to_string(&found)?;
+        results.push((call.id.clone(), json));
     }
     messages.push(${api('Message::tool_results')}(results)?);
 }`,
   program: (body, uses) => {
-    const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.loop ? ['FinishReason'] : [])].sort();
+    const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.loop ? ['FinishReason'] : []), ...(uses.search ? ['JsonObject'] : [])].sort();
     const deps = ['lm15', 'tokio (macros, rt-multi-thread)', ...(uses.tool ? ['serde_json'] : []), ...(uses.stream ? ['futures-util'] : [])];
     return [
       ...(uses.stream ? [dim('use futures_util::StreamExt;')] : []),
-      dim(`use lm15::{${names.join(', ')}};`),
+      ...(uses.search ? [dim('use serde_json::Value;')] : []),
+      // rustfmt's layout for a long import list.
+      dim(`use lm15::{${names.join(', ')}};`.length <= WIDTH ? `use lm15::{${names.join(', ')}};` : `use lm15::{\n${wrapNames(names, '    ')}\n};`),
       '',
       comment(`// Dependencies: ${deps.join(', ')}`),
       dim('#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {'),
@@ -391,7 +504,10 @@ const go: Writer = {
     Parameters: lm15.JSONObject{
         "type": "object",
         "properties": lm15.JSONObject{
-            "query": lm15.JSONObject{"type": "string"${vague ? '' : `, "description": ${q(TOUR.queryDescription)}`}},
+            "query": lm15.JSONObject{${vague ? '"type": "string"}' : `
+                "type":        "string",
+                "description": ${q(TOUR.queryDescription)},
+            }`},
         },
         "required": []any{"query"},
     },
@@ -418,11 +534,12 @@ response, err := ${api('router.Complete')}(context.Background(), request)
 ${dim('if err != nil {\n    panic(err)\n}')}
 fmt.Println(response.${api('TextOr')}(""))
 fmt.Println(response.FinishReason) ${comment('// "stop", "length", "tool_call"…')}
-${comment('// nil means the provider did not report it.')}
-if in, out := response.Usage.InputTokens, response.Usage.OutputTokens; in != nil && out != nil {
+in, out := response.Usage.InputTokens, response.Usage.OutputTokens
+if in != nil && out != nil { ${comment('// nil: not reported')}
     fmt.Println(*in, *out)
 }`,
-  stream: () => `stream := ${api('lm15.NewResponseStream')}(${api('router.Stream')}(context.Background(), request), request)
+  stream: () => `events := ${api('router.Stream')}(context.Background(), request)
+stream := ${api('lm15.NewResponseStream')}(events, request)
 for text, err := range stream.${api('Text')}() {
 ${dim('    if err != nil {\n        panic(err)\n    }')}
     fmt.Print(text)
@@ -447,13 +564,14 @@ if out := response.Usage.OutputTokens; out != nil {
   ].join('\n'),
   search: () => [
     'sightings := []map[string]any{',
-    ...TOUR.sightings.map(x => `    {"date": ${q(x.date)}, "place": ${q(x.place)}, "species": ${q(x.species)}, "count": ${val(String(x.count))}},`),
+    ...TOUR.sightings.flatMap(x => [`    {"date": ${q(x.date)}, "place": ${q(x.place)},`, `        "species": ${q(x.species)}, "count": ${val(String(x.count))}},`]),
     '}',
     'searchSightings := func(query string) []map[string]any {',
     '    query = strings.ToLower(query)',
     '    found := []map[string]any{}',
     '    for _, s := range sightings {',
-    '        if s["species"] == query || s["place"] == query || s["date"] == query {',
+    '        if query == s["species"] || query == s["place"] ||',
+    '            query == s["date"] {',
     '            found = append(found, s)',
     '        }',
     '    }',
@@ -471,7 +589,7 @@ if out := response.Usage.OutputTokens; out != nil {
 router := ${api('lm15.NewRouter')}()
 response, err := ${api('router.Complete')}(context.Background(), request)
 ${dim('if err != nil {\n    panic(err)\n}')}
-fmt.Println(response.FinishReason) ${comment('// "tool_call": it wants your program to run a tool')}
+fmt.Println(response.FinishReason) ${comment('// "tool_call"')}
 for _, call := range response.${api('ToolCalls')}() {
     fmt.Println(call.Name, call.Input)
 }`,
@@ -480,25 +598,30 @@ for _, call := range response.${api('ToolCalls')}() {
     query, _ := call.Input["query"].(string)
     found, err := json.Marshal(searchSightings(query))
 ${dim('    if err != nil {\n        panic(err)\n    }')}
-    results = append(results, ${api('lm15.ToolResult')}(call.ID, string(found)))
+    result := ${api('lm15.ToolResult')}(call.ID, string(found))
+    results = append(results, result)
 }
 followup := *request
-followup.Messages = append(request.Messages, response.Message, ${api('lm15.ToolMessageParts')}(results...))
+followup.Messages = append(request.Messages, response.Message,
+    ${api('lm15.ToolMessageParts')}(results...))
 answer, err := ${api('router.Complete')}(context.Background(), &followup)
 ${dim('if err != nil {\n    panic(err)\n}')}
 fmt.Println(answer.${api('TextOr')}(""))`,
   toolLoop: model => `router := ${api('lm15.NewRouter')}()
-messages := []${api('lm15.Message')}{${api('lm15.UserMessage')}(${q(TOUR.toolQuestion)})}
+messages := []${api('lm15.Message')}{
+    ${api('lm15.UserMessage')}(${q(TOUR.toolQuestion)}),
+}
 for turn := 0; ; turn++ {
     if turn == ${val(String(TOUR.maxTurns))} {
-        panic("the model was still calling tools after ${TOUR.maxTurns} turns")
+        panic("still calling tools after ${TOUR.maxTurns} turns")
     }
-    response, err := ${api('router.Complete')}(context.Background(), &${api('lm15.Request')}{
+    request := &${api('lm15.Request')}{
         Model:    ${q(model)},
         System:   ${api('lm15.System')}(${q(TOUR.system)}),
         Messages: messages,
         Tools:    []${api('lm15.Tool')}{sightingsTool},
-    })
+    }
+    response, err := ${api('router.Complete')}(context.Background(), request)
 ${dim('    if err != nil {\n        panic(err)\n    }')}
     messages = append(messages, response.Message)
     if response.FinishReason != "tool_call" {
@@ -510,7 +633,8 @@ ${dim('    if err != nil {\n        panic(err)\n    }')}
         query, _ := call.Input["query"].(string)
         found, err := json.Marshal(searchSightings(query))
 ${dim('        if err != nil {\n            panic(err)\n        }')}
-        results = append(results, ${api('lm15.ToolResult')}(call.ID, string(found)))
+        result := ${api('lm15.ToolResult')}(call.ID, string(found))
+        results = append(results, result)
     }
     messages = append(messages, ${api('lm15.ToolMessageParts')}(results...))
 }`,
@@ -554,7 +678,9 @@ response$finish_reason  ${comment('# "stop", "length", "tool_call"…')}
 response$usage$input_tokens
 response$usage$output_tokens`,
   stream: () => `response <- ${api('stream')}(router, req, on_event = function(event) {
-  if (event$type == "delta" && event$delta$type == "text") cat(event$delta$text)
+  if (event$type == "delta" && event$delta$type == "text") {
+    cat(event$delta$text)
+  }
 })
 response$usage$output_tokens`,
   followUp: (model, history) => [
@@ -577,7 +703,9 @@ response$usage$output_tokens`,
     '',
     'search_sightings <- function(query) {',
     '  query <- tolower(query)',
-    '  sightings[sightings$species == query | sightings$place == query | sightings$date == query, ]',
+    '  found <- sightings$species == query | sightings$place == query |',
+    '    sightings$date == query',
+    '  sightings[found, ]',
     '}',
   ].join('\n'),
   askTool: model => `req <- ${api('request')}(
@@ -588,10 +716,13 @@ response$usage$output_tokens`,
 )
 router <- ${api('new_router')}()
 response <- ${api('complete')}(router, req)
-response$finish_reason  ${comment('# "tool_call": it wants your program to run a tool')}
-for (call in ${api('tool_calls')}(response)) cat(call$name, jsonlite::toJSON(call$input, auto_unbox = TRUE), "\\n")`,
+response$finish_reason  ${comment('# "tool_call"')}
+for (call in ${api('tool_calls')}(response)) {
+  cat(call$name, jsonlite::toJSON(call$input, auto_unbox = TRUE), "\\n")
+}`,
   answerTool: () => `results <- lapply(${api('tool_calls')}(response), function(call) {
-  ${api('tool_result_part')}(call$id, list(${api('text_part')}(as.character(jsonlite::toJSON(search_sightings(call$input$query))))))
+  found <- jsonlite::toJSON(search_sightings(call$input$query))
+  ${api('tool_result_part')}(call$id, list(${api('text_part')}(as.character(found))))
 })
 followup <- ${api('request')}(
   req$model,
@@ -612,11 +743,14 @@ for (turn in seq_len(${val(String(TOUR.maxTurns))})) {
   messages <- c(messages, list(response$message))
   if (response$finish_reason != "tool_call") break
   results <- lapply(${api('tool_calls')}(response), function(call) {
-    ${api('tool_result_part')}(call$id, list(${api('text_part')}(as.character(jsonlite::toJSON(search_sightings(call$input$query))))))
+    found <- jsonlite::toJSON(search_sightings(call$input$query))
+    ${api('tool_result_part')}(call$id, list(${api('text_part')}(as.character(found))))
   })
   messages <- c(messages, list(${api('message')}("tool", results)))
 }
-if (response$finish_reason == "tool_call") stop("the model was still calling tools after ${TOUR.maxTurns} turns")
+if (response$finish_reason == "tool_call") {
+  stop("still calling tools after ${TOUR.maxTurns} turns")
+}
 ${api('response_text')}(response)`,
   program: body => `${dim('library(lm15)')}\n\n${body}`,
 };
@@ -670,10 +804,13 @@ println(response.usage.output_tokens, " tokens")`,
   ].join('\n'),
   search: () => [
     'const SIGHTINGS = [',
-    ...TOUR.sightings.map(x => `    (date=${q(x.date)}, place=${q(x.place)}, species=${q(x.species)}, count=${val(String(x.count))}),`),
+    ...TOUR.sightings.flatMap(x => [`    (date=${q(x.date)}, place=${q(x.place)},`, `     species=${q(x.species)}, count=${val(String(x.count))}),`]),
     ']',
     '',
-    'search_sightings(query) = filter(s -> lowercase(query) in (s.species, s.place, s.date), SIGHTINGS)',
+    'function search_sightings(query)',
+    '    query = lowercase(query)',
+    '    filter(s -> query in (s.species, s.place, s.date), SIGHTINGS)',
+    'end',
   ].join('\n'),
   askTool: model => `req = ${api('Request')}(
     ${q(model)},
@@ -683,12 +820,17 @@ println(response.usage.output_tokens, " tokens")`,
 )
 router = ${api('LMRouter')}()
 response = ${api('complete')}(router, req)
-println(response.finish_reason)  ${comment('# "tool_call": it wants your program to run a tool')}
+println(response.finish_reason)  ${comment('# "tool_call"')}
 for call in ${api('tool_calls')}(response)
     println(call.name, " ", call.input)
 end`,
-  answerTool: () => `results = [${api('tool_result')}(call, ${api('tool_content')}(search_sightings(call.input["query"]))) for call in ${api('tool_calls')}(response)]
-followup = ${api('Request')}(req; messages=(req.messages..., response.message, ${api('tool_message')}(results...)))
+  answerTool: () => `results = map(${api('tool_calls')}(response)) do call
+    found = search_sightings(call.input["query"])
+    ${api('tool_result')}(call, ${api('tool_content')}(found))
+end
+followup = ${api('Request')}(req; messages=(
+    req.messages..., response.message, ${api('tool_message')}(results...),
+))
 println(${api('text')}(${api('complete')}(router, followup)))`,
   toolLoop: model => `router = ${api('LMRouter')}()
 messages = [${api('user')}(${q(TOUR.toolQuestion)})]
@@ -706,14 +848,39 @@ for turn in 1:${val(String(TOUR.maxTurns))}
         global answered = true
         break
     end
-    results = [${api('tool_result')}(call, ${api('tool_content')}(search_sightings(call.input["query"]))) for call in ${api('tool_calls')}(response)]
+    results = map(${api('tool_calls')}(response)) do call
+        found = search_sightings(call.input["query"])
+        ${api('tool_result')}(call, ${api('tool_content')}(found))
+    end
     push!(messages, ${api('tool_message')}(results...))
 end
-answered || error("the model was still calling tools after ${TOUR.maxTurns} turns")`,
+answered || error("still calling tools after ${TOUR.maxTurns} turns")`,
   program: body => `${dim('using LM15')}\n\n${body}`,
 };
 
-const WRITERS: Record<Language, Writer> = { python, typescript, rust, go, r, julia };
+/** A writer whose pieces are fitted to its language's budget (the program frame is not: it only indents). */
+function fitted(language: Language, w: Writer): Writer {
+  const f = (text: string) => fit(language, text);
+  return {
+    tool: vague => f(w.tool(vague)),
+    request: (model, parts) => f(w.request(model, parts)),
+    ask: () => f(w.ask()),
+    response: () => f(w.response()),
+    stream: () => f(w.stream()),
+    followUp: (model, history) => f(w.followUp(model, history)),
+    search: () => f(w.search()),
+    askTool: model => f(w.askTool(model)),
+    answerTool: () => f(w.answerTool()),
+    toolLoop: model => f(w.toolLoop(model)),
+    program: (body, uses) => w.program(body, uses),
+    router: () => f(w.router()),
+  };
+}
+
+const WRITERS: Record<Language, Writer> = {
+  python: fitted('python', python), typescript: fitted('typescript', typescript), rust: fitted('rust', rust),
+  go: fitted('go', go), r: fitted('r', r), julia: fitted('julia', julia),
+};
 
 /** The marked text a view shows (before `finish`). */
 function marked(language: Language, view: TourView, model: string): string {

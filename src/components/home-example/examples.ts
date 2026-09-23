@@ -32,7 +32,8 @@ export const PROVIDERS = CONNECTIONS.filter(choice => choice.env && !('judgments
 
 export const INITIAL = { language: 'python' as Language, provider: 'provider', model: 'model' };
 const MODEL = '«model»';
-const prompt = val(TEXT.prompt);
+// The homepage's box is narrower than the docs' (64 columns at 1280px): a shorter question from the same story.
+const prompt = val(TEXT.homePrompt);
 
 /**
  * Real router APIs: only the provider:model string changes between providers.

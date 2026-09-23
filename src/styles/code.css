@@ -25,3 +25,16 @@
 .tok-dim { color: var(--lm-code-muted); }
 .tok-dim .tok-comment { color: inherit; }
 .tok-opaque { color: var(--lm-code-muted); }
+
+/* A box with more to the side shows a soft shadow on that edge. The covers move
+   with the text (`local`) and hide the shadows (`scroll`) when nothing is past
+   the edge, so a box that fits looks exactly as before. Phones hide scrollbars;
+   this is how a reader knows a line continues. */
+pre.lm-code {
+  background:
+    linear-gradient(to right, var(--lm-code-bg) 40%, transparent) left / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--lm-code-bg) 40%, transparent) right / 2rem 100% no-repeat local,
+    linear-gradient(to right, color-mix(in srgb, var(--lm-code-ink) 16%, transparent), transparent) left / .8rem 100% no-repeat scroll,
+    linear-gradient(to left, color-mix(in srgb, var(--lm-code-ink) 16%, transparent), transparent) right / .8rem 100% no-repeat scroll,
+    var(--lm-code-bg);
+}

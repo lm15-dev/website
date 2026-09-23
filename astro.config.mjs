@@ -52,8 +52,7 @@ export default defineConfig({
         // The colours are CSS variables chosen for contrast in theme.css; Expressive Code cannot read them to adjust.
         minSyntaxHighlightingColorContrast: 0,
         styleOverrides: codeStyle,
-        // Long lines wrap and continue under their own indent, four columns in, as in the playground (code-view.ts CONTINUATION).
-        defaultProps: { wrap: true, preserveIndent: true, hangingIndent: 4 },
+        // No wrapping: examples are written to fit; on a narrow screen a block scrolls sideways (as DocsExample does).
       },
     }),
     playgroundDev,
