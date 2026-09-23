@@ -45,19 +45,19 @@ test('first-request setup follows the selected provider and language', { timeout
       assert.equal(await page.locator('[data-doc-key-powershell]').textContent(), `$env:${provider.env} = "your-api-key"`);
       assert.equal(await page.locator('[data-doc-key-cmd]').textContent(), `set ${provider.env}=your-api-key`);
       assert.match(await page.locator('[data-doc-key-error-source]').textContent() ?? '', new RegExp(provider.env));
-      assert.ok((await page.locator('[data-doc-source]').textContent())?.includes(`${provider.id}:test-model`));
+      assert.ok((await page.locator('[data-doc-source]').first().textContent())?.includes(`${provider.id}:test-model`));
     }
     await page.locator('[data-doc-language]').click();
     await page.getByRole('option', { name: 'TypeScript', exact: true }).click();
     assert.equal(await page.locator('[data-doc-install-language="python"]').isVisible(), false);
     assert.equal(await page.locator('[data-doc-python-auth]').isVisible(), false);
     assert.match(await page.locator('[data-doc-install]').innerText(), /TypeScript SDK guide/);
-    assert.match(await page.locator('[data-doc-source]').textContent() ?? '', /import \{ LMRouter, Message \} from "lm15"/);
+    assert.match(await page.locator('[data-doc-source]').first().textContent() ?? '', /import \{ LMRouter, Message \} from "lm15"/);
 
     await page.locator('[data-doc-provider]').click();
     await page.getByRole('option', { name: 'OpenAI', exact: true }).click();
     assert.equal(await page.locator('[data-doc-key-posix]').textContent(), 'export OPENAI_API_KEY="your-api-key"');
-    assert.ok((await page.locator('[data-doc-source]').textContent())?.includes('openai:model'));
+    assert.ok((await page.locator('[data-doc-source]').first().textContent())?.includes('openai:model'));
     await page.locator('[data-doc-provider]').click();
     await page.getByRole('option', { name: /Clear selection/ }).click();
     assert.equal(await page.locator('[data-doc-key-provider]:visible').count(), 9);
@@ -68,7 +68,7 @@ test('first-request setup follows the selected provider and language', { timeout
     await staticPage.goto(`${origin}/docs/first-request/`);
     assert.match(await staticPage.locator('[data-doc-install]').innerText(), /python3 -m pip install --pre lm15/);
     assert.equal(await staticPage.locator('[data-doc-key-provider]:visible').count(), 9);
-    assert.deepEqual(await staticPage.locator('main h2').allTextContents(), ['Install', 'Set an API key', 'One call']);
+    assert.deepEqual(await staticPage.locator('main h2').allTextContents(), ['Install', 'Set an API key', 'Ask a question', 'Read the whole response', 'Give it instructions', 'Ask a follow-up', 'Watch it arrive', 'Use another provider', 'When something goes wrong', 'Try it yourself', 'Next']);
     assert.deepEqual(errors, []);
   } finally {
     await browser?.close();

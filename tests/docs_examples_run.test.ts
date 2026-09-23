@@ -15,8 +15,9 @@
  * the same request body as Python for the same program.
  *
  * SDKs: Python from the wheel and TypeScript from the build the website pins
- * (node_modules/lm15); Rust and Go from the sibling checkouts (LM15_RS_DIR,
- * LM15_GO_DIR), which must be at the commits in node_modules/lm15/runtime/sources.json;
+ * (node_modules/lm15); Rust and Go at the commits pinned in
+ * node_modules/lm15/runtime/sources.json, extracted from the sibling checkouts'
+ * history (LM15_RS_DIR, LM15_GO_DIR) whatever they have checked out;
  * R and Julia from their checkouts (LM15_R_DIR, LM15_JL_DIR) through Nix.
  * R runs with its real router but its fake transport: its curl transport fails
  * in its own dev shell (`headerfunction` unsupported), a bug to fix in lm15-r.
@@ -39,7 +40,7 @@ const sdk = (variable: string, name: string) => resolve(process.env[variable] ??
 const pins = JSON.parse(readFileSync(join(ROOT, 'node_modules/lm15/runtime/sources.json'), 'utf8')) as Record<string, string>;
 const wanted = new Set((process.env['LM15_DOCS_LANGUAGES'] ?? LANGUAGES.map(l => l.id).join(',')).split(','));
 
-interface Program { name: string; source: string; streams: boolean }
+interface Program { name: string; source: string; streams: boolean; requests?: number }
 /** Everything the docs run: the first request, and the Overview's tour. */
 function programs(language: Language): Program[] {
   return [{ name: 'first-request', source: exampleSource(language, 'ollama', 'test-model'), streams: false }, ...tourPrograms(language, 'ollama', 'test-model')];
@@ -58,17 +59,24 @@ function sealed(command: string[], cwd: string, env: NodeJS.ProcessEnv = process
 const have = (tool: string) => spawnSync('sh', ['-c', `command -v ${tool}`]).status === 0;
 const results = new Map<Language, Map<string, unknown[]>>();
 
-function record(language: Language, name: string, stdout: string, bodies: unknown[]): void {
+function record(language: Language, name: string, stdout: string, bodies: unknown[], requests = 1): void {
   assert.ok(stdout.includes(REPLY), `${language} ${name}: the answer was not printed:\n${stdout}`);
-  assert.equal(bodies.length, 1, `${language} ${name}: expected one request, saw ${bodies.length}`);
+  assert.equal(bodies.length, requests, `${language} ${name}: expected ${requests} request(s), saw ${bodies.length}`);
   if (!results.has(language)) results.set(language, new Map());
   results.get(language)!.set(name, bodies);
 }
 
-function checkPin(language: string, dir: string, pin: string | undefined): void {
-  if (!pin) return;
-  const head = execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-  assert.equal(head, pin, `${language}: ${dir} is at ${head.slice(0, 12)}, but the website pins ${pin.slice(0, 12)}`);
+/** The SDK at the commit the website pins, extracted from the checkout's history into the cache (once per commit). */
+function pinned(language: string, checkout: string, pin: string | undefined): string {
+  assert.ok(pin, `${language}: no pinned commit in sources.json`);
+  const dir = join(CACHE, `${language}-sdk-${pin.slice(0, 12)}`);
+  if (!existsSync(join(dir, '.complete'))) {
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    execFileSync('sh', ['-c', `git -C "$0" archive "$1" | tar -x -C "$2"`, checkout, pin, dir]);
+    writeFileSync(join(dir, '.complete'), pin + '\n');
+  }
+  return dir;
 }
 
 const runners: Record<Language, (t: import('node:test').TestContext) => void> = {
@@ -81,7 +89,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     for (const p of programs('python')) {
       writeFileSync(join(dir, `${p.name}.py`), p.source + '\n');
       const out = sealed(['python3', `${p.name}.py`], dir, { ...process.env, PYTHONPATH: join(dir, 'site') });
-      record('python', p.name, out.stdout, out.bodies);
+      record('python', p.name, out.stdout, out.bodies, p.requests);
     }
   },
   typescript() {
@@ -95,14 +103,13 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       execFileSync(process.execPath, [join(ROOT, 'node_modules/typescript/bin/tsc'), '-p', join(dir, 'tsconfig.json')], { stdio: 'pipe' });
       for (const p of list) {
         const out = sealed([process.execPath, '--experimental-strip-types', '--no-warnings', `${p.name}.ts`], dir);
-        record('typescript', p.name, out.stdout, out.bodies);
+        record('typescript', p.name, out.stdout, out.bodies, p.requests);
       }
     } finally { rmSync(dir, { recursive: true, force: true }); }
   },
   rust(t) {
     if (!have('rcargo') && !have('cargo')) return t.skip('neither rcargo nor cargo found');
-    const lm15 = sdk('LM15_RS_DIR', 'lm15-rs');
-    checkPin('rust', lm15, pins['rust']);
+    const lm15 = pinned('rust', sdk('LM15_RS_DIR', 'lm15-rs'), pins['rust']);
     const dir = join(CACHE, 'rust');
     mkdirSync(join(dir, 'src/bin'), { recursive: true });
     for (const name of readdirSync(join(dir, 'src/bin'))) rmSync(join(dir, 'src/bin', name));
@@ -112,13 +119,12 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     execFileSync(have('rcargo') ? 'rcargo' : 'cargo', ['build', '--release', '--quiet'], { cwd: dir, stdio: 'pipe', timeout: 1_200_000 });
     for (const p of list) {
       const out = sealed([join(dir, 'target/release', p.name.replace(/-/g, '_'))], dir);
-      record('rust', p.name, out.stdout, out.bodies);
+      record('rust', p.name, out.stdout, out.bodies, p.requests);
     }
   },
   go(t) {
     if (!have('go')) return t.skip('go not found');
-    const lm15 = sdk('LM15_GO_DIR', 'lm15-go');
-    checkPin('go', lm15, pins['go']);
+    const lm15 = pinned('go', sdk('LM15_GO_DIR', 'lm15-go'), pins['go']);
     const dir = mkdtempSync(join(tmpdir(), 'lm15-docs-go-'));
     writeFileSync(join(dir, 'go.mod'), `module example.test/docs\n\ngo 1.26\n\nrequire github.com/lm15-dev/lm15-go v0.0.0\nreplace github.com/lm15-dev/lm15-go => ${lm15}\n`);
     for (const p of programs('go')) {
@@ -126,7 +132,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       writeFileSync(join(dir, p.name, 'main.go'), p.source + '\n');
       execFileSync('go', ['build', '-mod=mod', '-o', join(dir, `${p.name}.bin`), `./${p.name}`], { cwd: dir, stdio: 'pipe', timeout: 300_000 });
       const out = sealed([join(dir, `${p.name}.bin`)], dir);
-      record('go', p.name, out.stdout, out.bodies);
+      record('go', p.name, out.stdout, out.bodies, p.requests);
     }
   },
   r(t) {
@@ -155,10 +161,11 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       const source = p.source.replace('new_router()', 'new_router(transport = .docs_transport)');
       assert.notEqual(source, p.source, `r ${p.name}: no router to give the fake transport`);
       writeFileSync(join(dir, `${p.name}.R`), source + '\n');
-      writeFileSync(join(dir, `run-${p.name}.R`), `${replies}\n.docs_transport <- lm15::fake_transport(list(${reply}))\nsource(${JSON.stringify(join(dir, `${p.name}.R`))}, print.eval = TRUE)\nfor (w in attr(.docs_transport, "requests")()) cat(rawToChar(w$body), "\\n", file = ${JSON.stringify(join(dir, `${p.name}.jsonl`))}, append = TRUE, sep = "")\n`);
+      const replyList = Array(p.requests ?? 1).fill(reply).join(', ');
+      writeFileSync(join(dir, `run-${p.name}.R`), `${replies}\n.docs_transport <- lm15::fake_transport(list(${replyList}))\nsource(${JSON.stringify(join(dir, `${p.name}.R`))}, print.eval = TRUE)\nfor (w in attr(.docs_transport, "requests")()) cat(rawToChar(w$body), "\\n", file = ${JSON.stringify(join(dir, `${p.name}.jsonl`))}, append = TRUE, sep = "")\n`);
       const stdout = nix(`R_LIBS=${JSON.stringify(lib)} Rscript --no-save ${JSON.stringify(join(dir, `run-${p.name}.R`))} 2>/dev/null`);
       const bodies = readFileSync(join(dir, `${p.name}.jsonl`), 'utf8').trim().split('\n').map(line => JSON.parse(line));
-      record('r', p.name, stdout, bodies);
+      record('r', p.name, stdout, bodies, p.requests);
     }
   },
   julia(t) {
@@ -175,7 +182,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       // Nix resolves julia outside the namespace; the program runs inside it.
       const bin = execFileSync('nix', ['shell', 'nixpkgs#julia-bin', '-c', 'sh', '-c', 'command -v julia'], { encoding: 'utf8' }).trim();
       const out = sealed([bin, `--project=${project}`, `${p.name}.jl`], dir);
-      record('julia', p.name, out.stdout, out.bodies);
+      record('julia', p.name, out.stdout, out.bodies, p.requests);
     }
   },
 };

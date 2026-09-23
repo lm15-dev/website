@@ -1,14 +1,33 @@
 ---
 title: Make your first request
-description: Make a model call with your chosen language and provider, then understand the request and response.
+description: Install LM15, set one API key, and ask a model a real question. Then give it instructions, ask a follow-up, and watch an answer arrive, with the real answers shown at each step.
 ---
 
 import DocsExample from '../../../components/DocsExample.astro';
 import DocsSetup from '../../../components/DocsSetup.astro';
+import CapturedAnswer from '../../../components/CapturedAnswer.astro';
+import captures from '../../../data/first-request-captures.json';
+import TOUR from '../../../data/tour-text.json';
 
-Choose your language, provider, and model at the top left of the page. We’ll
-install LM15, set one API key, and make a call. Your choices are included in the
-page address, so you can share the same example.
+export const s = captures.steps;
+
+The goal of this page is to get a real answer from a model as quickly as
+possible, then change one thing at a time and see what changes. The
+[Overview](/docs/) explains the ideas behind each part; here we skip the theory
+and practise.
+
+On this page you’ll:
+
+- install LM15 and set an API key;
+- ask a question and read everything that comes back;
+- give the model instructions;
+- ask a follow-up, and see why the model needs the conversation;
+- watch an answer arrive as it’s written.
+
+Choose your language, provider, and model at the top left of the page; every
+example follows your choice. The answers shown are real: we ran each step with
+`gpt-5.6-sol` through OpenAI Codex. Your answers will be worded differently,
+and that’s normal.
 
 ## Install
 
@@ -18,30 +37,143 @@ page address, so you can share the same example.
 
 <DocsSetup step="auth" />
 
-## One call
+## Ask a question
 
-The router connects to the provider named in your request and reads its API key
-from the environment variable you just set. Run this example to get an answer:
+Our wildlife station has a mystery: acorns under the oak trees vanish overnight.
+Let’s ask a model.
 
-<DocsExample recipe="first-request" />
+<DocsExample recipe="tour-first" />
 
-You create a **Request**. A configured client translates it into the provider's
-API format. You receive a **Response**, with message content, a finish reason,
-and any usage information the provider reported.
+Run it. Here is what came back when we did:
 
-```text
-Your application → Provider's SDK → Provider API
-Your application → LM15           → Provider API
-```
+<CapturedAnswer step="first" />
 
-LM15 is an alternative client, not an extra SDK layered on top of the provider's
-client. You can inspect generated requests and supply your own transport. For
-options outside the common model, compatibility policies and extension fields
-keep provider-specific configuration accessible.
+Three things happened:
 
-Streaming uses the same request. Instead of a completed response, the client
-returns events your application can display or collect into a final result.
+1. You described what you want: a **request**, with a model and one message.
+2. The **router** read the model name. Its first part names the provider, so
+   it knew whom to call and which API key to look for in your environment.
+3. The provider’s answer came back as a **response**. Its text is the text of
+   the message the model wrote.
 
-To use another provider, configure its connection and choose a model it serves.
-The request and response concepts stay the same. The router in this example
-selects the connection from the `provider:model` name.
+That answer is long, and it’s a list. Hold that thought.
+
+## Read the whole response
+
+The text is only part of what comes back. Replace the lines after the request
+with these:
+
+<DocsExample recipe="tour-response" />
+
+<CapturedAnswer step="first" show="facts" />
+
+- **The finish reason** says why the model stopped. `stop` means it finished on
+  its own. You’ll also meet `length` (it reached a limit you set) and `tool_call`
+  (it is waiting for your program to run a tool).
+- **Token counts** are what the provider counted, and what it bills: here
+  {s.first.input_tokens} tokens in and {s.first.output_tokens} out. A count the
+  provider didn’t report is empty, not zero.
+
+## Give it instructions
+
+{s.first.output_tokens} tokens is a lot for a quick question. Instructions change
+that. They go in `system`, beside the messages rather than inside them, and they
+apply to the whole request. Change the request to this:
+
+<DocsExample recipe="tour-system" />
+
+<CapturedAnswer step="instructed" show="read" />
+
+Same question: {s.instructed.output_tokens} tokens instead of
+{s.first.output_tokens}, two sentences, and it answers as the station’s
+assistant.
+
+## Ask a follow-up
+
+Now a second question: *{TOUR.followUp}* Send it on its own first:
+
+<DocsExample recipe="tour-forgetful" />
+
+<CapturedAnswer step="forgetful" />
+
+The model doesn’t know which animals you mean. It remembers nothing between
+requests: each one must carry the conversation. So send the first question, the
+model’s answer, and then the new question. Add this after the lines that print
+the first answer:
+
+<DocsExample recipe="tour-followup" />
+
+<CapturedAnswer step="followup" show="read" />
+
+Now it knows. Look at the input: {s.followup.input_tokens} tokens, against
+{s.forgetful.input_tokens} for the question alone. Each request sends the whole
+conversation again, and you pay for it again.
+
+Send the model’s whole message, not just its text. A message can carry things
+the provider needs to continue, such as its reasoning, which the text alone would
+lose.
+
+## Watch it arrive
+
+A long answer takes a while. Streaming prints it as it’s written. The request is
+the one you sent in [Give it instructions](#give-it-instructions); only the way
+you receive the answer changes:
+
+<DocsExample recipe="tour-stream" />
+
+<CapturedAnswer step="streamed" show="read" />
+
+The answer arrived in {s.streamed.pieces} pieces. At the end you get the same
+kind of complete response as before, with its finish reason and token counts.
+
+Compare it with the answer under *Give it instructions*: same request, different
+words. A model doesn’t repeat itself word for word, so don’t write code that
+expects it to.
+
+## Use another provider
+
+To switch, change the model name, and nothing else. Pick another provider at the
+top of the page and every example above follows. A model name belongs to one
+provider, so choose a model that provider serves, and set its API key too.
+
+## When something goes wrong
+
+- **No API key found.** The error names the environment variable to set; see
+  [Set an API key](#set-an-api-key). Set it in the terminal where you run your
+  program.
+- **The model name is wrong** or your account can’t use it. The provider
+  refuses, and LM15 passes its message on.
+- **A setting the provider can’t honour.** LM15 refuses before sending, rather
+  than quietly ignore what you asked. When we asked OpenAI Codex, which has no
+  length limit, for a {TOUR.tinyLimit}-token limit:
+
+<CapturedAnswer step="limited" show="error" />
+
+Nothing was sent, and nothing was spent.
+
+## Try it yourself
+
+Predict the answer before you run each one.
+
+1. Run the program from *Ask a question* twice. Do you get the same words?
+2. Remove “Answer in two sentences.” from the instructions. What happens to the
+   output tokens?
+3. In the follow-up, keep the first question but leave out the model’s answer.
+   What does the model see, and how might it answer?
+
+<details>
+<summary>What to expect</summary>
+
+1. No. The same request gave two differently worded answers above, under *Give
+   it instructions* and *Watch it arrive*.
+2. They grow back towards the length of the first, list-shaped answer.
+3. Two questions in a row, with no answer between them. It may answer both, or
+   only the last; either way, it can’t know what it said before.
+
+</details>
+
+## Next
+
+You’ve used four of the parts every request has: a model, messages,
+instructions, and the response. The [Overview](/docs/) shows the others, tools
+and settings, and how LM15 keeps them the same across languages and providers.

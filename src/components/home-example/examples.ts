@@ -1,5 +1,6 @@
 import { CONNECTIONS } from '../../playground/connections.ts';
 import { api, comment, dim, finish, plain, val, type Code } from '../../playground/marks.ts';
+import TEXT from '../../data/tour-text.json' with { type: 'json' };
 
 export const LANGUAGES = [
   { id: 'python', label: 'Python', file: 'example.py' },
@@ -31,7 +32,7 @@ export const PROVIDERS = CONNECTIONS.filter(choice => choice.env && !('judgments
 
 export const INITIAL = { language: 'python' as Language, provider: 'provider', model: 'model' };
 const MODEL = '«model»';
-const prompt = val('Explain why the sky is blue.');
+const prompt = val(TEXT.prompt);
 
 /**
  * Real router APIs: only the provider:model string changes between providers.

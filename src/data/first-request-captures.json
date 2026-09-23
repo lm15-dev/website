@@ -1,0 +1,168 @@
+{
+  "model": "openai-codex:gpt-5.6-sol",
+  "date": "2026-09-23",
+  "steps": {
+    "first": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Common nighttime acorn eaters include:\n\n- **Deer** — often swallow acorns whole; look for hoofprints and pellet-like droppings.\n- **Mice, rats, voles, and woodrats** — leave neatly gnawed shells, small tooth marks, or piles near cover.\n- **Flying squirrels** — nocturnal and especially likely near mature oaks; may leave opened shells around tree bases.\n- **Raccoons and opossums** — may eat acorns along with other foods; identifiable by hand-like raccoon tracks or opossum tracks.\n- **Wild pigs or bears**, where present — usually leave obvious signs such as rooted-up soil, large tracks, or scat.\n\nDay-active **tree squirrels, chipmunks, jays, and turkeys** may also remove or cache acorns, so disappearance noticed in the morning does not necessarily mean it happened overnight. Acorns with a small round hole may instead contain—or have contained—an **acorn-weevil larva**.\n\nA motion-activated trail camera aimed at an undisturbed patch beneath the trees is the easiest way to identify the visitor.",
+      "finish_reason": "stop",
+      "input_tokens": 30,
+      "output_tokens": 581,
+      "model": "gpt-5.6-sol"
+    },
+    "instructed": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "text": "Likely nighttime acorn eaters include deer, raccoons, opossums, wild pigs, wood mice, rats, and other small rodents; squirrels and many birds usually feed during the day. Check for tracks, scat, gnaw marks, or disturbed leaf litter, and use a motion-triggered trail camera to identify the visitor.",
+      "finish_reason": "stop",
+      "input_tokens": 40,
+      "output_tokens": 94,
+      "model": "gpt-5.6-sol"
+    },
+    "forgetful": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "Would the same animals eat hazelnuts?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "text": "Which animals are you referring to? Many rodents, birds, deer, and wild boar eat hazelnuts, but suitability depends on the species.",
+      "finish_reason": "stop",
+      "input_tokens": 35,
+      "output_tokens": 59,
+      "model": "gpt-5.6-sol"
+    },
+    "followup": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "thinking",
+                "text": "",
+                "continuation": [
+                  {
+                    "provider": "openai",
+                    "kind": "reasoning_item",
+                    "data": {
+                      "id": "rs_0dc3e35eb805d155016ab40d1908888191985a3e66f2f7d359",
+                      "encrypted_content": "gAAAAABqtA0ZTGizqORmJYy3B0JBDf2VPhw4ZZgB6FUGuAsnfiJwur_RB6675u3HoXfozL3NhEqxY20RX6QOfzZHzuKbkY1DqPmVKxnuWv8CatIXXn54DXCudIMfDlxpi1Q6sGjFDNfmIKVDS0U0rrDPQIdJCMM1AfaZVdXvpZ1g_v8oO4jDcOgLS6RURd3y1RecvArqwS07bKgJZyW5g01o5ARqeTi4nyqh7ipM2OrmtWE63-2N5YC1zJm6yYMxO1XPj78BOh39andDmPmTPA7E19D05lBM8oFyzk6VDeSUp091TRdEVuZuUhakFZpuXAKi8uFd9FoR7I-7IYoak_ihEUJkwzwQzltyZjIkTBxiGOTWxCA-BhW_1f5WYcLc1oF1C2kPbmm2ASyRIDrxglxdUyunZUbV3C4C2xwVAM_VUgvOq60Vwmje3YBW8Ycc2AXojk-RJLKw2CQ2IZB6OELwah4-MuIL1e2VMyZembqRIa4tLqBABJwGycMmk7o2dEYbsaZVDss7hsyVVJOQFrcaOCLzt2w7_taaL2HYiZlK0FKaWZ_bq3AlCCKDMFTIuc7DAZv0kTNUMXuFYkQCL3-JXFMwUu2vhmwcCROFvPvMzG1u188vLTDDBRBuZQJfk-QIp_k2-etgncRLjDxmyiPfQUmn_3lgouVKo80u5VyMcMGXHm8YzLPPzTvmXZjc9bXomMlq28ut6YVy7d5dNYe3mrwAZaxeF8ErbPx9FuZdxbxuhdX3iG-VZi7JNzMSbZ3SotlbJk688QlA222Uck3ScM4kAW6dkXNykXFb4G_ugXgZ1i7bsATOuF538dMTqvrC85i5a4nnl5F4H9GF6XkmAtkceMx2Er7Ocm-mJENi54aafEtrBIbhV_KydkVZyEjCv48kJs1nxjC5afuM-A29p1gq2kZQkP_Z-Bb5GsRe1H8rR-JLqLw2NdnG_kGRTz8AhMcryPCywdclxgd-DgTMpm3qNK1d8t_Wy19Yo4181gTR3DAzsDbJLNIU9tJk03q11H-5Z1t-SceY2cPftxwDwe9_CkMQtVK3XnzszvbtDE31hIUZut_BYVWt_YPVpWwZ7cL3_OyY0qnEV6hNuEqndKkeL5exe1mHHV1slRUsyptRXatEClVMxqSK4IpfsNgfeQytChIG1kMTpP0QIurUkXTHorPHfVZ9SUUYvvFsbB596IYXCVtAzANGsqIMpzEVJe8mnIdAFJhYZa0N8OwJ1BsgKVxMJ6HET4cCCftsAEm1PYyghcwXHHUVyeB8E3ZqAsOR9OudyiC3LHtwgXhMzGVxgSAzKS4epLLpTHvRLQOqCT0EwDDn-93yNVy_MuAAce8zKsWawXwq8pDGazDQqBf8t80W6w=="
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "Likely nighttime acorn eaters include deer, raccoons, opossums, wild pigs, wood mice, rats, and other small rodents; squirrels and many birds usually feed during the day. Check for tracks, scat, gnaw marks, or disturbed leaf litter, and use a motion-triggered trail camera to identify the visitor."
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "Would the same animals eat hazelnuts?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "text": "Yes—mice, rats, squirrels, raccoons, deer, and wild pigs may also eat hazelnuts, although opossums are less likely to target hard-shelled nuts. Small, neat tooth marks often indicate rodents, while crushed shells or scattered husks may point to larger mammals.",
+      "finish_reason": "stop",
+      "input_tokens": 149,
+      "output_tokens": 76,
+      "model": "gpt-5.6-sol"
+    },
+    "streamed": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "text": "Likely nighttime acorn eaters include deer, raccoons, opossums, mice, rats, and squirrels caching food around dusk; wild boar may also be responsible where present. Check for tracks, droppings, rooting, gnawed shells, or set up a motion-activated trail camera to identify the visitor.",
+      "finish_reason": "stop",
+      "input_tokens": 40,
+      "output_tokens": 91,
+      "model": "gpt-5.6-sol",
+      "pieces": 67
+    },
+    "limited": {
+      "request": {
+        "model": "openai-codex:gpt-5.6-sol",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ],
+        "config": {
+          "max_tokens": 16
+        }
+      },
+      "error": "UnsupportedFeatureError: openai-codex: config.max_tokens: this backend has no output cap; dropping it risks unbounded paid generation"
+    }
+  }
+}

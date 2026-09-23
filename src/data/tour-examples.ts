@@ -14,19 +14,16 @@
 import { api, comment, dim, finish, val, type Code } from '../playground/marks.ts';
 import type { Language } from '../components/home-example/examples.ts';
 
-export const TOUR = {
-  system: 'You are the field assistant for a wildlife research station. Answer in two sentences.',
-  prompt: 'What might be eating the acorns under our oak trees at night?',
-  tool: 'search_sightings',
-  toolDescription: "Find the station's recorded sightings by species, place or date.",
-  maxTokens: 1000,
-} as const;
+import TEXT from './tour-text.json' with { type: 'json' };
+
+/** The wording the docs' examples share with scripts/capture-first-request.py. */
+export const TOUR = TEXT;
 
 /** How much of the request a step shows: each adds one part to the one before. */
 export type Step = 'request' | 'system' | 'tools' | 'config';
 const STEPS: readonly Step[] = ['request', 'system', 'tools', 'config'];
-/** What the page can show: a step's request, reading the response, streaming, or the whole program. */
-export type TourView = Step | 'response' | 'stream' | 'program';
+/** What the page can show: a step's request, reading the response, streaming, a follow-up, or the whole program. */
+export type TourView = Step | 'first' | 'response' | 'stream' | 'program' | 'followup' | 'forgetful';
 
 interface Parts { system: boolean; tools: boolean; config: boolean }
 const partsOf = (step: Step): Parts => {
@@ -39,10 +36,14 @@ interface Writer {
   tool(): string;
   /** The request, with the parts this step includes. */
   request(model: string, parts: Parts): string;
+  /** Make the router, call it, print the answer's text. */
+  ask(): string;
   /** Make the router, call it, read the answer. */
   response(): string;
   /** Stream the same request (the router already exists). */
   stream(): string;
+  /** A second question, sent with the conversation so far (`request`, then `response`) or on its own. */
+  followUp(model: string, withHistory: boolean): string;
   /** A whole program around `body`: imports, and whatever the language needs to run it. */
   program(body: string, uses: Uses): string;
   /** The line that makes the router, when the program streams. */
@@ -73,6 +74,9 @@ const python: Writer = {
     ')',
   ].join('\n'),
   router: () => `router = ${api('LMRouter')}()`,
+  ask: () => `router = ${api('LMRouter')}()
+response = ${api('router.complete')}(request)
+print(response.text)`,
   response: () => `router = ${api('LMRouter')}()
 response = ${api('router.complete')}(request)
 print(response.text)
@@ -83,6 +87,16 @@ for text in stream:
     print(text, end="", flush=True)
 print()
 print(stream.usage.output_tokens, "tokens")`,
+  followUp: (model, history) => [
+    `followup = ${api('Request')}(`,
+    `    model=${q(model)},`,
+    `    system=${q(TOUR.system)},`,
+    ...(history
+      ? ['    messages=[', '        *request.messages,', '        response.message,', `        ${api('Message.user')}(${q(TOUR.followUp)}),`, '    ],']
+      : [`    messages=[${api('Message.user')}(${q(TOUR.followUp)})],`]),
+    ')',
+    `print(${api('router.complete')}(followup).text)`,
+  ].join('\n'),
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['FunctionTool'] : [])].sort();
     return `${dim(`from lm15 import ${names.join(', ')}`)}\n\n${body}`;
@@ -110,6 +124,9 @@ const typescript: Writer = {
     '};',
   ].join('\n'),
   router: () => `const router = new ${api('LMRouter')}();`,
+  ask: () => `const router = new ${api('LMRouter')}();
+const response = await ${api('router.complete')}(request);
+console.log(response.text);`,
   response: () => `const router = new ${api('LMRouter')}();
 const response = await ${api('router.complete')}(request);
 console.log(response.text);
@@ -120,6 +137,16 @@ for await (const text of stream) process.stdout.write(text);
 console.log();
 const response = await ${api('stream.response')}();
 console.log(response.usage.outputTokens, "tokens");`,
+  followUp: (model, history) => [
+    'const followup = {',
+    `  model: ${q(model)},`,
+    `  system: ${q(TOUR.system)},`,
+    ...(history
+      ? ['  messages: [', '    ...request.messages,', '    response.message,', `    ${api('Message.user')}(${q(TOUR.followUp)}),`, '  ],']
+      : [`  messages: [${api('Message.user')}(${q(TOUR.followUp)})],`]),
+    '};',
+    `console.log((await ${api('router.complete')}(followup)).text);`,
+  ].join('\n'),
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : [])];
     return `${dim(`import { ${names.join(', ')} } from "lm15";`)}\n\n${body}`;
@@ -148,6 +175,9 @@ const rust: Writer = {
     '};',
   ].join('\n'),
   router: () => `let router = ${api('LMRouter::new')}();`,
+  ask: () => `let router = ${api('LMRouter::new')}();
+let response = ${api('router.complete')}(&request).await?;
+println!("{}", response.${api('text')}().unwrap_or_default());`,
   response: () => `let router = ${api('LMRouter::new')}();
 let response = ${api('router.complete')}(&request).await?;
 println!("{}", response.${api('text')}().unwrap_or_default());
@@ -165,6 +195,18 @@ let response = ${api('stream.response')}().await?;
 if let Some(tokens) = response.usage.output_tokens {
     println!("{tokens} tokens");
 }`,
+  followUp: (model, history) => [
+    ...(history
+      ? ['let mut messages = request.messages.clone();', 'messages.push(response.message.clone());', `messages.push(${api('Message::user')}(${q(TOUR.followUp)})?);`]
+      : []),
+    `let followup = ${api('Request')} {`,
+    `    model: ${q(model)}.into(),`,
+    `    system: Some(${q(TOUR.system)}.into()),`,
+    history ? '    messages,' : `    messages: vec![${api('Message::user')}(${q(TOUR.followUp)})?],`,
+    `    ${dim('..Default::default()')}`,
+    '};',
+    `println!("{}", ${api('router.complete')}(&followup).await?.${api('text')}().unwrap_or_default());`,
+  ].join('\n'),
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : [])].sort();
     const deps = ['lm15', 'tokio (macros, rt-multi-thread)', ...(uses.tool ? ['serde_json'] : []), ...(uses.stream ? ['futures-util'] : [])];
@@ -203,6 +245,10 @@ const go: Writer = {
     '}',
   ].join('\n'),
   router: () => `router := ${api('lm15.NewRouter')}()`,
+  ask: () => `router := ${api('lm15.NewRouter')}()
+response, err := ${api('router.Complete')}(context.Background(), request)
+${dim('if err != nil {\n    panic(err)\n}')}
+fmt.Println(response.${api('TextOr')}(""))`,
   response: () => `router := ${api('lm15.NewRouter')}()
 response, err := ${api('router.Complete')}(context.Background(), request)
 ${dim('if err != nil {\n    panic(err)\n}')}
@@ -223,6 +269,18 @@ ${dim('if err != nil {\n    panic(err)\n}')}
 if out := response.Usage.OutputTokens; out != nil {
     fmt.Println(*out, "tokens")
 }`,
+  followUp: (model, history) => [
+    `followup := &${api('lm15.Request')}{`,
+    `    Model:  ${q(model)},`,
+    `    System: ${api('lm15.System')}(${q(TOUR.system)}),`,
+    ...(history
+      ? [`    Messages: append(request.Messages, response.Message,`, `        ${api('lm15.UserMessage')}(${q(TOUR.followUp)})),`]
+      : [`    Messages: []${api('lm15.Message')}{`, `        ${api('lm15.UserMessage')}(${q(TOUR.followUp)}),`, '    },']),
+    '}',
+    `answer, err := ${api('router.Complete')}(context.Background(), followup)`,
+    dim('if err != nil {\n    panic(err)\n}'),
+    `fmt.Println(answer.${api('TextOr')}(""))`,
+  ].join('\n'),
   program: body => [
     dim('package main\n\nimport (\n    "context"\n    "fmt"\n    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {'),
     indent(body, '    '),
@@ -251,6 +309,9 @@ const r: Writer = {
     return `req <- ${api('request')}(\n${args.map(a => `  ${a}`).join(',\n')}\n)`;
   },
   router: () => `router <- ${api('new_router')}()`,
+  ask: () => `router <- ${api('new_router')}()
+response <- ${api('complete')}(router, req)
+${api('response_text')}(response)`,
   response: () => `router <- ${api('new_router')}()
 response <- ${api('complete')}(router, req)
 ${api('response_text')}(response)
@@ -261,6 +322,16 @@ response$usage$output_tokens`,
   if (event$type == "delta" && event$delta$type == "text") cat(event$delta$text)
 })
 response$usage$output_tokens`,
+  followUp: (model, history) => [
+    `followup <- ${api('request')}(`,
+    `  ${q(model)},`,
+    history
+      ? `  c(req$messages, list(response$message, ${api('message_user')}(${q(TOUR.followUp)}))),`
+      : `  list(${api('message_user')}(${q(TOUR.followUp)})),`,
+    `  system = ${q(TOUR.system)}`,
+    ')',
+    `${api('response_text')}(${api('complete')}(router, followup))`,
+  ].join('\n'),
   program: body => `${dim('library(lm15)')}\n\n${body}`,
 };
 
@@ -284,6 +355,9 @@ const julia: Writer = {
     return [`req = ${api('Request')}(`, `    ${q(model)},`, options.length ? `${user};` : `${user},`, ...options.map(o => `    ${o},`), ')'].join('\n');
   },
   router: () => `router = ${api('LMRouter')}()`,
+  ask: () => `router = ${api('LMRouter')}()
+response = ${api('complete')}(router, req)
+println(${api('text')}(response))`,
   response: () => `router = ${api('LMRouter')}()
 response = ${api('complete')}(router, req)
 println(${api('text')}(response))
@@ -297,6 +371,15 @@ println(response.usage.input_tokens, " ", response.usage.output_tokens)`,
 end
 println()
 println(response.usage.output_tokens, " tokens")`,
+  followUp: (model, history) => [
+    `followup = ${api('Request')}(`,
+    `    ${q(model)},`,
+    ...(history ? ['    req.messages...,', '    response.message,'] : []),
+    `    ${api('user')}(${q(TOUR.followUp)});`,
+    `    system=${q(TOUR.system)},`,
+    ')',
+    `println(${api('text')}(${api('complete')}(router, followup)))`,
+  ].join('\n'),
   program: body => `${dim('using LM15')}\n\n${body}`,
 };
 
@@ -311,7 +394,15 @@ function marked(language: Language, view: TourView, model: string): string {
     case 'response': return w.response();
     case 'stream': return w.stream();
     case 'program': return streamProgram(w, model);
+    case 'first': return firstProgram(w, model);
+    case 'followup': return w.followUp(model, true);
+    case 'forgetful': return w.followUp(model, false);
   }
+}
+
+/** The first-request page's first program: the request, sent, its text printed. */
+function firstProgram(w: Writer, model: string): string {
+  return w.program(`${w.request(model, partsOf('request'))}\n\n${w.ask()}`, { tool: false, config: false, stream: false });
 }
 
 /** The whole program the "Putting it together" section shows: every part but the tool, streamed. */
@@ -329,7 +420,7 @@ export function tourCode(language: Language, view: TourView, provider: string, m
  * request read back with the response piece, and the streamed program. Their
  * pieces are the very strings `tourCode` shows.
  */
-export function tourPrograms(language: Language, provider: string, model: string): { name: string; source: string; streams: boolean }[] {
+export function tourPrograms(language: Language, provider: string, model: string): { name: string; source: string; streams: boolean; requests?: number }[] {
   const w = WRITERS[language];
   const id = `${provider}:${model}`;
   const complete = STEPS.map(step => {
@@ -337,5 +428,10 @@ export function tourPrograms(language: Language, provider: string, model: string
     const body = [...(parts.tools ? [w.tool(), ''] : []), w.request(id, parts), '', w.response()].join('\n');
     return { name: step, source: finish(w.program(body, { tool: parts.tools, config: parts.config, stream: false })).text, streams: false };
   });
-  return [...complete, { name: 'program', source: finish(streamProgram(w, id)).text, streams: true }];
+  // The follow-ups: the first answer, then the second question with or without the conversation.
+  const followUps = (['followup', 'forgetful'] as const).map(name => {
+    const body = [w.request(id, partsOf('system')), '', w.response(), '', w.followUp(id, name === 'followup')].join('\n');
+    return { name, source: finish(w.program(body, { tool: false, config: false, stream: false })).text, streams: false, requests: 2 };
+  });
+  return [{ name: 'first', source: finish(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: finish(streamProgram(w, id)).text, streams: true }, ...followUps];
 }

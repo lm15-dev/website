@@ -1,0 +1,42 @@
+---
+// One real answer recorded by scripts/capture-first-request.py, shown as it came back.
+import captures from '../data/first-request-captures.json';
+
+interface Props {
+  step: keyof typeof captures.steps;
+  /** "text": the answer; "read": the answer with its stop reason and token counts; "facts": only those; "error": what LM15 raised. */
+  show?: 'text' | 'read' | 'facts' | 'error';
+}
+const { step, show = 'text' } = Astro.props;
+const answer = captures.steps[step] as { text?: string | null; finish_reason?: string; input_tokens?: number | null; output_tokens?: number | null; pieces?: number; error?: string };
+const [provider, model] = captures.model.split(':');
+const label = provider === 'openai-codex' ? 'OpenAI Codex' : provider;
+const date = new Date(`${captures.date}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const count = (n: number | null | undefined) => (n == null ? 'not reported' : n.toLocaleString('en'));
+---
+<figure class="captured not-content">
+  <figcaption>{show === 'error' ? 'What LM15 raised' : show === 'facts' ? 'The rest of that answer' : 'What came back'} <span>{model} through {label}, {date}</span></figcaption>
+  {show === 'error'
+    ? <pre class="captured-text">{answer.error}</pre>
+    : show !== 'facts' && <pre class="captured-text">{answer.text}</pre>}
+  {(show === 'read' || show === 'facts') && (
+    <dl class="captured-facts">
+      <div><dt>finish reason</dt><dd>{answer.finish_reason}</dd></div>
+      <div><dt>input tokens</dt><dd>{count(answer.input_tokens)}</dd></div>
+      <div><dt>output tokens</dt><dd>{count(answer.output_tokens)}</dd></div>
+      {answer.pieces != null && <div><dt>pieces streamed</dt><dd>{answer.pieces}</dd></div>}
+    </dl>
+  )}
+</figure>
+
+<style>
+  .captured { margin: 1rem 0 1.5rem; border: 1px solid var(--sl-color-gray-5); border-left: 3px solid var(--lm-accent); background: var(--sl-color-bg); }
+  figcaption { padding: .45rem .9rem; font-size: .8rem; font-weight: 600; color: var(--sl-color-gray-2); border-bottom: 1px solid var(--sl-color-gray-5); }
+  figcaption span { font-weight: 400; margin-left: .4rem; }
+  .captured-text { margin: 0; padding: .8rem .9rem; font-family: var(--lm-code-font); font-size: var(--sl-text-code, .875rem); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--sl-color-text); background: none; border: 0; }
+  .captured-text + .captured-facts { border-top: 1px dashed var(--sl-color-gray-5); }
+  .captured-facts { display: flex; flex-wrap: wrap; gap: .2rem 1.5rem; margin: 0; padding: .5rem .9rem .7rem; font-size: .85rem; }
+  .captured-facts div { display: flex; gap: .4rem; }
+  .captured-facts dt { color: var(--sl-color-gray-2); }
+  .captured-facts dd { margin: 0; font-family: var(--lm-code-font); }
+</style>

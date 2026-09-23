@@ -40,7 +40,10 @@ const tour = (view: TourView) => (selection: DocSelection) => tourCode(selection
 // A recipe returns marked code (playground/marks.ts), so the docs colour it as the playground does.
 export const RECIPES = {
   'first-request': (selection: DocSelection) => exampleCode(selection.language, selection.provider || 'provider', selection.model || 'model'),
+  'tour-first': tour('first'),
   'tour-request': tour('request'),
+  'tour-followup': tour('followup'),
+  'tour-forgetful': tour('forgetful'),
   'tour-system': tour('system'),
   'tour-tools': tour('tools'),
   'tour-config': tour('config'),
