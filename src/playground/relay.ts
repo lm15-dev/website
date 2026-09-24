@@ -39,9 +39,24 @@ export function privatePageHost(hostname: string): boolean {
  * the only source — a stored override of where keys go would be one more
  * thing a page script could change.
  */
+/**
+ * The development server may name the relay it runs beside
+ * (`LM15_DEV_RELAY_URL`, injected as `<meta name="lm15-dev-relay">`); the
+ * published page has no such tag. Read only on private hosts, like the
+ * stored override.
+ */
+function devRelayUrl(): string | undefined {
+  const value = document.querySelector<HTMLMetaElement>('meta[name="lm15-dev-relay"]')?.content;
+  try {
+    return value ? new URL(value).origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function relayUrl(): string {
   try {
-    if (privatePageHost(location.hostname)) return localStorage.getItem("lm15.playground.relay-url") ?? RELAY_URL;
+    if (privatePageHost(location.hostname)) return localStorage.getItem("lm15.playground.relay-url") ?? devRelayUrl() ?? RELAY_URL;
   } catch {
     // no window (tests), no storage
   }

@@ -25,7 +25,9 @@ const playgroundDev = {
         if (path === '/playground/' || path === '/playground/index.html') {
           res.setHeader('Content-Type', 'text/html');
           res.setHeader('Cache-Control', 'no-store');
-          res.end(readFileSync('.build/public/playground/index.html', 'utf8').replace('</body>', '<script src="/__playground_dev.js"></script></body>')); return;
+          // LM15_DEV_RELAY_URL: the relay running beside this dev server (relay/serve-local.mjs), used on private hosts only.
+          const relay = process.env.LM15_DEV_RELAY_URL ? `<meta name="lm15-dev-relay" content="${new URL(process.env.LM15_DEV_RELAY_URL).origin}">` : '';
+          res.end(readFileSync('.build/public/playground/index.html', 'utf8').replace('</head>', relay + '</head>').replace('</body>', '<script src="/__playground_dev.js"></script></body>')); return;
         }
         next();
       });

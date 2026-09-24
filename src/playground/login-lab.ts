@@ -27,18 +27,19 @@ import {
 import { privatePageHost, relayUrl } from "./relay.ts";
 
 const RETURN_CHANNEL = "lm15-login-return";
-const RETURN_MARK = "#lm15-return=";
 
 // ─── The return leg of a page redirect ────────────────────────────────
 
 /**
- * If this page load is a provider sending the person back (OpenRouter's
- * `callback_url`), hand the address to the tab that is waiting and take the
- * one-time code out of this tab's address bar and history. Runs on import,
- * before the playground starts.
+ * If this page load is a provider sending the person back (OpenRouter appends
+ * `?code=` to the playground's address, dropping any fragment), hand the
+ * address to the tab that is waiting and take the one-time code out of this
+ * tab's address bar and history. Runs on import, before the playground starts.
+ * The waiting tab's SDK validates the address; a code that is not its own
+ * fails at the exchange (PKCE), so a forged return signs nobody in.
  */
 function takeReturn(): boolean {
-  if (typeof location === "undefined" || !location.hash.startsWith(RETURN_MARK)) return false;
+  if (typeof location === "undefined" || !new URLSearchParams(location.search).has("code")) return false;
   const href = location.href;
   history.replaceState(null, "", location.pathname);
   try {
@@ -284,7 +285,9 @@ export class LoginLab {
     try {
       const outcome = await runLogin(provider, method.id, {
         ...this.#env(), ui: this.#ui(feed), signal: controller.signal, allowUnverified: true,
-        pageReturnUrl: `${location.origin}${location.pathname}`,
+        // An address with no trailing slash to lose: OpenRouter drops one (2026-09-24), and /playground (no slash)
+        // is a 404 on the dev server. /playground/index.html is the same page everywhere.
+        pageReturnUrl: `${location.origin}${location.pathname.endsWith("/") ? `${location.pathname}index.html` : location.pathname}`,
         onExchange: (record) => this.#record({ kind: "auth", ...record }),
       });
       this.#sessions.set(provider, outcome);
@@ -393,6 +396,10 @@ export class LoginLab {
 
 function describe(error: unknown): string {
   if (error instanceof AuthOperationError) return `${error.message} [${error.reason}${error.stage ? `, ${error.stage}` : ""}]`;
+  const relay = relayUrl();
+  if (error instanceof Error && relay && error.message.includes(new URL(relay).host)) {
+    return `${error.name}: ${error.message}. This request went through the relay at ${new URL(relay).origin}; check the relay address in the box above (and that the relay allows this page).`;
+  }
   if (error instanceof Error) return `${error.name}: ${error.message}`;
   return String(error);
 }
@@ -453,14 +460,23 @@ function promptInline(feed: HTMLElement, prompt: Prompt, signal: AbortSignal): P
       resolve(input.value);
     });
     if (prompt.type === "manual_code" && prompt.pageReturn) {
-      const expected = (prompt as ManualCodePrompt).pageReturn!;
+      const expected = new URL((prompt as ManualCodePrompt).pageReturn!.url);
+      const samePage = (href: string): boolean => {
+        try {
+          const url = new URL(href);
+          const norm = (p: string): string => p.replace(/\/index\.html$/, "/").replace(/\/+$/, "");
+          return url.origin === expected.origin && norm(url.pathname) === norm(expected.pathname);
+        } catch {
+          return false;
+        }
+      };
       form.append(el("p", { class: "setting-help", text: "Waiting for the sign-in tab to come back to this page…" }));
       try {
         channel = new BroadcastChannel(RETURN_CHANNEL);
         channel.onmessage = (event: MessageEvent<{ href?: unknown }>) => {
           const href = event.data?.href;
-          // The SDK validates the address; this only avoids answering with another attempt's return.
-          if (typeof href === "string" && href.includes(`lm15-return=${expected.marker}`)) {
+          // The SDK validates the address in full; this only ignores returns meant for another page.
+          if (typeof href === "string" && samePage(href)) {
             done();
             resolve(href);
           }

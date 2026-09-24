@@ -87,8 +87,19 @@ export function originAllowed(origin, allowed) {
   }
 }
 
-function refuse(status, code, detail) {
-  return new Response(JSON.stringify({ error: { code, message: detail } }), { status, headers: { "content-type": "application/json", "cache-control": "no-store", "x-lm15-relay": code } });
+/**
+ * A refusal an allowed page can read: without CORS headers the browser shows
+ * the page only "fetch failed", hiding which rule refused it. An origin that
+ * is not allowed gets no CORS headers (it is not served at all).
+ */
+function refuse(status, code, detail, origin) {
+  return new Response(JSON.stringify({ error: { code, message: detail } }), {
+    status,
+    headers: {
+      "content-type": "application/json", "cache-control": "no-store", "x-lm15-relay": code,
+      ...(origin ? { "access-control-allow-origin": origin, "access-control-expose-headers": "x-lm15-relay", vary: "Origin" } : {}),
+    },
+  });
 }
 
 function corsHeaders(origin) {
@@ -109,9 +120,9 @@ export async function handle(request, env = {}, upstreamFetch = fetch) {
   const origin = request.headers.get("origin");
   if (!originAllowed(origin, origins)) return refuse(403, "origin", "this relay serves the lm15 playground only");
   const target = upstreamUrl(request.url);
-  if (!target) return refuse(404, "path", "use /<upstream-host>/<path>");
-  if (!upstreamAllowed(target, upstreams)) return refuse(403, "upstream", `${target.hostname}${target.pathname} is not an endpoint this relay forwards to`);
-  if (target.username || target.password) return refuse(400, "url", "no credentials in the URL");
+  if (!target) return refuse(404, "path", "use /<upstream-host>/<path>", origin);
+  if (!upstreamAllowed(target, upstreams)) return refuse(403, "upstream", `${target.hostname}${target.pathname} is not an endpoint this relay forwards to`, origin);
+  if (target.username || target.password) return refuse(400, "url", "no credentials in the URL", origin);
 
   if (request.method === "OPTIONS") {
     const asked = request.headers.get("access-control-request-headers");
@@ -139,7 +150,7 @@ export async function handle(request, env = {}, upstreamFetch = fetch) {
   try {
     upstream = await upstreamFetch(target.toString(), { method: request.method, headers, body: hasBody ? request.body : undefined, redirect: "manual", ...(hasBody ? { duplex: "half" } : {}) });
   } catch (e) {
-    return refuse(502, "upstream_unreachable", `${target.hostname}: ${e instanceof Error ? e.message : String(e)}`);
+    return refuse(502, "upstream_unreachable", `${target.hostname}: ${e instanceof Error ? e.message : String(e)}`, origin);
   }
   const out = new Headers();
   for (const [name, value] of upstream.headers) if (!DROP_RESPONSE.has(name.toLowerCase())) out.set(name, value);

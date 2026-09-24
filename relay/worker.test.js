@@ -126,3 +126,14 @@ test("the deployed allow-list names every relay endpoint the SDK's login profile
     "https://chatgpt.com/backend-api/codex/responses", "https://chatgpt.com/backend-api/codex/models", "https://api.kimi.com/coding/v1/messages",
   ]) assert.equal(upstreamAllowed(new URL(url), listed), true, url);
 });
+
+test("an allowed page can read why the relay refused (endpoint, path, unreachable); an unknown origin still gets no CORS", async () => {
+  const upstream = await handle(req("/github.com/settings"), { ALLOWED_UPSTREAMS: "github.com/login/device/code", ALLOWED_ORIGINS: "https://lm15.dev" });
+  assert.equal(upstream.status, 403);
+  assert.equal(upstream.headers.get("access-control-allow-origin"), "https://lm15.dev");
+  const down = await handle(req("/api.typesafe.ai/v1/models"), env, async () => { throw new Error("connect refused"); });
+  assert.equal(down.status, 502);
+  assert.equal(down.headers.get("access-control-allow-origin"), "https://lm15.dev");
+  const stranger = await handle(new Request("https://relay.example/api.typesafe.ai/v1/models", { headers: { origin: "https://evil.example" } }), env);
+  assert.equal(stranger.headers.get("access-control-allow-origin"), null);
+});
