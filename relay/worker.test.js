@@ -85,3 +85,44 @@ test("an unreachable upstream is a 502 with the host named; an upstream error st
   assert.equal(denied.status, 401);
   assert.equal(denied.headers.get("access-control-allow-origin"), "https://lm15.dev");
 });
+
+test("an upstream may be a host and a path: the endpoint, never the rest of the site", async () => {
+  const { upstreamAllowed } = await import("./worker.js");
+  const allowed = new Set(["github.com/login/device/code", "chatgpt.com/backend-api/codex/", "api.typesafe.ai"]);
+  const at = (u) => upstreamAllowed(new URL(u), allowed);
+  assert.equal(at("https://github.com/login/device/code"), true);
+  assert.equal(at("https://github.com/login/device/codex"), false);
+  assert.equal(at("https://github.com/login/device/code/more"), false);
+  assert.equal(at("https://github.com/settings/tokens"), false);
+  assert.equal(at("https://github.com/login/device/code/../../../settings"), false, "dot segments are resolved before the check");
+  assert.equal(at("https://chatgpt.com/backend-api/codex/responses"), true);
+  assert.equal(at("https://chatgpt.com/backend-api/conversation"), false);
+  assert.equal(at("https://api.typesafe.ai/anything"), true);
+  const refused = await handle(req("/github.com/settings/tokens"), { ALLOWED_UPSTREAMS: "github.com/login/device/code" });
+  assert.equal(refused.status, 403);
+  assert.equal((await refused.json()).error.code, "upstream");
+});
+
+test("a page's x-lm15-user-agent becomes the upstream User-Agent; the page's own is not sent", async () => {
+  let seen;
+  const upstream = async (url, init) => {
+    seen = Object.fromEntries(init.headers);
+    return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+  };
+  await handle(req("/auth.x.ai/oauth2/token", { method: "POST", body: "a=1", headers: { "user-agent": "Mozilla/5.0", "x-lm15-user-agent": "lm15/1.0.0", "content-type": "application/x-www-form-urlencoded" } }), { ALLOWED_UPSTREAMS: "auth.x.ai/oauth2/token", ALLOWED_ORIGINS: "https://lm15.dev" }, upstream);
+  assert.equal(seen["user-agent"], "lm15/1.0.0");
+  assert.equal(seen["x-lm15-user-agent"], undefined);
+});
+
+test("the deployed allow-list names every relay endpoint the SDK's login profiles route through", async () => {
+  const { readFileSync } = await import("node:fs");
+  const toml = readFileSync(new URL("./wrangler.toml", import.meta.url), "utf8");
+  const listed = new Set(/ALLOWED_UPSTREAMS = "([^"]+)"/.exec(toml)[1].split(","));
+  const { upstreamAllowed } = await import("./worker.js");
+  for (const url of [
+    "https://auth.x.ai/oauth2/device/code", "https://auth.x.ai/oauth2/token", "https://platform.claude.com/v1/oauth/token",
+    "https://github.com/login/device/code", "https://github.com/login/oauth/access_token", "https://api.github.com/copilot_internal/v2/token",
+    "https://auth.meta.com/oidc/device/authorization/", "https://auth.meta.com/oidc/device/token/", "https://api.meta.ai/muse-code/key",
+    "https://chatgpt.com/backend-api/codex/responses", "https://chatgpt.com/backend-api/codex/models", "https://api.kimi.com/coding/v1/messages",
+  ]) assert.equal(upstreamAllowed(new URL(url), listed), true, url);
+});

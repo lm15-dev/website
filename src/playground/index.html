@@ -39,6 +39,11 @@
           <p class="setting-help">A provider whose API refuses browser calls can be routed through the lm15 relay after you allow it. <a href="/playground/about/#relay">What the relay is</a>.</p>
           <button id="forget-relays" class="text-button warm" type="button" hidden>Stop relaying</button>
         </section>
+        <section class="more-section" aria-label="Accounts">
+          <h2>Accounts</h2>
+          <p class="setting-help">Sign in with a subscription or an account instead of pasting a key. Experimental: this is how we find out which logins work in a browser.</p>
+          <button id="open-login-lab" class="text-button" type="button">Open the sign-in lab</button>
+        </section>
         <nav class="more-section more-links" aria-label="Resources">
           <a href="/docs/">Documentation</a>
           <a href="https://github.com/lm15-dev/website" target="_blank" rel="noopener noreferrer">Source code</a>
@@ -160,6 +165,7 @@
   </div>
   <div class="dialog-actions"><button id="relay-cancel" class="text-button" type="button">Not now</button><button id="relay-allow" class="primary" type="button">Allow the relay and resend</button></div>
 </dialog>
+<dialog id="login-lab" class="login-lab" aria-labelledby="login-lab-title"></dialog>
 <dialog id="picker" aria-labelledby="picker-title">
   <div class="dialog-heading"><h2 id="picker-title">Choose a provider</h2><button id="picker-close" class="quiet" aria-label="Close picker">✕</button></div>
   <label class="sr-only" for="picker-search">Search choices</label><input id="picker-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search…" role="combobox" aria-expanded="true" aria-controls="picker-results" aria-autocomplete="list">

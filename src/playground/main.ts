@@ -19,6 +19,7 @@ import { pythonRuntime } from "./runtimes/python.ts";
 import { rustRuntime } from "./runtimes/rust.ts";
 import { goRuntime } from "./runtimes/go.ts";
 import { compareWires } from "./wire.ts";
+import { LoginLab, returnedHere } from "./login-lab.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const prompt = $<HTMLTextAreaElement>("prompt");
@@ -798,6 +799,17 @@ try {
 } catch { /* storage is optional */ }
 $("remember-note").hidden = Credentials.available();
 remember.disabled = !Credentials.available();
+// ─── The sign-in lab (login-lab.ts) ──────────────────────────────────
+const loginLab = new LoginLab($<HTMLDialogElement>("login-lab"));
+$("open-login-lab").addEventListener("click", () => { moreMenu.open = false; loginLab.open(); });
+if (returnedHere) {
+  const banner = document.createElement("p");
+  banner.className = "lab-return-banner";
+  banner.setAttribute("role", "status");
+  banner.textContent = "Sign-in finished. The playground tab that started it continues from here; you can close this tab.";
+  document.body.prepend(banner);
+}
+
 void credentials.load().then(() => { refreshStatus(); if (automatic.checked) void discover(); });
 refreshStatus();
 

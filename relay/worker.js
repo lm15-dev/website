@@ -1,7 +1,14 @@
 /**
  * The lm15 playground relay: a Cloudflare Worker that forwards a browser's
- * request to one of a few provider APIs that refuse browser origins, and
- * adds the CORS headers those APIs withhold. Nothing else.
+ * request to one of a few provider endpoints that refuse browser origins, and
+ * adds the CORS headers those endpoints withhold. Nothing else.
+ *
+ * Upstreams are listed as a host, or a host and a path prefix
+ * (`github.com/login/device/code`, `chatgpt.com/backend-api/codex/`): a
+ * sign-in endpoint on a large site must not open the whole site. Which
+ * endpoints a page cannot reach directly is lm15-contract
+ * auth/managed/browser.json; the page asks the person before using the relay,
+ * per stage (sign-in, model list, model calls), and says what crosses it.
  *
  * Shape: `https://<relay>/<upstream-host>/<path>?<query>` forwards to
  * `https://<upstream-host>/<path>?<query>` with the same method, body and
@@ -22,6 +29,9 @@
  */
 
 const DEFAULT_UPSTREAMS = "api.typesafe.ai";
+
+/** A page cannot set User-Agent. It may name one here; the relay sends it upstream as User-Agent and drops the page's own. */
+export const USER_AGENT_HEADER = "x-lm15-user-agent";
 const DEFAULT_ORIGINS = "https://lm15.dev,https://www.lm15.dev";
 
 /** Headers the relay never forwards: browser-only, hop-by-hop, or Cloudflare's own. */
@@ -37,6 +47,23 @@ const DROP_RESPONSE = new Set([
 
 function list(value, fallback) {
   return new Set((value ?? fallback).split(",").map((s) => s.trim()).filter(Boolean));
+}
+
+/**
+ * `host` allows every path on that host; `host/prefix` allows the path equal to
+ * the prefix, or under it when the prefix ends with `/`. Dot segments are
+ * already resolved by URL parsing, so `/login/device/code/../../x` cannot escape.
+ */
+export function upstreamAllowed(target, allowed) {
+  for (const entry of allowed) {
+    const slash = entry.indexOf("/");
+    const host = slash < 0 ? entry : entry.slice(0, slash);
+    if (host.toLowerCase() !== target.hostname.toLowerCase()) continue;
+    if (slash < 0) return true;
+    const prefix = entry.slice(slash);
+    if (prefix.endsWith("/") ? target.pathname.startsWith(prefix) : target.pathname === prefix) return true;
+  }
+  return false;
 }
 
 /**
@@ -83,7 +110,7 @@ export async function handle(request, env = {}, upstreamFetch = fetch) {
   if (!originAllowed(origin, origins)) return refuse(403, "origin", "this relay serves the lm15 playground only");
   const target = upstreamUrl(request.url);
   if (!target) return refuse(404, "path", "use /<upstream-host>/<path>");
-  if (!upstreams.has(target.hostname)) return refuse(403, "upstream", `${target.hostname} is not a provider this relay forwards to`);
+  if (!upstreamAllowed(target, upstreams)) return refuse(403, "upstream", `${target.hostname}${target.pathname} is not an endpoint this relay forwards to`);
   if (target.username || target.password) return refuse(400, "url", "no credentials in the URL");
 
   if (request.method === "OPTIONS") {
@@ -101,6 +128,11 @@ export async function handle(request, env = {}, upstreamFetch = fetch) {
 
   const headers = new Headers();
   for (const [name, value] of request.headers) if (!DROP_REQUEST.has(name.toLowerCase())) headers.set(name, value);
+  const userAgent = headers.get(USER_AGENT_HEADER);
+  if (userAgent !== null) {
+    headers.delete(USER_AGENT_HEADER);
+    headers.set("user-agent", userAgent);
+  }
   headers.set("accept-encoding", "identity"); // the page's SDK asks for identity too: streams must not be buffered by a codec
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
   let upstream;

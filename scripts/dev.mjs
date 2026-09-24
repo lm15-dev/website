@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { watch } from 'chokidar';
 import { buildPlayground } from './build-playground.mjs';
 
-buildPlayground();
+buildPlayground({ production: false });
 let child;
 let timer;
 let restartTimer;
@@ -32,7 +32,7 @@ watcher.on('all', () => {
   clearTimeout(timer);
   timer = setTimeout(() => {
     if (stopping) return;
-    try { buildPlayground(); } catch (error) { console.error('Playground rebuild failed; fix the error and save again.', error); }
+    try { buildPlayground({ production: false }); } catch (error) { console.error('Playground rebuild failed; fix the error and save again.', error); }
   }, 150);
 });
 

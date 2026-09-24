@@ -18,7 +18,8 @@ export function filesUnder(dir) {
     return entry.isDirectory() ? filesUnder(path) : entry.isFile() ? [path] : [];
   }).sort();
 }
-export function buildPlayground() {
+/** `production: false` (the dev server) keeps the development CSP: local model servers and a local relay stay reachable. */
+export function buildPlayground({ production = true } = {}) {
   const pins = JSON.parse(readFileSync(join(root, 'sources.json'), 'utf8'));
   const builtPins = JSON.parse(readFileSync(join(sdk, 'runtime/sources.json'), 'utf8'));
   if (JSON.stringify(pins) !== JSON.stringify(builtPins)) throw new Error('sources.json and the installed runtime package differ. Install the matching runtime release.');
@@ -81,7 +82,7 @@ export function buildPlayground() {
   html = html.replace(oldMap, newMap).replace(hash(oldMap), hash(newMap))
     .replace('href="./app.css"', `href="${prefix}/playground/app.css"`)
     .replace('src="./build/main.js"', `src="${prefix}/playground/main.js"`)
-    .replace(DEV_CONNECT, "connect-src 'self' blob: https:")
+    .replace(DEV_CONNECT, production ? "connect-src 'self' blob: https:" : DEV_CONNECT)
     .replace('</head>', '<meta name="description" content="Try LM15 in JavaScript, Python, Rust and Go, directly in your browser.">\n<link rel="canonical" href="https://lm15.dev/playground/">\n' + shareTags + '\n</head>');
   mkdirSync(join(generatedDir, 'playground/about'), { recursive: true });
   writeFileSync(join(generatedDir, 'playground/index.html'), html);

@@ -365,3 +365,38 @@ dialog::backdrop { background: #10241c55; }
   #copy-code { margin-left: auto; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+
+/* The sign-in lab (login-lab.ts). */
+.login-lab { width: min(96vw, 820px); max-height: 90dvh; }
+.login-lab h3 { font-size: 13px; margin: 20px 0 8px; }
+.lab-consent { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px 4px; margin: 14px 0 0; }
+.lab-consent legend { font-size: 12px; font-weight: 600; padding: 0 4px; }
+.lab-check { align-items: flex-start; line-height: 1.5; margin: 8px 0; }
+.lab-check input { margin-top: 3px; }
+.lab-method { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.lab-method-main { flex: 1; min-width: 0; }
+.lab-method[data-availability="unavailable"] .lab-method-main { color: var(--muted); }
+.lab-start { padding: 5px 12px; font-size: 12px; }
+.lab-attempt { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--strong-line); border-radius: 8px; background: var(--soft); font-size: 13px; }
+.lab-attempt-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.lab-notice { margin: 10px 0; }
+.lab-notice p { margin: 0 0 8px; line-height: 1.5; }
+.lab-code code { font-size: 22px; letter-spacing: 2px; font-weight: 600; }
+.lab-prompt { margin: 10px 0; display: grid; gap: 6px; }
+.lab-prompt label { font-size: 12px; font-weight: 500; }
+.lab-prompt-row { display: flex; gap: 8px; }
+.lab-prompt-row input { flex: 1; min-width: 0; padding: 6px 8px; }
+.lab-ok { color: var(--accent); margin: 8px 0 0; }
+.lab-info { color: var(--lm-code-api); }
+.lab-session { padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.lab-session-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; }
+.lab-session-actions input { width: 220px; padding: 4px 8px; font-size: 12px; }
+.lab-result { overflow-wrap: anywhere; }
+.lab-log-heading { display: flex; justify-content: space-between; align-items: baseline; }
+.lab-log { overflow-x: auto; }
+.lab-log table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.lab-log th, .lab-log td { text-align: left; padding: 4px 8px 4px 0; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+.lab-log th { color: var(--muted); font-weight: 500; }
+.lab-log tr[data-ok="false"] td { color: var(--danger); }
+.lab-log tr.lab-outcome td { font-weight: 500; }
+.lab-return-banner { margin: 0; padding: 10px 24px; background: var(--accent-soft); color: var(--ink); font-size: 13px; }
