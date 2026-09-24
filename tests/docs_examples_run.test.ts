@@ -163,15 +163,17 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
         ? 'list(status = 200L, headers = list(`content-type` = "text/event-stream"), chunks = as.list(.docs_sse))'
         : 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_reply)';
       // The page's code, with only the router's transport swapped; the recorded request goes to a file.
+      // Every router in the program (the conversation page makes a second one, the next day).
       const source = p.source.includes('new_router()')
-        ? p.source.replace('new_router()', 'new_router(transport = .docs_transport)')
-        : p.source.replace('new_router(', 'new_router(transport = .docs_transport, ');
+        ? p.source.replaceAll('new_router()', 'new_router(transport = .docs_transport)')
+        : p.source.replaceAll('new_router(', 'new_router(transport = .docs_transport, ');
       assert.notEqual(source, p.source, `r ${p.name}: no router to give the fake transport`);
       writeFileSync(join(dir, `${p.name}.R`), source + '\n');
       const call = 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_call)';
       const answer = p.structured ? 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_structured)' : reply;
       const replyList = [...(p.toolCall ? [call] : []), ...Array((p.requests ?? 1) - (p.toolCall ? 1 : 0)).fill(answer)].join(', ');
-      writeFileSync(join(dir, `run-${p.name}.R`), `${replies}\n.docs_transport <- lm15::fake_transport(list(${replyList}))\nsource(${JSON.stringify(join(dir, `${p.name}.R`))}, print.eval = TRUE)\nfor (w in attr(.docs_transport, "requests")()) cat(rawToChar(w$body), "\\n", file = ${JSON.stringify(join(dir, `${p.name}.jsonl`))}, append = TRUE, sep = "")\n`);
+      // Programs that write files (a saved conversation) write them in their own folder, not the SDK's checkout.
+      writeFileSync(join(dir, `run-${p.name}.R`), `setwd(${JSON.stringify(dir)})\n${replies}\n.docs_transport <- lm15::fake_transport(list(${replyList}))\nsource(${JSON.stringify(join(dir, `${p.name}.R`))}, print.eval = TRUE)\nfor (w in attr(.docs_transport, "requests")()) cat(rawToChar(w$body), "\\n", file = ${JSON.stringify(join(dir, `${p.name}.jsonl`))}, append = TRUE, sep = "")\n`);
       const stdout = nix(`R_LIBS=${JSON.stringify(lib)} Rscript --no-save ${JSON.stringify(join(dir, `run-${p.name}.R`))} 2>/dev/null`);
       const bodies = readFileSync(join(dir, `${p.name}.jsonl`), 'utf8').trim().split('\n').map(line => JSON.parse(line));
       record('r', p, stdout, bodies);

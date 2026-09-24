@@ -77,5 +77,14 @@
     "server": "vllm",
     "serverUrl": "http://gpu-box:8000/v1",
     "serverModel": "vllm:Qwen/Qwen3-8B"
+  },
+  "conversation": {
+    "questions": [
+      "What might be eating the acorns under our oak trees at night?",
+      "Would the same animals eat hazelnuts?",
+      "How could we find out which one it is?"
+    ],
+    "nextDay": "Which of those should we look for first?",
+    "file": "conversation.json"
   }
 }

@@ -1,9 +1,10 @@
 ---
 // What one example printed (and raised) when a scripts/capture-*.py script ran it,
-// for pages whose examples are files run as they are (src/data/authentication/).
+// for pages whose recordings are what a whole program printed.
 import authentication from '../data/authentication-captures.json';
+import conversations from '../data/conversations-captures.json';
 
-const SETS = { authentication } as const;
+const SETS = { authentication, conversations } as const;
 const NAMES: Record<string, string> = { 'openai-codex': 'OpenAI Codex', anthropic: 'Anthropic', xai: 'xAI' };
 
 interface Props {

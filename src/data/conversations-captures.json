@@ -1,0 +1,89 @@
+{
+  "date": "2026-09-24",
+  "model": "openai-codex:gpt-5.6-sol",
+  "steps": {
+    "start": {
+      "model": "openai-codex:gpt-5.6-sol",
+      "output": "Likely nighttime acorn-eaters include deer, raccoons, opossums, mice, rats, and—where present—wild boar; squirrels and jays may also cache or remove acorns around dawn and dusk. Check for tracks, droppings, rooting, or gnaw marks, and set a motion-triggered trail camera to identify the visitor.\n"
+    },
+    "parts": {
+      "model": "openai-codex:gpt-5.6-sol",
+      "output": "thinking\ntext\n"
+    },
+    "loop": {
+      "model": "openai-codex:gpt-5.6-sol",
+      "output": "> What might be eating the acorns under our oak trees at night?\nLikely nighttime acorn eaters include deer, raccoons, opossums, mice, rats, squirrels, chipmunks, and wild pigs, depending on your region. Look for tracks, droppings, rooting, or gnawed shells, or set up a motion-activated trail camera to identify the visitor.\n40 tokens in\n> Would the same animals eat hazelnuts?\nYes—many of the same animals eat hazelnuts, especially squirrels, chipmunks, mice, rats, raccoons, deer, and wild pigs; opossums may eat kernels they can access. Rodents usually leave neatly gnawed shells, while deer and pigs may crush or swallow nuts and disturb the ground.\n150 tokens in\n> How could we find out which one it is?\nSet an infrared motion-activated trail camera 30–60 cm (1–2 ft) above the ground, aimed at the nut fall area, and check footage over several nights. Also smooth a patch of damp soil or sand to capture tracks and note scat, rooting, and shell damage—paired chisel-like gnaw marks suggest rodents, while crushed nuts and churned soil suggest deer or wild pigs.\n283 tokens in\n",
+      "input_tokens": [
+        40,
+        150,
+        283
+      ]
+    },
+    "next_day": {
+      "model": "openai-codex:gpt-5.6-sol",
+      "output": "Look first for small rodents—especially mice or rats—because they commonly collect hazelnuts at night and leave small tracks plus neatly gnawed shells; squirrels and chipmunks are mostly daytime visitors. If there are crushed shells, larger tracks, scat, or churned soil, next check for raccoons, deer, or wild pigs.\n"
+    }
+  },
+  "facts": {
+    "assistant_parts": [
+      [
+        {
+          "type": "thinking",
+          "characters": 0,
+          "sealed": true
+        },
+        {
+          "type": "text",
+          "characters": 260,
+          "sealed": false
+        }
+      ],
+      [
+        {
+          "type": "thinking",
+          "characters": 0,
+          "sealed": true
+        },
+        {
+          "type": "text",
+          "characters": 275,
+          "sealed": false
+        }
+      ],
+      [
+        {
+          "type": "thinking",
+          "characters": 0,
+          "sealed": true
+        },
+        {
+          "type": "text",
+          "characters": 358,
+          "sealed": false
+        }
+      ]
+    ],
+    "whole_or_text": {
+      "whole": {
+        "text": "Yes—many of the same animals, especially mice, rats, squirrels, raccoons, deer, and wild boar, also eat hazelnuts. Rodents and squirrels often leave neatly gnawed or split shells, while larger mammals may crush or swallow the nuts and leave tracks or disturbed leaf litter.",
+        "input_tokens": 164
+      },
+      "text_only": {
+        "text": "Yes—many of the same animals eat hazelnuts, especially mice, rats, flying squirrels, raccoons, deer, and wild boar. Rodents often leave neatly gnawed shells or carry nuts away to cache, while larger mammals tend to crush or swallow them.",
+        "input_tokens": 124
+      }
+    },
+    "first_parts": [
+      {
+        "type": "ThinkingPart",
+        "characters": 0,
+        "sealed": true
+      },
+      {
+        "type": "TextPart",
+        "characters": 259,
+        "sealed": false
+      }
+    ]
+  }
+}

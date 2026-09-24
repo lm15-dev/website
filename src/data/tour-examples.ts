@@ -101,7 +101,8 @@ const STEPS: readonly Step[] = ['request', 'system', 'tools', 'config'];
 export type TourView = Step | 'first' | 'response' | 'stream' | 'program' | 'followup' | 'forgetful'
   | 'tools-search' | 'tools-define' | 'tools-vague' | 'tools-ask' | 'tools-answer' | 'tools-loop'
   | 'so-note' | 'so-plain' | 'so-schema' | 'so-ask' | 'so-use' | 'so-note-barn' | 'so-schema-other' | 'so-program'
-  | 'conn-switch' | 'conn-key' | 'conn-local' | 'conn-custom';
+  | 'conn-switch' | 'conn-key' | 'conn-local' | 'conn-custom'
+  | 'conv-start' | 'conv-parts' | 'conv-loop' | 'conv-save' | 'conv-load';
 
 interface Parts { system: boolean; tools: boolean; config: boolean }
 const partsOf = (step: Step): Parts => {
@@ -148,15 +149,27 @@ interface Writer {
   connKeyRouter(provider: string): string;
   /** A router that sends `server`'s requests to `url`. */
   connUrlRouter(server: string, url: string): string;
+  /** The conversation page: the first question, sent with a list of messages the program keeps. */
+  convStart(model: string): string;
+  /** The kind of each part of the model's message. */
+  convParts(): string;
+  /** Three questions in a loop, the list growing; each answer and its input tokens printed. */
+  convLoop(model: string): string;
+  /** The conversation (after convLoop) saved to a JSON file. */
+  convSave(): string;
+  /** The next day: the saved conversation read back, and one more question. */
+  convLoad(): string;
   /** A whole program around `body`: imports, and whatever the language needs to run it. */
   program(body: string, uses: Uses): string;
   /** The line that makes the router, when the program streams. */
   router(): string;
 }
-interface Uses { tool: boolean; config: boolean; stream: boolean; search?: boolean; loop?: boolean; schema?: boolean; typed?: boolean; env?: boolean; routerConfig?: boolean }
+interface Uses { serde?: boolean; tool: boolean; config: boolean; stream: boolean; search?: boolean; loop?: boolean; schema?: boolean; typed?: boolean; env?: boolean; routerConfig?: boolean }
 const C = TOUR.connect;
 type NoteKey = keyof typeof TOUR.extract.notes;
 const X = TOUR.extract;
+const V = TOUR.conversation;
+const FILE = () => q(V.file);
 /** The places, as quoted values in any language's list syntax. */
 const placeList = (other: boolean) => [...X.places, ...(other ? [X.other] : [])].map(p => q(p)).join(', ');
 
@@ -338,11 +351,50 @@ ${models.map(m => `    ${q(m)},`).join('\n')}
   connUrlRouter: (server, url) => `router = ${api('LMRouter')}(${api('RouterConfig')}(
     base_urls={${q(server)}: ${q(url)}},
 ))`,
+  convStart: model => `router = ${api('LMRouter')}()
+messages = [${api('Message.user')}(${q(TOUR.prompt)})]
+response = ${api('router.complete')}(${api('Request')}(
+    model=${q(model)},
+    system=${q(TOUR.system)},
+    messages=messages,
+))
+messages.append(response.message)
+print(response.text)`,
+  convParts: () => `for part in response.message.parts:
+    print(part.type)`,
+  convLoop: model => `router = ${api('LMRouter')}()
+model = ${q(model)}
+instructions = ${q(TOUR.system)}
+messages = []
+for question in [
+${V.questions.map(x => `    ${q(x)},`).join('\n')}
+]:
+    messages.append(${api('Message.user')}(question))
+    response = ${api('router.complete')}(${api('Request')}(
+        model=model, system=instructions, messages=messages,
+    ))
+    messages.append(response.message)
+    print(">", question)
+    print(response.text)
+    print(response.usage.input_tokens, "tokens in")`,
+  convSave: () => `saved = ${api('Request')}(model=model, system=instructions, messages=messages)
+with open(${FILE()}, "w") as f:
+    json.dump(${api('request_to_dict')}(saved), f)`,
+  convLoad: () => `with open(${FILE()}) as f:
+    saved = ${api('request_from_dict')}(json.load(f))
+followup = ${api('Request')}(
+    model=saved.model,
+    system=saved.system,
+    messages=[*saved.messages, ${api('Message.user')}(${q(V.nextDay)})],
+)
+router = ${api('LMRouter')}()
+print(${api('router.complete')}(followup).text)`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['FunctionTool'] : [])].sort();
-    const std = [...(uses.search ? ['import json'] : []), ...(uses.env ? ['import os'] : [])];
+    const std = [...(uses.search || uses.serde ? ['import json'] : []), ...(uses.env ? ['import os'] : [])];
     const lm15 = [...names, ...(uses.routerConfig ? ['RouterConfig'] : [])].sort();
-    return `${std.length ? `${dim(std.join('\n'))}\n\n` : ''}${dim(`from lm15 import ${lm15.join(', ')}`)}\n\n${body}`;
+    const serde = uses.serde ? `\n${dim('from lm15.serde import request_from_dict, request_to_dict')}` : '';
+    return `${std.length ? `${dim(std.join('\n'))}\n\n` : ''}${dim(`from lm15 import ${lm15.join(', ')}`)}${serde}\n\n${body}`;
   },
 };
 
@@ -528,9 +580,50 @@ ${models.map(m => `  ${q(m)},`).join('\n')}
   connUrlRouter: (server, url) => `const router = new ${api('LMRouter')}({
   baseUrls: { ${q(server)}: ${q(url)} },
 });`,
+  convStart: model => `const router = new ${api('LMRouter')}();
+const messages = [${api('Message.user')}(${q(TOUR.prompt)})];
+const response = await ${api('router.complete')}({
+  model: ${q(model)},
+  system: ${q(TOUR.system)},
+  messages,
+});
+messages.push(response.message);
+console.log(response.text);`,
+  convParts: () => `for (const part of response.message.parts) {
+  console.log(part.type);
+}`,
+  convLoop: model => `const router = new ${api('LMRouter')}();
+const model = ${q(model)};
+const instructions = ${q(TOUR.system)};
+const messages: ${api('Message')}[] = [];
+for (const question of [
+${V.questions.map(x => `  ${q(x)},`).join('\n')}
+]) {
+  messages.push(${api('Message.user')}(question));
+  const response = await ${api('router.complete')}({
+    model, system: instructions, messages,
+  });
+  messages.push(response.message);
+  console.log(">", question);
+  console.log(response.text);
+  console.log(response.usage.inputTokens, "tokens in");
+}`,
+  convSave: () => `const saved = { model, system: instructions, messages };
+const json = JSON.stringify(${api('Request.toJSON')}(saved));
+writeFileSync(${FILE()}, json);`,
+  convLoad: () => `const json = readFileSync(${FILE()}, "utf8");
+const saved = ${api('Request.fromJSON')}(JSON.parse(json));
+const followup = {
+  model: saved.model,
+  system: saved.system,
+  messages: [...saved.messages, ${api('Message.user')}(${q(V.nextDay)})],
+};
+const router = new ${api('LMRouter')}();
+console.log((await ${api('router.complete')}(followup)).text);`,
   program: (body, uses) => {
-    const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : []), ...(uses.schema || uses.typed ? ['type Request'] : [])];
-    return `${dim(`import { ${names.join(', ')} } from "lm15";`)}\n\n${body}`;
+    const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : []), ...(uses.serde ? ['Request'] : uses.schema || uses.typed ? ['type Request'] : [])];
+    const fs = uses.serde ? `${dim('import { readFileSync, writeFileSync } from "node:fs";')}\n` : '';
+    return `${fs}${dim(`import { ${names.join(', ')} } from "lm15";`)}\n\n${body}`;
   },
 };
 
@@ -740,9 +833,61 @@ let router = ${api('LMRouter::with_config')}(
   connUrlRouter: (server, url) => `let router = ${api('LMRouter::with_config')}(
     ${api('RouterConfig::new')}().${api('base_url')}(${q(server)}, ${q(url)}),
 )?;`,
+  convStart: model => `let router = ${api('LMRouter::new')}();
+let mut messages = vec![${api('Message::user')}(${q(TOUR.prompt)})?];
+let request = ${api('Request')} {
+    model: ${q(model)}.into(),
+    system: Some(${q(TOUR.system)}.into()),
+    messages: messages.clone(),
+    ..Default::default()
+};
+let response = ${api('router.complete')}(&request).await?;
+messages.push(response.message.clone());
+println!("{}", response.text().unwrap_or_default());`,
+  convParts: () => `for part in &response.message.parts {
+    println!("{}", part.${api('type_name')}());
+}`,
+  convLoop: model => `let router = ${api('LMRouter::new')}();
+let model = ${q(model)};
+let instructions = ${q(TOUR.system)};
+let mut messages = Vec::new();
+for question in [
+${V.questions.map(x => `    ${q(x)},`).join('\n')}
+] {
+    messages.push(${api('Message::user')}(question)?);
+    let request = ${api('Request')} {
+        model: model.into(),
+        system: Some(instructions.into()),
+        messages: messages.clone(),
+        ..Default::default()
+    };
+    let response = ${api('router.complete')}(&request).await?;
+    messages.push(response.message.clone());
+    println!("> {question}");
+    println!("{}", response.text().unwrap_or_default());
+    if let Some(tokens) = response.usage.input_tokens {
+        println!("{tokens} tokens in");
+    }
+}`,
+  convSave: () => `let saved = ${api('Request')} {
+    model: model.into(),
+    system: Some(instructions.into()),
+    messages,
+    ..Default::default()
+};
+let json = serde_json::to_string(&saved)?;
+std::fs::write(${FILE()}, json)?;`,
+  convLoad: () => `let json = std::fs::read_to_string(${FILE()})?;
+let saved: ${api('Request')} = serde_json::from_str(&json)?;
+let mut messages = saved.messages.clone();
+messages.push(${api('Message::user')}(${q(V.nextDay)})?);
+let followup = ${api('Request')} { messages, ..saved };
+let router = ${api('LMRouter::new')}();
+let response = ${api('router.complete')}(&followup).await?;
+println!("{}", response.text().unwrap_or_default());`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.loop ? ['FinishReason'] : []), ...(uses.search ? ['JsonObject'] : []), ...(uses.routerConfig ? ['RouterConfig'] : [])].sort();
-    const deps = ['lm15', 'tokio (macros, rt-multi-thread)', ...(uses.tool || uses.schema ? ['serde_json'] : []), ...(uses.stream ? ['futures-util'] : [])];
+    const deps = ['lm15', 'tokio (macros, rt-multi-thread)', ...(uses.tool || uses.schema || uses.serde ? ['serde_json'] : []), ...(uses.stream ? ['futures-util'] : [])];
     return [
       ...(uses.stream ? [dim('use futures_util::StreamExt;')] : []),
       ...(uses.search ? [dim('use serde_json::Value;')] : []),
@@ -989,8 +1134,68 @@ ${dim('if err != nil {\n    panic(err)\n}')}`,
     BaseURLs: map[string]string{${q(server)}: ${q(url)}},
 })
 ${dim('if err != nil {\n    panic(err)\n}')}`,
+  convStart: model => `router := ${api('lm15.NewRouter')}()
+messages := []${api('lm15.Message')}{
+    ${api('lm15.UserMessage')}(${q(TOUR.prompt)}),
+}
+request := &${api('lm15.Request')}{
+    Model:    ${q(model)},
+    System:   ${api('lm15.System')}(${q(TOUR.system)}),
+    Messages: messages,
+}
+response, err := ${api('router.Complete')}(context.Background(), request)
+${dim('if err != nil {\n    panic(err)\n}')}
+messages = append(messages, response.Message)
+fmt.Println(response.TextOr(""))`,
+  convParts: () => `for _, part := range response.Message.Parts {
+    fmt.Println(part.${api('Type')}())
+}`,
+  convLoop: model => `router := ${api('lm15.NewRouter')}()
+model := ${q(model)}
+instructions := ${q(TOUR.system)}
+var messages []${api('lm15.Message')}
+for _, question := range []string{
+${V.questions.map(x => `    ${q(x)},`).join('\n')}
+} {
+    messages = append(messages, ${api('lm15.UserMessage')}(question))
+    request := &${api('lm15.Request')}{
+        Model:    model,
+        System:   ${api('lm15.System')}(instructions),
+        Messages: messages,
+    }
+    response, err := ${api('router.Complete')}(context.Background(), request)
+${dim('    if err != nil {\n        panic(err)\n    }')}
+    messages = append(messages, response.Message)
+    fmt.Println(">", question)
+    fmt.Println(response.TextOr(""))
+    if in := response.Usage.InputTokens; in != nil {
+        fmt.Println(*in, "tokens in")
+    }
+}`,
+  convSave: () => `saved := &${api('lm15.Request')}{
+    Model:    model,
+    System:   ${api('lm15.System')}(instructions),
+    Messages: messages,
+}
+data, err := json.Marshal(${api('lm15.RequestToDict')}(saved))
+${dim('if err != nil {\n    panic(err)\n}')}
+err = os.WriteFile(${FILE()}, data, 0o600)
+${dim('if err != nil {\n    panic(err)\n}')}`,
+  convLoad: () => `data, err := os.ReadFile(${FILE()})
+${dim('if err != nil {\n    panic(err)\n}')}
+var dict ${api('lm15.JSONObject')}
+${dim('if err := json.Unmarshal(data, &dict); err != nil {\n    panic(err)\n}')}
+saved, err := ${api('lm15.RequestFromDict')}(dict)
+${dim('if err != nil {\n    panic(err)\n}')}
+saved.Messages = append(saved.Messages, ${api('lm15.UserMessage')}(
+    ${q(V.nextDay)},
+))
+router := ${api('lm15.NewRouter')}()
+response, err := ${api('router.Complete')}(context.Background(), saved)
+${dim('if err != nil {\n    panic(err)\n}')}
+fmt.Println(response.TextOr(""))`,
   program: (body, uses) => [
-    dim(`package main\n\nimport (\n    "context"\n${uses?.search ? '    "encoding/json"\n' : ''}    "fmt"\n${uses?.env ? '    "os"\n' : ''}${uses?.search ? '    "strings"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {`),
+    dim(`package main\n\nimport (\n    "context"\n${uses?.search || uses?.serde ? '    "encoding/json"\n' : ''}    "fmt"\n${uses?.env || uses?.serde ? '    "os"\n' : ''}${uses?.search ? '    "strings"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {`),
     indent(body, '    '),
     dim('}'),
   ].join('\n'),
@@ -1175,6 +1380,42 @@ ${models.map((m, i) => `  ${q(m)}${i < models.length - 1 ? ',' : ''}`).join('\n'
   connUrlRouter: (server, url) => `router <- ${api('new_router')}(
   base_urls = list(${q(server)} = ${q(url)})
 )`,
+  convStart: model => `router <- ${api('new_router')}()
+messages <- list(${api('message_user')}(${q(TOUR.prompt)}))
+response <- ${api('complete')}(router, ${api('request')}(
+  ${q(model)},
+  messages,
+  system = ${q(TOUR.system)}
+))
+messages <- c(messages, list(response$message))
+${api('response_text')}(response)`,
+  convParts: () => `vapply(response$message$parts, function(part) part$type, "")`,
+  convLoop: model => `router <- ${api('new_router')}()
+model <- ${q(model)}
+instructions <- ${q(TOUR.system)}
+messages <- list()
+for (question in c(
+${V.questions.map((x, i) => `  ${q(x)}${i < V.questions.length - 1 ? ',' : ''}`).join('\n')}
+)) {
+  messages <- c(messages, list(${api('message_user')}(question)))
+  req <- ${api('request')}(model, messages, system = instructions)
+  response <- ${api('complete')}(router, req)
+  messages <- c(messages, list(response$message))
+  cat(">", question, "\\n")
+  cat(${api('response_text')}(response), "\\n")
+  cat(response$usage$input_tokens, "tokens in\\n")
+}`,
+  convSave: () => `saved <- ${api('request')}(model, messages, system = instructions)
+writeLines(${api('as_json')}(saved), ${FILE()})`,
+  convLoad: () => `json <- paste(readLines(${FILE()}), collapse = "\\n")
+saved <- ${api('from_json')}(json, "request")
+followup <- ${api('request')}(
+  saved$model,
+  c(saved$messages, list(${api('message_user')}(${q(V.nextDay)}))),
+  system = saved$system
+)
+router <- ${api('new_router')}()
+${api('response_text')}(${api('complete')}(router, followup))`,
   program: body => `${dim('library(lm15)')}\n\n${body}`,
 };
 
@@ -1350,6 +1591,43 @@ end`,
   connUrlRouter: (server, url) => `router = ${api('LMRouter')}(${api('RouterConfig')}(
     base_urls=Dict(${q(server)} => ${q(url)}),
 ))`,
+  convStart: model => `router = ${api('LMRouter')}()
+messages = [${api('user')}(${q(TOUR.prompt)})]
+response = ${api('complete')}(router, ${api('Request')}(
+    ${q(model)};
+    messages,
+    system=${q(TOUR.system)},
+))
+push!(messages, response.message)
+println(${api('text')}(response))`,
+  convParts: () => `for part in response.message.parts
+    println(part.type)
+end`,
+  convLoop: model => `router = ${api('LMRouter')}()
+model = ${q(model)}
+instructions = ${q(TOUR.system)}
+messages = ${api('Message')}[]
+for question in [
+${V.questions.map(x => `    ${q(x)},`).join('\n')}
+]
+    push!(messages, ${api('user')}(question))
+    req = ${api('Request')}(model; messages, system=instructions)
+    response = ${api('complete')}(router, req)
+    push!(messages, response.message)
+    println("> ", question)
+    println(${api('text')}(response))
+    println(response.usage.input_tokens, " tokens in")
+end`,
+  convSave: () => `saved = ${api('Request')}(model; messages, system=instructions)
+write(${FILE()}, ${api('to_json')}(saved))`,
+  convLoad: () => `saved = ${api('from_json')}(${api('Request')}, read(${FILE()}, String))
+followup = ${api('Request')}(
+    saved.model;
+    messages=[saved.messages..., ${api('user')}(${q(V.nextDay)})],
+    system=saved.system,
+)
+router = ${api('LMRouter')}()
+println(${api('text')}(${api('complete')}(router, followup)))`,
   program: body => `${dim('using LM15')}\n\n${body}`,
 };
 
@@ -1376,6 +1654,11 @@ function fitted(language: Language, w: Writer): Writer {
     connLoop: models => f(w.connLoop(models)),
     connKeyRouter: provider => f(w.connKeyRouter(provider)),
     connUrlRouter: (server, url) => f(w.connUrlRouter(server, url)),
+    convStart: model => f(w.convStart(model)),
+    convParts: () => f(w.convParts()),
+    convLoop: model => f(w.convLoop(model)),
+    convSave: () => f(w.convSave()),
+    convLoad: () => f(w.convLoad()),
     program: (body, uses) => w.program(body, uses),
     router: () => f(w.router()),
   };
@@ -1414,6 +1697,11 @@ function marked(language: Language, view: TourView, model: string): string {
     case 'conn-key': return connKey(w, model);
     case 'conn-local': return `${w.request(C.localModel, partsOf('request'))}\n\n${w.ask()}`;
     case 'conn-custom': return connCustom(w, C.serverUrl);
+    case 'conv-start': return w.convStart(model);
+    case 'conv-parts': return w.convParts();
+    case 'conv-loop': return w.convLoop(model);
+    case 'conv-save': return w.convSave();
+    case 'conv-load': return w.convLoad();
     case 'followup': return w.followUp(model, true);
     case 'forgetful': return w.followUp(model, false);
   }
@@ -1476,6 +1764,8 @@ export interface TourProgram {
 
 /** Where the run test's stand-in server listens (scripts/docs-fixture-server.py). */
 const STAND_IN = 'http://127.0.0.1:11434/v1';
+/** What the stand-in answers (scripts/docs-fixture-server.py). */
+const STAND_IN_REPLY = 'Probably wood mice.';
 
 export function tourPrograms(language: Language, provider: string, model: string): TourProgram[] {
   const w = WRITERS[language];
@@ -1511,5 +1801,12 @@ export function tourPrograms(language: Language, provider: string, model: string
     { name: 'conn-local', source: done(w.program(`${w.request(C.localModel, partsOf('request'))}\n\n${w.ask()}`, plainUses)).text, streams: false },
     { name: 'conn-custom', source: done(w.program(connCustom(w, STAND_IN), { ...plainUses, routerConfig: true })).text, streams: false },
   ];
-  return [{ name: 'first', source: done(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: done(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured, ...connect];
+  // The conversation page: the first turn and its parts; three turns, saved, read back and continued.
+  // The next day's code runs in its own block in TypeScript and Go, as it would in its own program.
+  const scoped = (code: string) => language === 'typescript' ? `{\n${indent(code, '  ')}\n}` : language === 'go' ? `{\n${indent(code, '    ')}\n}` : code;
+  const conversation: TourProgram[] = [
+    { name: 'conv-start', source: done(w.program(`${w.convStart(id)}\n\n${w.convParts()}`, plainUses)).text, streams: false, expect: [STAND_IN_REPLY, 'text'] },
+    { name: 'conv-save', source: done(w.program(`${w.convLoop(id)}\n\n${w.convSave()}\n\n${scoped(w.convLoad())}`, { ...plainUses, serde: true })).text, streams: false, requests: 4 },
+  ];
+  return [{ name: 'first', source: done(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: done(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured, ...connect, ...conversation];
 }

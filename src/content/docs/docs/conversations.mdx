@@ -1,0 +1,177 @@
+---
+title: Keep a conversation
+description: A model remembers nothing between requests, so your program keeps the conversation. Keep a list of messages, see what the model's message holds, run a conversation in a loop, and save it to pick up later.
+---
+
+import DocsExample from '../../../components/DocsExample.astro';
+import CapturedOutput from '../../../components/CapturedOutput.astro';
+import captures from '../../../data/conversations-captures.json';
+
+export const tokens = captures.steps.loop.input_tokens;
+export const compare = captures.facts.whole_or_text;
+
+A single question and answer is rarely the whole job. You ask something, read
+the answer, and then ask a follow-up that depends on it, the way you would
+with a person who remembers what they just told you. A model doesn’t remember.
+Each request starts from nothing, and the model knows only what that request
+contains. So in LM15, as with every language-model API, the conversation
+lives in your program: a list of messages that you keep, add to, and send
+with every request.
+
+On this page, you’ll learn how to keep that list. We’ll start with a single
+question, and look inside the message that comes back. Then we’ll turn it into
+a loop that holds a longer conversation, and see what each turn costs. Next,
+we’ll save a conversation to a file and pick it up again the next day. We’ll
+finish with what to do when a conversation grows long.
+
+To run the examples, you’ll need LM15 installed and an API key; see
+[Make your first request](/docs/first-request/), which also shows why a
+follow-up question needs the conversation before it.
+
+## One question, kept
+
+The examples in these guides follow [one small program](/docs/#the-example-well-build):
+an assistant for a wildlife research station. Here is its first question
+again, this time with the messages kept in a list of their own:
+
+<DocsExample recipe="conv-start" />
+
+<CapturedOutput set="conversations" step="start" />
+
+The list starts with your question. When the answer comes back, the model’s
+message goes on the end, so the list now holds the whole exchange: a question
+and its answer. The next request will send both. The instructions aren’t in the
+list. They belong to each request, alongside the messages, and you send them
+every time.
+
+## What’s in the model’s message
+
+A message is made of parts. Print the kind of each part in the model’s
+message:
+
+<DocsExample recipe="conv-parts" />
+
+<CapturedOutput set="conversations" step="parts" />
+
+The second part is the text you’ve just read. The first is the model’s
+reasoning, the thinking it did before it answered. This provider keeps its
+reasoning to itself, so the part holds no text at all. What it holds instead
+is a sealed copy, which only the provider can read, and which goes back to the
+provider if you send the message back.
+
+That’s why you keep the model’s whole message, rather than just its text.
+It isn’t free. We sent the second question twice: once after the whole
+message, and once after a new message holding only the answer’s text.
+
+| Kept before the second question | Input tokens |
+| --- | --- |
+| The model’s whole message | {compare.whole.input_tokens} |
+| Only its text | {compare.text_only.input_tokens} |
+
+The difference is the sealed reasoning, which the provider received and
+counted. Both answers were fine. So why keep it? Because the model’s message is
+more than its text, and what the other parts are for is up to the provider.
+OpenAI and Anthropic both ask, in their documentation, for the reasoning to
+come back while the model is in the middle of using a tool, and Anthropic
+calls it required. (In our own test, Anthropic answered without it. Don’t
+count on that.) A message can also hold tool calls and citations, and keeping
+only the text throws those away too. Keeping the whole message is right for
+every provider, and LM15 sends each part back in the form that provider
+expects.
+
+A good rule of thumb: keep the text for people to read, and the whole message
+for the model to continue.
+
+## Keep going
+
+A real conversation has more than two turns. Keeping a list makes that a loop:
+add the question, send everything, add the answer, and go round again. Here are
+three of the station’s questions in a row:
+
+<DocsExample recipe="conv-loop" />
+
+<CapturedOutput set="conversations" step="loop" />
+
+Each answer builds on the ones before it. “The same animals” in the second
+question means the animals from the first answer, and the model knew that. The
+third question, “which one it is”, only makes sense after the first two.
+
+The input tokens tell a second story: {tokens[0]}, then {tokens[1]}, then
+{tokens[2]}. Every request sends the whole conversation again, so each turn
+costs more than the one before, and you pay for the early turns again every
+time you ask something new. That’s worth remembering before you let a
+conversation run for a hundred turns.
+
+## Pick up where you left off
+
+A conversation doesn’t have to end when your program does. Suppose the station
+runs the assistant in the evening, and the observers want to carry on the next
+morning. Save the conversation, with its model and instructions, to a file:
+
+<DocsExample recipe="conv-save" />
+
+LM15 writes the conversation in its own JSON form, which is the same in all six
+languages, so a file saved by one reads in any of the others. Nothing is left
+out: the file holds each answer’s sealed reasoning along with its text. It also
+holds everything anyone said, so keep it as private as the conversation.
+
+The next day, a new program reads the file and asks one more question:
+
+<DocsExample recipe="conv-load" />
+
+<CapturedOutput set="conversations" step="next_day" />
+
+The question says “those”, and the model knew which animals were meant,
+because the conversation it received was yesterday’s, in full. It even kept
+track of the hazelnuts, from the second question.
+
+## When a conversation gets long
+
+Because each turn sends everything again, a long conversation gets slower and
+more expensive, and eventually it no longer fits: every model has a limit on
+how much one request can hold, called its *context window*. LM15 doesn’t
+shorten a conversation for you, because what to keep depends on your
+application. Here are three common choices:
+
+- **Start a new conversation** when the topic changes. It’s the cheapest, and
+  often the clearest, option.
+- **Drop the oldest turns**, and keep the instructions, which aren’t in the
+  list anyway. Remove each question together with its answer, and keep a tool
+  call together with its result.
+- **Summarize.** Ask the model to summarize the early part of the
+  conversation, then start a new list with that summary.
+
+If the start of a conversation stays the same from one request to the next,
+[prompt caching](/docs/prompt-caching/) can make sending it again cheaper.
+
+## Try it yourself
+
+Predict what will happen before you run each one.
+
+1. In the loop, add each question to the list, but not the model’s message.
+   What will the second answer say?
+2. Print the input tokens of the next day’s request. Will they be more or
+   fewer than {tokens[2]}?
+3. Before asking “which of those” the next day, remove the first question and
+   its answer from the saved conversation. What can the model still work out?
+
+<details>
+<summary>What to expect</summary>
+
+1. The model receives two questions in a row, and no answers. It doesn’t know
+   which animals “the same animals” are, so it may answer both questions, or
+   ask what you mean.
+2. More. The saved conversation holds everything the third request did, plus
+   the third answer, and then the new question.
+3. The second question and its answer still name the animals, so “those”
+   still means something. What’s lost is why you asked: nothing now says the
+   acorns were disappearing from under the oak trees at night.
+
+</details>
+
+## Next
+
+When answers get long, you may want to show them as they’re written; see
+[Stream a response](/docs/streaming/). The same list of messages also carries
+tool calls and their results: [Call your own functions](/docs/function-tools/)
+builds its loop that way.
