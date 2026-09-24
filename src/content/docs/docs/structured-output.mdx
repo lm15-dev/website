@@ -22,9 +22,8 @@ export const rows = [[captures.model, { ask: s.ask, trap: s.trap }], ...Object.e
 });
 export const printed = s.ask.data.sightings.map((x) => `${x.count} ${x.species} at ${x.place}`).join('\n');
 
-Language models are good at reading text written for people, like an
-observer’s field notes. The trouble is that their answers are written for
-people too. That’s fine when a person reads the answer, but when a program
+Language models are good at reading text written for people: emails, reports,
+reviews, notes. The trouble is that their answers are written for people too. That’s fine when a person reads the answer, but when a program
 needs to use it, you want data: fields with names, numbers that are numbers,
 and the same shape every time. That’s what structured output gives you.
 
@@ -47,7 +46,9 @@ is near the end.
 
 ## Field notes
 
-Observers at our wildlife station write down what they see in their own words.
+The examples in these guides follow [one small program](/docs/#the-example-well-build): an
+assistant for a wildlife research station. The station’s observers check
+cameras and walk paths, and write down what they see in their own words.
 Here’s this morning’s note from the camera by the stream:
 
 <DocsExample recipe="so-note" />

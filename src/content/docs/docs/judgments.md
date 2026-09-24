@@ -29,6 +29,12 @@ declare their answer set. Three shapes count:
 The helpers only emit that schema. A hand-written `{"enum": ["a", "b"]}`
 already qualifies.
 
+The example follows the one used throughout these guides: an assistant for a
+[wildlife research station](/docs/#the-example-well-build). Here it reads an
+observer's field note and answers three questions about it: how sure the
+identification is, what the animals were doing, and whether a young one was
+there.
+
 ```python
 from lm15 import LMRouter, Request, Message, Config, judgments, choice, score, yes_no
 

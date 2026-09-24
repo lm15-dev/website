@@ -113,6 +113,14 @@ The opening is the most important part of a page. ggplot2's companion book,
 4. **Prerequisites,** briefly: what the page builds on, where the answers come
    from.
 
+**Every page stands alone.** Readers arrive from search and links, not only
+from the previous page. Keep the opening general (it must make sense to someone
+who has never heard of the station), then introduce the running example the
+first time the page uses it, in one sentence, as R4DS does ("a new dataset on
+flights that departed from New York City in 2013"): "The examples in these
+guides follow [one small program](/docs/#the-example-well-build): an assistant
+for a wildlife research station." Never "our station" before that sentence.
+
 Don't open inside the story ("Observers at our station don't write rows"): the
 story comes after the reader knows why they are reading. Don't open with
 "In this guide" or "The goal of this page" unless the next words say something
