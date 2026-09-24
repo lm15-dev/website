@@ -1,0 +1,41 @@
+---
+// What one example printed (and raised) when a scripts/capture-*.py script ran it,
+// for pages whose examples are files run as they are (src/data/authentication/).
+import authentication from '../data/authentication-captures.json';
+
+const SETS = { authentication } as const;
+const NAMES: Record<string, string> = { 'openai-codex': 'OpenAI Codex', anthropic: 'Anthropic', xai: 'xAI' };
+
+interface Props {
+  set?: keyof typeof SETS;
+  step: string;
+  /** "terminal" captions a session typed into a terminal; "error" shows only what was raised. */
+  show?: 'output' | 'terminal' | 'error';
+}
+const { set = 'authentication', step, show = 'output' } = Astro.props;
+const captures = SETS[set];
+const run = (captures.steps as Record<string, { output: string; error?: string; model?: string }>)[step];
+if (!run) throw new Error(`CapturedOutput: no step ${step} in ${set}`);
+const date = new Date(`${captures.date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const [provider, ...rest] = (run.model ?? '').split(':');
+const who = run.model ? `${rest.join(':')} through ${NAMES[provider!] ?? provider}, ${date}` : date;
+const output = run.output.replace(/^\n+|\n+$/g, '');
+---
+<figure class="captured not-content">
+  {show !== 'error' && output && <>
+    <figcaption>{show === 'terminal' ? 'In the terminal' : 'What it printed'} <span>{who}</span></figcaption>
+    <pre class="captured-text">{output}</pre>
+  </>}
+  {run.error && <>
+    <figcaption class={show !== 'error' && output ? 'after' : ''}>What LM15 raised {(show === 'error' || !output) && <span>{who}</span>}</figcaption>
+    <pre class="captured-text">{run.error}</pre>
+  </>}
+</figure>
+
+<style>
+  .captured { margin: 1rem 0 1.5rem; border: 1px solid var(--sl-color-gray-5); border-left: 3px solid var(--lm-accent); background: var(--sl-color-bg); }
+  figcaption { padding: .45rem .9rem; font-size: .8rem; font-weight: 600; color: var(--sl-color-gray-2); border-bottom: 1px solid var(--sl-color-gray-5); }
+  figcaption.after { border-top: 1px dashed var(--sl-color-gray-5); }
+  figcaption span { font-weight: 400; margin-left: .4rem; }
+  .captured-text { margin: 0; padding: .8rem .9rem; font-family: var(--lm-code-font); font-size: var(--sl-text-code, .875rem); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--sl-color-text); background: none; border: 0; }
+</style>

@@ -1,0 +1,299 @@
+---
+title: Set up authentication
+description: Decide which account pays for each request. Give LM15 a key from the environment or from your own code, use a subscription you already have, let LM15 save connections for you, and see what happens when one is missing or signed out.
+---
+
+import PythonExample from '../../../components/PythonExample.astro';
+import CapturedOutput from '../../../components/CapturedOutput.astro';
+
+Every request you send to a provider is paid for by someone, and the provider
+knows who from the credential that travels with it: an API key, or the sign-in
+of a subscription. On your own laptop, a single key in an environment variable
+is usually all you need. A program that runs on a server, for several people,
+or for months at a time raises harder questions. Which account is it using?
+What happens when a key changes, or someone signs out? LM15 answers them with
+one rule: it never chooses a credential for you behind your back. It uses the
+one you gave it, and it can always tell you which one that is.
+
+On this page, you’ll learn how LM15 decides which credential a request uses,
+and how to check that decision before you send anything. We’ll start with API
+keys, from the environment and from your own code, including keys that change
+while your program runs. Then we’ll use a subscription you already pay for
+instead of a key. Next, we’ll let LM15 save connections for you: first by
+answering a few questions at the keyboard, then with the pieces underneath,
+the way a server does it. We’ll finish by checking what’s saved, and signing
+out.
+
+:::note[Python only, for now]
+This page is written for the Python SDK. The other languages will follow, and
+the page will follow them; until then, its code is Python whichever language
+you chose. Saving connections (from [Sign in once](#sign-in-once) onward) is
+newer than the latest Python release, 1.0.0rc1. To try it now, install LM15
+from GitHub: `pip install git+https://github.com/lm15-dev/lm15-python`.
+:::
+
+To run the examples, you’ll need an API key for Anthropic, set up as in
+[Make your first request](/docs/first-request/#set-an-api-key). One section
+also uses a ChatGPT subscription through OpenAI’s Codex app; you can read it
+without one.
+
+## Which key a request uses
+
+The examples in these guides follow [one small program](/docs/#the-example-well-build):
+an assistant for a wildlife research station. Here’s its first question
+again, addressed to Anthropic:
+
+<PythonExample name="request" />
+
+To send it, the router needs a key for Anthropic. You can ask where it would
+find one without sending anything:
+
+<PythonExample name="doctor" />
+
+<CapturedOutput step="doctor" />
+
+This report comes from LM15’s *doctor*, which answers the question “what
+credential would this use, and why?” It lists every place the router looks, in
+order, and marks the one it will use with `=>`. Here, the program gives no key
+of its own, so the key comes from the environment variable
+`ANTHROPIC_API_KEY`. The report never contains a key, only where one comes
+from, so it’s safe to print, log, or paste into a bug report.
+
+Now give the router a key yourself, as in
+[Connect a provider](/docs/providers/#where-the-key-comes-from), and ask
+again:
+
+<PythonExample name="explicit" />
+
+<CapturedOutput step="explicit" />
+
+The key you gave in your code wins. The environment variable is still set, and
+the report says so, but the `~` marks it as *shadowed*: present, and not used.
+For a provider that works with API keys, like Anthropic, the order is always
+the same:
+
+1. A key you give the router in your code.
+2. The provider’s environment variable.
+
+There’s no third step where LM15 goes looking somewhere else. If neither is
+there, the router stops before sending anything and names the variable it
+looked for. Whenever a request seems to use an account you didn’t expect, run
+the doctor with your router’s settings, as above: it follows the same steps as
+the router, without contacting the provider.
+
+## A key that changes
+
+Some keys don’t last. A company might replace its keys every week, and cloud
+platforms such as Azure hand out tokens that expire after an hour. A key read
+once, when your program starts, will eventually be out of date, and a program
+that runs for days then fails with an authentication error in the middle of
+the night.
+
+Instead of a key, you can give the router a function that returns one. The
+router calls it for every request, so whatever it returns now is what gets
+sent now. Here, the function reads the key from a file, and says so each time:
+
+<PythonExample name="rotating" />
+
+<CapturedOutput step="rotating" />
+
+The function ran once for each request. When the file changes, the next
+request uses the new key, without a restart. Anything cleverer is up to your function: if fetching a
+key is slow, keep it in the function, and fetch a new one only when the old one
+is about to expire. The token helpers in the Azure, AWS and Google Cloud
+libraries are functions of exactly this kind, so they plug in directly. The
+Python guide to [cloud hosts](https://lm15-dev.github.io/lm15-python/cloud-hosts/)
+shows how, and how LM15 can also find a cloud identity on its own.
+
+## Use a subscription you already have
+
+API keys are billed per request. Many people pay a monthly subscription for a
+chat app instead, and some of those subscriptions can be used from code. If
+you use OpenAI’s Codex app with a ChatGPT plan, or Claude Code with a Claude
+plan, you’re already signed in on your computer, and LM15 can use that
+sign-in. The provider names are `openai-codex` and `claude-code`:
+
+<PythonExample name="subscription" />
+
+<CapturedOutput step="subscription" />
+
+This time the doctor has no key to look for. It points to the file where the
+Codex app keeps its sign-in, and says how long that sign-in has left. LM15
+reads the file for each request, and renews the sign-in there when it’s about
+to expire, so there’s nothing to copy and nothing to keep up to date. If
+you’re not signed in, the error says which app to sign in with.
+
+Two things are worth knowing before you rely on a subscription. It has its own
+list of models, which may not match the provider’s API. And it isn’t a promise
+of free use: what your plan covers, and when it charges more, is up to the
+provider.
+
+## Sign in once
+
+So far, every program has said where its credential comes from. When you’re
+working at the keyboard, in a script or a notebook, it’s often more convenient
+to be asked once, and have the answer remembered. That’s what `connect()`
+does:
+
+<PythonExample name="connect" />
+
+Here’s what happened when we ran it in a terminal:
+
+<CapturedOutput step="connect" show="terminal" />
+
+`connect()` starts by saying where it keeps what it saves: one file in your
+home folder, readable only by you. Then it works out how to reach ChatGPT. It
+found the Codex app’s sign-in, which is the way LM15 supports, so it had
+nothing to ask. It did ask which model to use, from the list the account
+offers, and then returned a client tied to that connection and that model.
+
+Run the program again and it goes straight to the model, because the
+connection is saved. Leave out the provider, and `connect()` starts by asking
+which one, with your saved connections first. For a provider you haven’t used
+before, it offers the ways to connect: subscriptions first, then keys. A key
+that’s already in your environment is offered as one of the choices, and never
+used without asking.
+
+`connect()` needs a person to answer it. When there’s no one at the keyboard,
+as on a server, it stops straight away rather than wait forever:
+
+<CapturedOutput step="no_person" show="error" />
+
+## On a server
+
+The station runs its assistant every night on a small server, to sort the
+day’s field notes. A server needs saved connections too, but without the
+questions. The piece underneath `connect()` is `Auth`, which looks after the
+saved file. Attach it to a router, and ask the doctor about Anthropic again:
+
+<PythonExample name="managed" />
+
+<CapturedOutput step="managed" />
+
+Nothing is saved for Anthropic yet, and the last line of the walk is new: the
+environment variable is set, but the router won’t use it. Once you attach `Auth`, a
+request uses a key you give in your code or a connection you saved, and
+nothing else. This is deliberate. A server usually has many variables, some
+left behind by other programs, and a request that quietly used one of them
+could charge an account that nobody meant to use.
+
+To use the variable, save it as a connection. LM15 saves the variable’s name,
+not the key, and reads the key from the environment each time it sends a
+request:
+
+<PythonExample name="configure" />
+
+<CapturedOutput step="configure" />
+
+You’d run this once, when you set the server up. After that, every program on
+the server that uses `Auth.local()` finds the connection. `Auth` has other ways
+to save one: `auth.set_api_key()` saves a key itself, in the same private file,
+and `auth.login()` signs in to an account, which is where we’re going next.
+
+## Sign in with LM15
+
+Some providers let LM15 run the sign-in itself. xAI is the one LM15 fully
+supports today. If you have a SuperGrok or X Premium plan, you sign in with a
+code:
+
+<PythonExample name="login" />
+
+<CapturedOutput step="login" show="terminal" />
+
+You open the address on any device, your phone included, and enter the code
+(we’ve hidden ours). The program waits until you’ve approved it, then saves the
+connection. Because the code works from another device, you can sign in this
+way on a server you reach over SSH, where no browser can open.
+
+LM15 can run the sign-ins of other providers too, but it doesn’t offer them
+unless you ask. Each way to connect says where it stands:
+
+<PythonExample name="methods" />
+
+<CapturedOutput step="methods" />
+
+*Supported* ways are the ones LM15 offers by default. *Unverified* ones are
+written, and may have worked in our own tests, but we haven’t yet confirmed
+that the provider allows them, or how they’re billed; LM15 uses one only if you
+pass `allow_unverified=True`. Even a sign-in that works doesn’t tell you what
+your plan covers. That’s between you and the provider.
+
+## Check what’s saved, and sign out
+
+`Auth` can tell you what’s saved without contacting anyone:
+
+<PythonExample name="status" />
+
+<CapturedOutput step="status" />
+
+Each connection has a name that says what it is, and whether it’s ready to
+use. The Anthropic connection never expires, since it reads its key from the
+environment. The Codex connection says `unknown` because the sign-in belongs to
+the Codex app, and LM15 only checks it when it uses it.
+
+Signing out removes a connection from the file:
+
+<PythonExample name="logout" />
+
+<CapturedOutput step="logout" />
+
+The key is still in `ANTHROPIC_API_KEY`, and the router still won’t use it.
+This is the other half of the rule from [On a server](#on-a-server): a
+connection that’s missing, expired, or signed out is an error, never a reason
+to switch to another account. Signing out only forgets the connection on this
+computer; it doesn’t contact the provider. For a sign-in that belongs to
+another app, such as Codex, LM15 forgets its own record and leaves the app’s
+file alone.
+
+## When something goes wrong
+
+- **No key found.** The error names the environment variable the router
+  looked for. Set it in the terminal where you run your program, or give the
+  key in your code.
+- **A request used the wrong account.** Run the doctor with your router’s
+  settings, as in [Which key a request uses](#which-key-a-request-uses). It
+  shows every place the router looked, and which one won.
+- **“No saved connection” or “signed out”, with a key in your environment.**
+  Your router has an `Auth` attached, so it doesn’t read environment
+  variables. Save a connection, or give the key in your code.
+- **A subscription stopped working.** Its sign-in has expired or been revoked.
+  Sign in again with the app: `codex login` for Codex, or `/login` in Claude
+  Code.
+- **xAI ignores `XAI_API_KEY`.** Even without `Auth`, an xAI sign-in saved on
+  your computer comes before the variable, because the subscription is already
+  paid for. If that sign-in has expired or been signed out, xAI requests fail
+  rather than fall back to the key. To use the key, give it in your code.
+
+## Try it yourself
+
+Predict what will happen before you run each one.
+
+1. Attach an `Auth` with nothing saved for Anthropic, and also give the router
+   an Anthropic key in your code. Does a request go through?
+2. In [A key that changes](#a-key-that-changes), write a different key into
+   the file between the two requests. Which key does the second request use?
+3. Save the environment variable as a connection, as in
+   [On a server](#on-a-server), then unset `ANTHROPIC_API_KEY` and send the
+   request. What happens?
+
+<details>
+<summary>What to expect</summary>
+
+1. Yes. A key in your code comes first, with or without `Auth`; the doctor
+   marks it with `=>` and says nothing is saved.
+2. The new one. The router calls your function for every request and keeps
+   nothing between them.
+3. An error before anything is sent. The connection is saved, but it only
+   says where the key lives, and the variable is empty. LM15 doesn’t look for
+   a key anywhere else.
+
+</details>
+
+## Next
+
+Now that the station’s assistant knows whose account it’s using, it can hold a
+longer exchange: [Keep a conversation](/docs/conversations/) shows how. For
+every option this page leaves out, including cloud identities and each
+provider’s sign-in, see the Python guides to
+[authentication](https://lm15-dev.github.io/lm15-python/authentication/) and
+[managed login](https://lm15-dev.github.io/lm15-python/managed-login/).

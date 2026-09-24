@@ -1,0 +1,69 @@
+{
+  "date": "2026-09-24",
+  "steps": {
+    "request": {
+      "code": "from lm15 import LMRouter, Message, Request, RouterConfig\nfrom lm15.doctor import explain_auth\n\nrequest = Request(\n    model=\"anthropic:claude-haiku-4-5\",\n    system=(\n        \"You are the field assistant for a wildlife research station. \"\n        \"Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\n",
+      "output": ""
+    },
+    "doctor": {
+      "code": "print(explain_auth(\"anthropic\"))\n",
+      "output": "auth for provider 'anthropic':\n   - explicit api_keys entry: not provided\n  => env $ANTHROPIC_API_KEY: set (value never shown)\n  configured: yes — env $ANTHROPIC_API_KEY\n"
+    },
+    "explicit": {
+      "code": "import os\n\nrouter = LMRouter(RouterConfig(\n    api_keys={\"anthropic\": os.environ[\"STATION_API_KEY\"]},\n))\nprint(explain_auth(\"anthropic\", config=router.config))\n",
+      "output": "auth for provider 'anthropic':\n  => explicit api_keys entry: provided (value never shown)\n   ~ env $ANTHROPIC_API_KEY: set (value never shown)\n  configured: yes — explicit api_keys entry\n"
+    },
+    "rotating": {
+      "code": "from pathlib import Path\n\ndef station_key():\n    print(\"(reading the key)\")\n    return Path(\"secrets/anthropic.key\").read_text().strip()\n\nrouter = LMRouter(RouterConfig(api_keys={\"anthropic\": station_key}))\nfirst = router.complete(request)\nsecond = router.complete(request)\nprint(second.text)\n",
+      "output": "(reading the key)\n(reading the key)\nBased on nocturnal activity patterns, the most likely culprits are raccoons, opossums, or foxes, though deer and squirrels may also forage at night depending on your region. To help identify which animal it is, I'd recommend setting up a trail camera near the oak trees, as the footage would show us exactly what's visiting and help us tailor any management strategies accordingly.\n",
+      "model": "anthropic:claude-haiku-4-5"
+    },
+    "subscription": {
+      "code": "from dataclasses import replace\n\nprint(explain_auth(\"openai-codex\"))\n\nrouter = LMRouter()\ncodex = replace(request, model=\"openai-codex:gpt-5.6-sol\")\nprint(router.complete(codex).text)\n",
+      "output": "auth for provider 'openai-codex':\n  => local OAuth credential ~/.codex/auth.json: fresh, expires in 26h 20m\n  configured: yes — local OAuth credential ~/.codex/auth.json\nLikely nighttime acorn eaters include deer, raccoons, opossums, mice, rats, and wild pigs; squirrels and jays may also cache acorns during the day. Check for tracks, scat, rooting, or gnawed shells, and set up a motion-activated trail camera to confirm the visitor.\n",
+      "model": "openai-codex:gpt-5.6-sol"
+    },
+    "connect": {
+      "code": "from lm15 import Message\nfrom lm15.interactive import connect\n\nwith connect(\"openai-codex\") as lm:\n    answer = lm.complete(\n        system=(\n            \"You are the field assistant for a wildlife research \"\n            \"station. Answer in two sentences.\"\n        ),\n        messages=[Message.user(\n            \"What might be eating the acorns under our oak trees at \"\n            \"night?\"\n        )],\n    )\n    print(answer.text)\n",
+      "output": "Connections are saved privately in ~/.config/lm15/credentials.json.\n\nWhich openai-codex model?\n  1. gpt-reserve  — listed by your account just now\n  2. gpt-5.6-sol  — listed by your account just now\n  3. gpt-5.6-terra  — listed by your account just now\n  4. gpt-5.6-luna  — listed by your account just now\n  5. gpt-5.5  — listed by your account just now\n  6. codex-auto-review  — listed by your account just now\n  7. Type a model id (not verified against your account)\nChoose a number: gpt-5.6-sol\nReady: openai-codex:gpt-5.6-sol through openai-codex via your Codex CLI login (~/.codex/auth.json).\nLikely nighttime acorn eaters include deer, raccoons, opossums, mice, rats, and flying squirrels, while rabbits and wild boar may also forage depending on your region. Check for tracks, droppings, rooting, or gnawed shells, and use a motion-triggered trail camera to identify the visitor.\n",
+      "exit": 0
+    },
+    "connect_again": {
+      "code": "from lm15 import Message\nfrom lm15.interactive import connect\n\nwith connect(\"openai-codex\") as lm:\n    answer = lm.complete(\n        system=(\n            \"You are the field assistant for a wildlife research \"\n            \"station. Answer in two sentences.\"\n        ),\n        messages=[Message.user(\n            \"What might be eating the acorns under our oak trees at \"\n            \"night?\"\n        )],\n    )\n    print(answer.text)\n",
+      "output": "Connections are saved privately in ~/.config/lm15/credentials.json.\n\nWhich openai-codex model?\n  1. gpt-reserve  — listed by your account just now\n  2. gpt-5.6-sol  — listed by your account just now\n  3. gpt-5.6-terra  — listed by your account just now\n  4. gpt-5.6-luna  — listed by your account just now\n  5. gpt-5.5  — listed by your account just now\n  6. codex-auto-review  — listed by your account just now\n  7. Type a model id (not verified against your account)\nChoose a number: gpt-5.6-sol\nReady: openai-codex:gpt-5.6-sol through openai-codex via your Codex CLI login (~/.codex/auth.json).\nLikely nighttime acorn eaters include deer, raccoons, opossums, mice, rats, chipmunks, and wild boar; squirrels and jays may also remove or cache acorns during the day. Check for tracks, droppings, rooting, gnaw marks, or set up a motion-activated trail camera to identify the visitor.\n",
+      "exit": 0
+    },
+    "no_person": {
+      "code": "from lm15 import Message\nfrom lm15.interactive import connect\n\nwith connect(\"openai-codex\") as lm:\n    answer = lm.complete(\n        system=(\n            \"You are the field assistant for a wildlife research \"\n            \"station. Answer in two sentences.\"\n        ),\n        messages=[Message.user(\n            \"What might be eating the acorns under our oak trees at \"\n            \"night?\"\n        )],\n    )\n    print(answer.text)\n",
+      "output": "",
+      "error": "AuthOperationError: connect() needs a person: no interactive terminal here and no ui= was supplied. On a server, attach an Auth with saved connections (RouterConfig(auth=...)) instead of calling connect()."
+    },
+    "managed": {
+      "code": "from lm15.login import Auth\n\nauth = Auth.local()\nrouter = LMRouter(RouterConfig(auth=auth))\nprint(explain_auth(\"anthropic\", config=router.config))\n",
+      "output": "auth for provider 'anthropic':\n   - explicit api_keys entry: not provided\n   - saved connection in ~/.config/lm15/credentials.json: none saved in this scope\n   ~ env $ANTHROPIC_API_KEY: set, not consulted under a managed Auth (pass it explicitly to use it)\n  configured: no\n"
+    },
+    "configure": {
+      "code": "auth.configure(\n    \"anthropic\", method=\"env\", answers={\"name\": \"ANTHROPIC_API_KEY\"},\n)\nprint(router.complete(request).text)\n",
+      "output": "Several nocturnal animals commonly eat acorns, with **deer, raccoons, and opossums** being the most likely culprits at most research stations. You could set up a motion-activated camera near the oak trees to identify which species is responsible, which would help us determine if it's affecting our local wildlife populations or forest regeneration.\n",
+      "model": "anthropic:claude-haiku-4-5"
+    },
+    "status": {
+      "code": "for connection in auth.connections():\n    status = auth.status(connection.provider)\n    print(connection.label)\n    print(\"   \", status.usability, \"until\", status.expires_at)\n",
+      "output": "anthropic key from $ANTHROPIC_API_KEY\n    ready until never\nopenai-codex via your Codex CLI login (~/.codex/auth.json)\n    ready until unknown\n"
+    },
+    "methods": {
+      "code": "for method in auth.methods(\"openai-codex\"):\n    print(f\"{method.availability:<11} {method.label}\")\n",
+      "output": "unverified  Sign in with ChatGPT (browser)\nunverified  Sign in with ChatGPT (device code, for SSH/headless)\nsupported   Use your Codex CLI login (~/.codex/auth.json)\n"
+    },
+    "login": {
+      "code": "from lm15.login import Auth, TerminalUI\n\nauth = Auth.local()\nauth.login(\"xai\", \"device\", ui=TerminalUI())\n",
+      "output": "\nOpen https://accounts.x.ai/oauth2/device?user_code=••••-••••\nand enter this code:  ••••-••••\n(the code is valid for about 30 minutes)\n",
+      "exit": -2
+    },
+    "logout": {
+      "code": "auth.logout(\"anthropic\")\nprint(auth.status(\"anthropic\").detail)\nrouter.complete(request)\n",
+      "error": "AuthOperationError: anthropic: signed out; sign in again (Auth.login) or pass a key explicitly (api_keys)",
+      "output": "signed out; sign in again or pass a key explicitly\n"
+    }
+  }
+}
