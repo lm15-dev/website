@@ -1,0 +1,168 @@
+{
+  "date": "2026-09-23",
+  "steps": {
+    "openai:gpt-5-mini": {
+      "request": {
+        "model": "openai:gpt-5-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "model": "gpt-5-mini-2025-08-07",
+      "text": "At night acorns are most often eaten by small rodents (mice, voles, packrats/woodrats, and in some places flying squirrels), and by larger nocturnal foragers such as raccoons, opossums, porcupines, foxes, wild pigs or deer—and in bear country bears will take them too. To narrow it down set a motion-activated camera and check for telltale signs (tiny gnaw marks and runways for rodents, half-shell piles and clawed tears for raccoons/possums, large crushed shells and hoof or pig tracks for deer/pigs, or larger scat/tracks for bears).",
+      "finish_reason": "stop",
+      "input_tokens": 40,
+      "output_tokens": 625
+    },
+    "anthropic:claude-haiku-4-5": {
+      "request": {
+        "model": "anthropic:claude-haiku-4-5",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "text": "Based on nocturnal acorn foraging, you're likely dealing with deer, raccoons, or wild boars, though smaller culprits like squirrels, mice, and voles are also possibilities. To narrow it down, look for tracks around the feeding area in soft soil or mud, and check whether the acorns are scattered (suggesting deer) or neatly gnawed (suggesting rodents).",
+      "finish_reason": "stop",
+      "input_tokens": 38,
+      "output_tokens": 89
+    },
+    "gemini:gemini-2.5-flash": {
+      "request": {
+        "model": "gemini:gemini-2.5-flash",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "model": "gemini-2.5-flash",
+      "text": "Deer are frequent visitors to oak trees at night, diligently foraging for fallen acorns. You might also find raccoons, opossums, or various rodent species like mice enjoying this abundant food source under the cover of darkness.",
+      "finish_reason": "stop",
+      "input_tokens": 30,
+      "output_tokens": 43
+    },
+    "deepseek:deepseek-chat": {
+      "request": {
+        "model": "deepseek:deepseek-chat",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "model": "deepseek-flash",
+      "text": "The most likely nighttime acorn thieves are deer mice and white-footed mice, along with gray squirrels and flying squirrels that cache acorns after dark. Larger nocturnal visitors like raccoons, opossums, and wild turkeys may also forage beneath the oaks, so look for tracks, droppings, or gnawed shell halves to narrow it down.",
+      "finish_reason": "stop",
+      "input_tokens": 35,
+      "output_tokens": 73
+    },
+    "local": {
+      "request": {
+        "model": "ollama:llama3.2:3b",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ]
+      },
+      "model": "llama3.2:3b",
+      "text": "There are several possibilities for what could be eating the acorns under your oak trees at night, depending on the location and time of year. Here are a few potential suspects:\n\n1. **Raccoons**: These clever critters are known to raid oak trees for acorns, especially during the fall. They are nocturnal, so they would likely be active at night.\n2. **Chipmunks**: These small rodents are also known to store acorns in their burrows and feed on them throughout the year. They are nocturnal and can be a significant threat to oak acorn crops.\n3. **Squirrels**: Gray squirrels, in particular, are notorious for raiding oak trees for acorns. They are active at night and may store some acorns in their nests, but may also feed on them directly.\n4. **Deer**: In some areas, deer may visit oak trees at night to eat acorns, especially during the fall when they are more abundant.\n5. **Acorn beetles**: These small insects can be a significant threat to oak acorns. They can infest the acorns and feed on the nuts, especially in the early fall.\n6. **Birds**: Some bird species, like cedar waxwings, blue jays, and black-capped chickadees, may visit oak trees at night to eat acorns.\n\nIt's worth noting that the type of creature eating the acorns could depend on the specific conditions and location. If you're concerned about the acorn loss, it's a good idea to observe the area at night or take a closer look during the day to see what's causing the problem.\n\nWould you like to know more about any of these potential suspects?",
+      "finish_reason": "stop",
+      "input_tokens": 39,
+      "output_tokens": 352
+    },
+    "no_key": {
+      "request": {
+        "model": "anthropic:claude-haiku-4-5",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "error": "MissingCredentialError: no API key found for provider 'anthropic'. Set ANTHROPIC_API_KEY in the environment, or pass RouterConfig(api_keys={'anthropic': \"...\"}).\n\n  To fix:\n    - Pass the key explicitly (api_key, or RouterConfig api_keys), or on a host with an environment set ANTHROPIC_API_KEY=...\n    - Configure credentials for anthropic\n"
+    },
+    "wrong_model": {
+      "request": {
+        "model": "anthropic:claude-haiku-9",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "error": "InvalidRequestError: model: claude-haiku-9 (anthropic, HTTP 404, request req_011CfMS6hAUTcaM1Gz4kQ8NV)"
+    },
+    "wrong_provider": {
+      "request": {
+        "model": "openai:claude-haiku-4-5",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "text": "What might be eating the acorns under our oak trees at night?"
+              }
+            ]
+          }
+        ],
+        "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
+      },
+      "error": "UnsupportedModelError: The model `claude-haiku-4-5` does not exist or you do not have access to it. (openai, HTTP 404, request req_6e872a9da0064dfd82b9175633bf4d41)"
+    }
+  }
+}

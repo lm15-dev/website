@@ -33,6 +33,8 @@ import { exampleSource, LANGUAGES, type Language } from '../src/components/home-
 import { TOUR, tourPrograms, type TourProgram } from '../src/data/tour-examples.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
+// The connect page reads a key from its own variable; the stand-in accepts any.
+process.env['STATION_API_KEY'] = 'station-test-key';
 const FIXTURE = join(ROOT, 'scripts/docs-fixture-server.py');
 const CACHE = join(homedir(), '.cache/lm15-docs-examples');
 const REPLY = 'Probably wood mice.';
@@ -161,7 +163,9 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
         ? 'list(status = 200L, headers = list(`content-type` = "text/event-stream"), chunks = as.list(.docs_sse))'
         : 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_reply)';
       // The page's code, with only the router's transport swapped; the recorded request goes to a file.
-      const source = p.source.replace('new_router()', 'new_router(transport = .docs_transport)');
+      const source = p.source.includes('new_router()')
+        ? p.source.replace('new_router()', 'new_router(transport = .docs_transport)')
+        : p.source.replace('new_router(', 'new_router(transport = .docs_transport, ');
       assert.notEqual(source, p.source, `r ${p.name}: no router to give the fake transport`);
       writeFileSync(join(dir, `${p.name}.R`), source + '\n');
       const call = 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_call)';

@@ -1,0 +1,178 @@
+---
+title: Connect a provider
+description: Send the same request to OpenAI, Anthropic, Google, DeepSeek and others by changing one string. Where your API key comes from, what goes wrong with model names, and how to use a model on your own computer or server.
+---
+
+import DocsExample from '../../../components/DocsExample.astro';
+import CapturedAnswer from '../../../components/CapturedAnswer.astro';
+import captures from '../../../data/providers-captures.json';
+import TOUR from '../../../data/tour-text.json';
+
+export const s = captures.steps;
+export const C = TOUR.connect;
+export const tokens = C.models.map((m) => s[m].input_tokens);
+
+There are dozens of companies that will run a language model for you, and
+they all want something slightly different: their own address, their own way
+of sending a key, their own shape for a request. Most of the time you don’t
+want to think about any of that. You want to pick a model, and perhaps try
+another one tomorrow. In LM15, the provider is part of the model’s name, so
+moving from one provider to another means changing a single string.
+
+On this page, you’ll learn how LM15 finds the provider and the key for a
+request. We’ll start by sending one question to four providers. Then we’ll
+look at model names and what happens when one is wrong, and at the different
+ways to give LM15 your API key. We’ll finish with models that don’t belong to
+a provider at all: one running on your own computer, and one on a server you
+run yourself.
+
+To run the examples, you’ll need LM15 installed; see
+[Make your first request](/docs/first-request/). Each section stands on its
+own.
+
+## One question, four providers
+
+The examples in these guides follow [one small program](/docs/#the-example-well-build):
+an assistant for a wildlife research station. Here is its first question,
+sent to four different providers:
+
+<DocsExample recipe="conn-switch" />
+
+The only thing that changes from one request to the next is the model’s name.
+The router reads the part before the colon, `openai` or `anthropic`, and uses
+it to decide where to send the request, which key to use, and how to write
+the request in that provider’s own format. The answer comes back in the same
+shape every time. Here is what the four providers said:
+
+<CapturedAnswer set="providers" step="openai:gpt-5-mini" show="read" />
+<CapturedAnswer set="providers" step="anthropic:claude-haiku-4-5" show="read" />
+<CapturedAnswer set="providers" step="gemini:gemini-2.5-flash" show="read" />
+<CapturedAnswer set="providers" step="deepseek:deepseek-chat" show="read" />
+
+Four models, four answers, all following the same instructions. Look at the
+input tokens, though: the same question counted as {tokens.join(', ')} tokens.
+Each provider splits text into tokens its own way, and adds its own wrapping
+around your messages, so the same request can cost a different amount
+depending on where you send it.
+
+To run this loop yourself, you’ll need a key for each of the four providers.
+If you have just one, shorten the list.
+
+## Model names
+
+A model name in LM15 has two parts: the provider, then the model’s name as
+that provider knows it. `anthropic:claude-haiku-4-5` means “Claude Haiku 4.5,
+from Anthropic”. The router removes the prefix before it sends the request,
+so the provider only ever sees its own name for the model.
+
+The router can often work out the provider from a well-known name on its own
+(`claude-haiku-4-5` goes to Anthropic), but writing the prefix makes it
+certain, and it’s the only way to reach a model that several providers offer.
+
+Each provider has its own list of models, and a name only means something to
+the provider that uses it. Ask OpenAI for Anthropic’s model, and OpenAI
+answers that it doesn’t have it:
+
+<CapturedAnswer set="providers" step="wrong_provider" show="error" />
+
+A typo in the model’s name gets the same kind of answer from the provider:
+
+<CapturedAnswer set="providers" step="wrong_model" show="error" />
+
+In both cases the request reached the provider, and the error is the
+provider’s own, passed on by LM15. Model names also change over time, as
+providers release new models and retire old ones. Each provider’s website
+lists the models it serves today.
+
+## Where the key comes from
+
+Every provider needs to know who is asking, and that’s what an API key is for.
+Unless you say otherwise, the router looks for the key in an environment
+variable named after the provider: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
+`GEMINI_API_KEY`, and so on. [Make your first request](/docs/first-request/#set-an-api-key)
+shows how to set one. If the variable isn’t set, the router stops before
+sending anything, and tells you which variable it looked for:
+
+<CapturedAnswer set="providers" step="no_key" show="error" />
+
+Environment variables are a good default, because they keep the key out of
+your code. Sometimes, though, the key lives somewhere else: in your own
+settings, a secrets manager, or a variable with a different name. You can then
+give it to the router yourself, one key per provider:
+
+<DocsExample recipe="conn-key" />
+
+A key given this way takes priority over the environment. Whatever you do,
+don’t write the key itself into your code: code gets shared, copied, and
+committed, and a key in it is a key anyone can use.
+
+## A model on your own computer
+
+Some models are small enough to run on your own computer, with no provider,
+no key, and no cost per request. [Ollama](https://ollama.com) is one of the
+easiest ways to do that. Once it’s installed, download a model:
+
+```sh
+ollama pull llama3.2:3b
+```
+
+Ollama then serves it at a local address, and LM15 knows where to find it. The
+model’s name starts with `ollama`, and no key is needed:
+
+<DocsExample recipe="conn-local" />
+
+<CapturedAnswer set="providers" step="local" show="read" />
+
+The request never left the computer. That makes local models a good choice
+for private data, for working offline, and for trying things without paying
+for each call. The answer also shows their limits: this small model says
+chipmunks are nocturnal, and that squirrels are active at night, and both are
+wrong. A model small enough to run on a laptop knows less, and makes more
+mistakes, than the large models providers run. Check its answers with that in
+mind.
+
+## A model on your own server
+
+The same idea works for a model you run on a bigger machine, with a server
+such as [vLLM](https://docs.vllm.ai). LM15 assumes each kind of server is on
+your own computer, at its usual address. When it isn’t, give the router the
+address:
+
+<DocsExample recipe="conn-custom" />
+
+The request is written the same way as before. Only the router’s idea of where
+`vllm` lives has changed, and the model’s name is whatever name your server
+gives it.
+
+## Try it yourself
+
+Predict what will happen before you run each one.
+
+1. Unset `ANTHROPIC_API_KEY`, and run the loop from
+   [One question, four providers](#one-question-four-providers). Which
+   answers will you get?
+2. Send `openai:gpt-5-mini` with the key from `GEMINI_API_KEY` given
+   explicitly for `openai`. What will happen?
+3. Ask the local model the station’s follow-up question from
+   [Make your first request](/docs/first-request/#ask-a-follow-up), without
+   the conversation. Will it do better or worse than the large models?
+
+<details>
+<summary>What to expect</summary>
+
+1. The loop stops at Anthropic, with the missing-key error above: the first
+   answer prints, and the rest never run. To keep going past a provider that
+   fails, catch the error inside the loop.
+2. The router sends the Gemini key to OpenAI, because you told it to. OpenAI
+   refuses it, and LM15 reports an authentication error from OpenAI.
+3. Probably worse. Without the conversation it has no idea which animals you
+   mean, like every model, and a small model is also more likely to guess.
+
+</details>
+
+## Next
+
+Every provider works the same way from here on: the rest of these guides use
+the provider and model you choose at the top of the page. To keep a
+conversation going across several requests, see
+[Keep a conversation](/docs/conversations/).

@@ -100,7 +100,8 @@ const STEPS: readonly Step[] = ['request', 'system', 'tools', 'config'];
 /** What the page can show: a step's request, reading the response, streaming, a follow-up, or the whole program. */
 export type TourView = Step | 'first' | 'response' | 'stream' | 'program' | 'followup' | 'forgetful'
   | 'tools-search' | 'tools-define' | 'tools-vague' | 'tools-ask' | 'tools-answer' | 'tools-loop'
-  | 'so-note' | 'so-plain' | 'so-schema' | 'so-ask' | 'so-use' | 'so-note-barn' | 'so-schema-other' | 'so-program';
+  | 'so-note' | 'so-plain' | 'so-schema' | 'so-ask' | 'so-use' | 'so-note-barn' | 'so-schema-other' | 'so-program'
+  | 'conn-switch' | 'conn-key' | 'conn-local' | 'conn-custom';
 
 interface Parts { system: boolean; tools: boolean; config: boolean }
 const partsOf = (step: Step): Parts => {
@@ -139,12 +140,21 @@ interface Writer {
   soAsk(model: string): string;
   /** Use the data: one line per sighting. */
   soUse(): string;
+  /** The question, as a variable (the connect page). */
+  connQuestion(): string;
+  /** The same question to several models; only the model name changes. */
+  connLoop(models: readonly string[]): string;
+  /** A router given `provider`'s key explicitly, read from TOUR.connect.keyVariable. */
+  connKeyRouter(provider: string): string;
+  /** A router that sends `server`'s requests to `url`. */
+  connUrlRouter(server: string, url: string): string;
   /** A whole program around `body`: imports, and whatever the language needs to run it. */
   program(body: string, uses: Uses): string;
   /** The line that makes the router, when the program streams. */
   router(): string;
 }
-interface Uses { tool: boolean; config: boolean; stream: boolean; search?: boolean; loop?: boolean; schema?: boolean; typed?: boolean }
+interface Uses { tool: boolean; config: boolean; stream: boolean; search?: boolean; loop?: boolean; schema?: boolean; typed?: boolean; env?: boolean; routerConfig?: boolean }
+const C = TOUR.connect;
 type NoteKey = keyof typeof TOUR.extract.notes;
 const X = TOUR.extract;
 /** The places, as quoted values in any language's list syntax. */
@@ -311,9 +321,28 @@ response = ${api('router.complete')}(request)
 print(response.${api('data')})`,
   soUse: () => `for s in response.${api('data')}["sightings"]:
     print(s["count"], s["species"], "at", s["place"])`,
+  connQuestion: () => `question = ${q(TOUR.prompt)}`,
+  connLoop: models => `router = ${api('LMRouter')}()
+for model in [
+${models.map(m => `    ${q(m)},`).join('\n')}
+]:
+    request = ${api('Request')}(
+        model=model,
+        system=${q(TOUR.system)},
+        messages=[${api('Message.user')}(question)],
+    )
+    print(model, "->", ${api('router.complete')}(request).text)`,
+  connKeyRouter: provider => `router = ${api('LMRouter')}(${api('RouterConfig')}(
+    api_keys={${q(provider)}: os.environ[${q(C.keyVariable)}]},
+))`,
+  connUrlRouter: (server, url) => `router = ${api('LMRouter')}(${api('RouterConfig')}(
+    base_urls={${q(server)}: ${q(url)}},
+))`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['FunctionTool'] : [])].sort();
-    return `${uses.search ? `${dim('import json')}\n\n` : ''}${dim(`from lm15 import ${names.join(', ')}`)}\n\n${body}`;
+    const std = [...(uses.search ? ['import json'] : []), ...(uses.env ? ['import os'] : [])];
+    const lm15 = [...names, ...(uses.routerConfig ? ['RouterConfig'] : [])].sort();
+    return `${std.length ? `${dim(std.join('\n'))}\n\n` : ''}${dim(`from lm15 import ${lm15.join(', ')}`)}\n\n${body}`;
   },
 };
 
@@ -481,6 +510,24 @@ const data = response.${api('data')} as { sightings: Sighting[] };
 for (const s of data.sightings) {
   console.log(s.count, s.species, "at", s.place);
 }`,
+  connQuestion: () => `const question = ${q(TOUR.prompt)};`,
+  connLoop: models => `const router = new ${api('LMRouter')}();
+for (const model of [
+${models.map(m => `  ${q(m)},`).join('\n')}
+]) {
+  const response = await ${api('router.complete')}({
+    model,
+    system: ${q(TOUR.system)},
+    messages: [${api('Message.user')}(question)],
+  });
+  console.log(model, "->", response.text);
+}`,
+  connKeyRouter: provider => `const router = new ${api('LMRouter')}({
+  apiKeys: { ${q(provider)}: process.env[${q(C.keyVariable)}] ?? "" },
+});`,
+  connUrlRouter: (server, url) => `const router = new ${api('LMRouter')}({
+  baseUrls: { ${q(server)}: ${q(url)} },
+});`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : []), ...(uses.schema || uses.typed ? ['type Request'] : [])];
     return `${dim(`import { ${names.join(', ')} } from "lm15";`)}\n\n${body}`;
@@ -672,8 +719,29 @@ println!("{data}");`,
     let place = s["place"].as_str().unwrap_or_default();
     println!("{} {species} at {place}", s["count"]);
 }`,
+  connQuestion: () => `let question = ${q(TOUR.prompt)};`,
+  connLoop: models => `let router = ${api('LMRouter::new')}();
+for model in [
+${models.map(m => `    ${q(m)},`).join('\n')}
+] {
+    let request = ${api('Request')} {
+        model: model.into(),
+        system: Some(${q(TOUR.system)}.into()),
+        messages: vec![${api('Message::user')}(question)?],
+        ${dim('..Default::default()')}
+    };
+    let response = ${api('router.complete')}(&request).await?;
+    println!("{model} -> {}", response.${api('text')}().unwrap_or_default());
+}`,
+  connKeyRouter: provider => `let key = std::env::var(${q(C.keyVariable)})?;
+let router = ${api('LMRouter::with_config')}(
+    ${api('RouterConfig::new')}().${api('api_key')}(${q(provider)}, key),
+)?;`,
+  connUrlRouter: (server, url) => `let router = ${api('LMRouter::with_config')}(
+    ${api('RouterConfig::new')}().${api('base_url')}(${q(server)}, ${q(url)}),
+)?;`,
   program: (body, uses) => {
-    const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.loop ? ['FinishReason'] : []), ...(uses.search ? ['JsonObject'] : [])].sort();
+    const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.loop ? ['FinishReason'] : []), ...(uses.search ? ['JsonObject'] : []), ...(uses.routerConfig ? ['RouterConfig'] : [])].sort();
     const deps = ['lm15', 'tokio (macros, rt-multi-thread)', ...(uses.tool || uses.schema ? ['serde_json'] : []), ...(uses.stream ? ['futures-util'] : [])];
     return [
       ...(uses.stream ? [dim('use futures_util::StreamExt;')] : []),
@@ -897,8 +965,32 @@ if err := response.${api('ParseJSON')}(&record); err != nil {
 for _, s := range record.Sightings {
     fmt.Println(s.Count, s.Species, "at", s.Place)
 }`,
+  connQuestion: () => `question := ${q(TOUR.prompt)}`,
+  connLoop: models => `router := ${api('lm15.NewRouter')}()
+for _, model := range []string{
+${models.map(m => `    ${q(m)},`).join('\n')}
+} {
+    request := &${api('lm15.Request')}{
+        Model:    model,
+        System:   ${api('lm15.System')}(${q(TOUR.system)}),
+        Messages: []${api('lm15.Message')}{${api('lm15.UserMessage')}(question)},
+    }
+    response, err := ${api('router.Complete')}(context.Background(), request)
+${dim('    if err != nil {\n        panic(err)\n    }')}
+    fmt.Println(model, "->", response.${api('TextOr')}(""))
+}`,
+  connKeyRouter: provider => `router, err := ${api('lm15.NewRouterWithConfig')}(${api('lm15.RouterConfig')}{
+    APIKeys: map[string]${api('lm15.CredentialLike')}{
+        ${q(provider)}: os.Getenv(${q(C.keyVariable)}),
+    },
+})
+${dim('if err != nil {\n    panic(err)\n}')}`,
+  connUrlRouter: (server, url) => `router, err := ${api('lm15.NewRouterWithConfig')}(${api('lm15.RouterConfig')}{
+    BaseURLs: map[string]string{${q(server)}: ${q(url)}},
+})
+${dim('if err != nil {\n    panic(err)\n}')}`,
   program: (body, uses) => [
-    dim(`package main\n\nimport (\n    "context"\n${uses?.search ? '    "encoding/json"\n' : ''}    "fmt"\n${uses?.search ? '    "strings"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {`),
+    dim(`package main\n\nimport (\n    "context"\n${uses?.search ? '    "encoding/json"\n' : ''}    "fmt"\n${uses?.env ? '    "os"\n' : ''}${uses?.search ? '    "strings"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {`),
     indent(body, '    '),
     dim('}'),
   ].join('\n'),
@@ -1065,6 +1157,24 @@ str(record)`,
   soUse: () => `for (s in record$sightings) {
   cat(s$count, s$species, "at", s$place, "\\n")
 }`,
+  connQuestion: () => `question <- ${q(TOUR.prompt)}`,
+  connLoop: models => `router <- ${api('new_router')}()
+for (model in c(
+${models.map((m, i) => `  ${q(m)}${i < models.length - 1 ? ',' : ''}`).join('\n')}
+)) {
+  response <- ${api('complete')}(router, ${api('request')}(
+    model,
+    list(${api('message_user')}(question)),
+    system = ${q(TOUR.system)}
+  ))
+  cat(model, "->", ${api('response_text')}(response), "\\n")
+}`,
+  connKeyRouter: provider => `router <- ${api('new_router')}(
+  api_keys = list(${q(provider)} = Sys.getenv(${q(C.keyVariable)}))
+)`,
+  connUrlRouter: (server, url) => `router <- ${api('new_router')}(
+  base_urls = list(${q(server)} = ${q(url)})
+)`,
   program: body => `${dim('library(lm15)')}\n\n${body}`,
 };
 
@@ -1222,6 +1332,24 @@ println(record)`,
   soUse: () => `for s in record["sightings"]
     println(s["count"], " ", s["species"], " at ", s["place"])
 end`,
+  connQuestion: () => `question = ${q(TOUR.prompt)}`,
+  connLoop: models => `router = ${api('LMRouter')}()
+for model in [
+${models.map(m => `    ${q(m)},`).join('\n')}
+]
+    req = ${api('Request')}(
+        model,
+        ${api('user')}(question);
+        system=${q(TOUR.system)},
+    )
+    println(model, " -> ", ${api('text')}(${api('complete')}(router, req)))
+end`,
+  connKeyRouter: provider => `router = ${api('LMRouter')}(${api('RouterConfig')}(
+    api_keys=Dict(${q(provider)} => ENV[${q(C.keyVariable)}]),
+))`,
+  connUrlRouter: (server, url) => `router = ${api('LMRouter')}(${api('RouterConfig')}(
+    base_urls=Dict(${q(server)} => ${q(url)}),
+))`,
   program: body => `${dim('using LM15')}\n\n${body}`,
 };
 
@@ -1244,6 +1372,10 @@ function fitted(language: Language, w: Writer): Writer {
     soSchema: other => f(w.soSchema(other)),
     soAsk: model => f(w.soAsk(model)),
     soUse: () => f(w.soUse()),
+    connQuestion: () => f(w.connQuestion()),
+    connLoop: models => f(w.connLoop(models)),
+    connKeyRouter: provider => f(w.connKeyRouter(provider)),
+    connUrlRouter: (server, url) => f(w.connUrlRouter(server, url)),
     program: (body, uses) => w.program(body, uses),
     router: () => f(w.router()),
   };
@@ -1278,6 +1410,10 @@ function marked(language: Language, view: TourView, model: string): string {
     case 'so-note-barn': return w.soNote('barn');
     case 'so-schema-other': return w.soSchema(true);
     case 'so-program': return soProgram(w, model, 'stream', true);
+    case 'conn-switch': return `${w.connQuestion()}\n\n${w.connLoop(C.models)}`;
+    case 'conn-key': return connKey(w, model);
+    case 'conn-local': return `${w.request(C.localModel, partsOf('request'))}\n\n${w.ask()}`;
+    case 'conn-custom': return connCustom(w, C.serverUrl);
     case 'followup': return w.followUp(model, true);
     case 'forgetful': return w.followUp(model, false);
   }
@@ -1292,6 +1428,17 @@ function toolLoopProgram(w: Writer, model: string): string {
 function soProgram(w: Writer, model: string, note: NoteKey, other: boolean): string {
   return w.program(`${w.soSchema(other)}\n\n${w.soNote(note)}\n\n${w.soAsk(model)}\n\n${w.soUse()}`, { tool: false, config: true, stream: false, schema: true });
 }
+
+/** A router with an explicit key, then the reader's request, sent. */
+function connKey(w: Writer, model: string): string {
+  return `${w.connKeyRouter(model.split(':')[0]!)}\n\n${w.request(model, partsOf('request'))}\n${call(w)}`;
+}
+/** A router pointed at your own server, then a request for a model it serves. */
+function connCustom(w: Writer, url: string): string {
+  return `${w.connUrlRouter(C.server, url)}\n\n${w.request(C.serverModel, partsOf('request'))}\n${call(w)}`;
+}
+/** `ask` without the line that makes a router (the router already exists). */
+const call = (w: Writer) => w.ask().split('\n').slice(1).join('\n');
 
 /** The first-request page's first program: the request, sent, its text printed. */
 function firstProgram(w: Writer, model: string): string {
@@ -1327,6 +1474,9 @@ export interface TourProgram {
   structured?: boolean;
 }
 
+/** Where the run test's stand-in server listens (scripts/docs-fixture-server.py). */
+const STAND_IN = 'http://127.0.0.1:11434/v1';
+
 export function tourPrograms(language: Language, provider: string, model: string): TourProgram[] {
   const w = WRITERS[language];
   const id = `${provider}:${model}`;
@@ -1353,5 +1503,13 @@ export function tourPrograms(language: Language, provider: string, model: string
     { name: 'so-ask', source: done(soProgram(w, id, 'stream', false)).text, streams: false, structured: true, expect: ['badger', 'stream'] },
     { name: 'so-fixed', source: done(soProgram(w, id, 'barn', true)).text, streams: false, structured: true, expect: ['badger'] },
   ];
-  return [{ name: 'first', source: done(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: done(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured];
+  // The connect page: the loop (over stand-in models), an explicit key, a local model, a server at an address.
+  const plainUses = { tool: false, config: false, stream: false };
+  const connect: TourProgram[] = [
+    { name: 'conn-switch', source: done(w.program(`${w.connQuestion()}\n\n${w.connLoop([id, id])}`, plainUses)).text, streams: false, requests: 2 },
+    { name: 'conn-key', source: done(w.program(connKey(w, id), { ...plainUses, env: true, routerConfig: true })).text, streams: false },
+    { name: 'conn-local', source: done(w.program(`${w.request(C.localModel, partsOf('request'))}\n\n${w.ask()}`, plainUses)).text, streams: false },
+    { name: 'conn-custom', source: done(w.program(connCustom(w, STAND_IN), { ...plainUses, routerConfig: true })).text, streams: false },
+  ];
+  return [{ name: 'first', source: done(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: done(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured, ...connect];
 }
