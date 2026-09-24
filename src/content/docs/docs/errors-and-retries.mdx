@@ -1,0 +1,209 @@
+---
+title: Handle errors and retries
+description: Read the error a failed request raises, tell the failures worth retrying from the ones that aren't, and retry them after the wait the provider asks for. With real errors from real providers, including a rate limit waited out.
+---
+
+import DocsExample from '../../../components/DocsExample.astro';
+import CapturedOutput from '../../../components/CapturedOutput.astro';
+import captures from '../../../data/errors-captures.json';
+
+export const s = captures.steps;
+export const NAMES = { 'openai-codex': 'OpenAI Codex', openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google Gemini', openrouter: 'OpenRouter', deepseek: 'DeepSeek', zai: 'Z.AI', groq: 'Groq' };
+export const rows = Object.entries(captures.providers).map(([id, r]) => ({ name: NAMES[id] ?? id, status: r.status, kind: r.class }));
+export const waits = (step) => [...(step?.output ?? '').matchAll(/waiting ([\d.]+) s/g)].map((m) => Number(m[1]));
+export const advised = waits(s.retry)[0];
+
+Most of the time, a request comes back with an answer. Sometimes it doesn’t:
+the key is wrong, the model’s name is misspelled, the provider is busy, or the
+network drops. A few of these failures go away if you wait and try again.
+Most don’t, and trying again only repeats the mistake, sometimes at a cost.
+LM15 reports every failure as an error that says which kind it is, and it
+never retries on its own. Whether and when to try again is your program’s
+decision.
+
+On this page, you’ll learn to read an error and decide what to do about it.
+We’ll start with a model name the provider doesn’t have, and look at what the
+error tells you. Then we’ll go through the kinds of error, and which ones a
+retry can fix. Next, we’ll write a small function that retries the right ones,
+waiting as long as the provider asks, and watch it meet a real rate limit.
+We’ll finish with the errors that happen before anything is sent, and with
+what to keep in mind before you retry anything.
+
+To run the examples, you’ll need LM15 installed and an API key; see
+[Make your first request](/docs/first-request/).
+
+## A model the provider doesn’t have
+
+The examples in these guides follow [one small program](/docs/#the-example-well-build):
+an assistant for a wildlife research station. Here is its first question,
+sent to a model name the provider doesn’t have, with that error caught:
+
+<DocsExample recipe="err-catch" />
+
+<CapturedOutput set="errors" step="catch" />
+
+The request reached the provider, and the provider refused it. LM15 turned
+that refusal into an `UnsupportedModelError`, the kind of error that means
+“this provider has no model by that name, or not one your account can use”.
+Because the error has a kind, the program could catch exactly that failure and
+let any other error through. The error also carries the details you’d want in
+a log: which provider answered, the HTTP status, and the provider’s own
+explanation, with a hint from LM15 where it has one.
+
+Every provider can make this mistake, and each one reports it in its own way.
+Some answer with the HTTP status 404 (“not found”), others with 400 (“bad
+request”), and every one words it differently. LM15 recognizes each one’s
+wording, so you catch one kind of error whichever provider you use. Here is
+the same missing model at eight providers:
+
+<table>
+  <thead><tr><th>Provider</th><th>HTTP status</th><th>What LM15 raised</th></tr></thead>
+  <tbody>{rows.map((r) => <tr><td>{r.name}</td><td>{r.status}</td><td><code>{r.kind}</code></td></tr>)}</tbody>
+</table>
+
+Until September 24, 2026, a few of these providers’ answers came through as
+`InvalidRequestError`, the more general kind that `UnsupportedModelError`
+belongs to. If you use an older release of LM15, catch that instead: it
+includes this one.
+
+## Kinds of error
+
+Every error LM15 raises has a kind, and the kinds form a family: an
+`UnsupportedModelError` is a kind of `InvalidRequestError`, which is a kind of
+`ProviderError`. So you can catch one precise failure, or a whole branch of
+them. The kinds are named the same way in every language. (In Go they’re the
+error’s `Kind`; in Rust, its class.)
+
+These are the errors a provider’s answer can raise, and what a retry can do
+about each one:
+
+| Kind | What happened | Try again? |
+| --- | --- | --- |
+| `AuthError` | The provider rejected your key or sign-in. | No. Fix the credential. |
+| `BillingError` | Your account is out of credit or quota. | No. |
+| `RateLimitError` | Too many requests, or no capacity right now. | Yes, after waiting. |
+| `InvalidRequestError` | The provider refused the request as written. | No. Change the request. |
+| `UnsupportedModelError` | No such model, or not for your account. | No. |
+| `ContextLengthError` | The request is too long for the model. | No. Shorten it. |
+| `TimeoutError` | The provider took too long to answer. | Yes, a few times. |
+| `ServerError` | Something failed on the provider’s side. | Yes, a few times. |
+| `TransportError` | The network failed before an answer arrived. | Yes, a few times. |
+
+A good rule of thumb: retry what depends on the moment, never what depends on
+the request. A busy provider may not be busy in ten seconds, but a wrong key
+will still be wrong. LM15 marks the kinds worth retrying, so your program
+doesn’t have to keep its own list. In Python, they’re collected in
+`RETRYABLE_ERRORS`; in the other languages, each error says whether it’s
+retryable.
+
+## Retry what’s worth retrying
+
+A retry needs two decisions: which errors to retry, and how long to wait. The
+error answers the first. For the second, a provider that’s limiting you often
+says how long to wait, and LM15 keeps that advice on the error as a number of
+seconds. When there’s no advice, wait a little longer each time: 2 seconds,
+then 4, then 8. Here is a function that does both, and gives up after four
+attempts:
+
+<DocsExample recipe="err-retry" />
+
+Use it wherever you’d call the router yourself:
+
+<DocsExample recipe="err-use" />
+
+To see it work, we needed a real rate limit. OpenRouter’s free models accept
+only a few requests a minute, so we sent a burst of requests to one, and ran
+the program while that minute was used up:
+
+<CapturedOutput set="errors" step="retry" />
+
+The first attempt was refused, and the provider asked for {advised} seconds.
+The function waited that long, and the second attempt got an answer. Your
+program didn’t have to know anything about OpenRouter’s limits: the error
+carried the advice.
+
+Printed in full, a rate-limit error also says what you can do about it:
+
+<CapturedOutput set="errors" step="rate_limit" show="error" />
+
+It points out the one thing LM15 won’t do for you: retry.
+
+Waiting doesn’t always work. In another run, the limit outlasted every attempt:
+
+<CapturedOutput set="errors" step="gave_up" />
+
+The provider asked for {waits(s.gave_up)[0]} seconds the first time, and gave
+no advice after that, so the function fell back to its own waits. After the
+fourth attempt it stopped and let the error through, which is what you want.
+A retry buys time; it can’t make a provider available. What your program does
+next, whether it tells the person, tries another model, or saves the work for
+later, is still up to you.
+
+## Errors before anything is sent
+
+Some errors never reach a provider. LM15 raises them while it prepares the
+request, so they cost nothing, and they’ll happen again every time until you
+change your program. A model name the router can’t place is one of them. Leave
+the provider out of `claude-haiku-4-5` and shorten it to `haiku-4-5`, and the
+router can’t tell where to send it:
+
+<CapturedOutput set="errors" step="unknown" show="error" />
+
+Compare this with the error at the top of the page. An `UnknownModelError`
+means LM15 couldn’t tell which provider to ask, so nothing was sent. An
+`UnsupportedModelError` means a provider was asked, and said no.
+
+Two more errors of this family appear elsewhere in these guides: a missing API
+key, on [Connect a provider](/docs/providers/#where-the-key-comes-from), and a
+setting the provider can’t honour, on
+[Make your first request](/docs/first-request/#when-something-goes-wrong).
+None of them is worth retrying.
+
+## Before you retry
+
+- **A retry costs what the first attempt cost.** It sends the whole request
+  again. A timeout is the tricky case: the provider may have finished, and
+  charged for, an answer that never reached you.
+- **Keep attempts few and waits growing.** If many copies of your program share
+  one limit, add a little randomness to each wait, so they don’t all retry at
+  the same moment.
+- **Put a limit on waiting.** A provider can ask for more time than your
+  program has. If someone is waiting for the answer, giving up quickly, with a
+  clear message, is often better.
+- **A stream can fail halfway.** An error can arrive after part of an answer
+  has been shown, and a retry starts the answer again from the beginning. See
+  [Stream a response](/docs/streaming/).
+
+## Try it yourself
+
+Predict what will happen before you run each one.
+
+1. Misspell the provider: send the question to `opanai:gpt-5-mini`. Which kind
+   of error, and was anything sent?
+2. Change the retry function to catch every error, not only the retryable
+   ones, and run it with a wrong API key. What happens, and how long does it
+   take?
+3. The provider asks for {advised} seconds, but your program must answer within
+   ten. What would you change in the function?
+
+<details>
+<summary>What to expect</summary>
+
+1. An `UnknownModelError`, before anything is sent. `opanai` isn’t a provider
+   LM15 knows, so the router reads the whole string as a model name, and no
+   rule matches it.
+2. It tries four times, waiting 2, 4 and 8 seconds in between, and then raises
+   the same `AuthError` it got the first time. That’s 14 seconds and four
+   requests spent on a mistake a retry can’t fix.
+3. Compare the advised wait with the time you have left, and give up at once
+   when it’s longer, rather than wait and fail anyway. You could also try
+   another model, from a provider that isn’t limiting you.
+
+</details>
+
+## Next
+
+Errors can also arrive in the middle of an answer: [Stream a
+response](/docs/streaming/) shows what that looks like. To see how your
+program handles each kind of error without waiting for a real provider to
+fail, see [Test your integration](/docs/testing/).

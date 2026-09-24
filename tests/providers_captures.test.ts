@@ -22,8 +22,9 @@ test('each recorded answer answers the page question, for the model the page nam
   assert.equal(steps.local!.request.model, TOUR.connect.localModel);
   assert.ok(steps.local!.text);
   assert.match(steps.no_key!.error!, /^MissingCredentialError: .*ANTHROPIC_API_KEY/);
-  assert.match(steps.wrong_model!.error!, /anthropic, HTTP 404/);
-  assert.match(steps.wrong_provider!.error!, /openai, HTTP 404/);
+  // One kind for a missing model, whichever provider answers (contract MAP-15, 2026-09-24).
+  assert.match(steps.wrong_model!.error!, /^UnsupportedModelError: .*anthropic, HTTP 404/);
+  assert.match(steps.wrong_provider!.error!, /^UnsupportedModelError: .*openai, HTTP 404/);
   // The prose says the local model called chipmunks nocturnal.
   assert.match(steps.local!.text!, /Chipmunks[\s\S]*nocturnal/);
 });

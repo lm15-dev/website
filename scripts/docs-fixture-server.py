@@ -16,6 +16,11 @@ REPLY = "Probably wood mice."
 USAGE = {"prompt_tokens": 12, "completion_tokens": 5, "total_tokens": 17}
 # The tools page's question is answered with a call to its tool, as a model would.
 TOUR = json.loads((pathlib.Path(__file__).parent.parent / "src/data/tour-text.json").read_text())
+# The errors page: a model it does not have (Ollama's own 404 for a model not pulled), and one it
+# rate-limits once (429, Retry-After: 0) before answering, so a retry has something to retry.
+MISSING = "no-such-model"
+BUSY = "busy-model"
+BUSY_SEEN = []
 CALL = {"id": "call_docs_1", "type": "function", "function": {"name": TOUR["tool"], "arguments": json.dumps({"query": "oak grove"})}}
 
 
@@ -54,6 +59,13 @@ class Handler(BaseHTTPRequestHandler):
         with open(LOG, "a") as log:
             log.write(json.dumps(body) + "\n")
         base = {"id": "chatcmpl-docs", "object": "chat.completion", "created": 0, "model": body["model"]}
+        if body["model"] == MISSING:
+            self.reply(404, {"error": {"message": f'model "{MISSING}" not found, try pulling it first', "type": "api_error", "param": None, "code": None}})
+            return
+        if body["model"] == BUSY and not BUSY_SEEN:
+            BUSY_SEEN.append(True)
+            self.reply(429, {"error": {"message": "Rate limit reached, please retry.", "type": "rate_limit_error", "code": "rate_limit_exceeded"}}, [("Retry-After", "0")])
+            return
         if body.get("stream"):
             words = ["Probably ", "wood ", "mice."]
             chunks = [{**base, "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"role": "assistant", "content": w} if i == 0 else {"content": w}, "finish_reason": None}]} for i, w in enumerate(words)]
@@ -76,6 +88,17 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
         data = payload.encode()
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+    def reply(self, status, error, headers=()):
+        data = json.dumps(error).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        for name, value in headers:
+            self.send_header(name, value)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)

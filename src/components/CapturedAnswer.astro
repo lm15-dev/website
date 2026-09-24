@@ -23,7 +23,8 @@ const [provider, ...rest] = (answer.request?.model ?? (captures as { model?: str
 const model = rest.join(':');
 const NAMES: Record<string, string> = { 'openai-codex': 'OpenAI Codex', openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google Gemini', deepseek: 'DeepSeek', ollama: 'Ollama', openrouter: 'OpenRouter' };
 const label = NAMES[provider!] ?? provider;
-const date = new Date(`${captures.date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+// A step recorded again on its own carries its own date.
+const date = new Date(`${(answer as { date?: string }).date ?? captures.date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const count = (n: number | null | undefined) => (n == null ? 'not reported' : n.toLocaleString('en'));
 // JSON answers are laid out for reading (only whitespace changes); other answers as they came.
 const shown = readableText(answer.text ?? '');

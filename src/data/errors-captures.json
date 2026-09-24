@@ -1,0 +1,73 @@
+{
+  "date": "2026-09-24",
+  "steps": {
+    "catch": {
+      "model": "openai-codex:no-such-model",
+      "code": "from lm15 import LMRouter, Message, Request, UnsupportedModelError\n\nrequest = Request(\n    model=\"openai-codex:no-such-model\",\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\n\nrouter = LMRouter()\ntry:\n    response = router.complete(request)\n    print(response.text)\nexcept UnsupportedModelError as error:\n    print(\"No such model at\", error.provider)\n    print(error)",
+      "output": "No such model at openai-codex\nThe 'no-such-model' model is not supported when using Codex with a ChatGPT account.\nList the models your subscription accepts: call .list_models() on this client. (openai-codex, HTTP 400)\n"
+    },
+    "unknown": {
+      "model": "haiku-4-5",
+      "error": "UnknownModelError: could not route model 'haiku-4-5': no provider prefix, no catalog supplied, and none of the 13 built-in rules matched. Use an explicit provider prefix — \"provider:haiku-4-5\" with provider one of: anthropic, aws-anthropic, azure, azure-anthropic, azure-chat, bedrock-anthropic, bedrock-chat, bedrock-mantle-chat, claude-code, deepseek, deepseek-anthropic, gemini, groq, meta, meta-anthropic, meta-chat, moonshotai, moonshotai-anthropic, moonshotai-responses, ollama, openai, openai-chat, openai-codex, openrouter, sglang, typesafe, vertex, vertex-anthropic, vertex-express, vllm, xai, zai. Or pass a model catalog: LMRouter(config=RouterConfig(registry=ModelRegistry.discover())) — install a catalog package such as 'aimo' first."
+    },
+    "retry": {
+      "model": "openrouter:liquid/lfm-2.5-2.6b:free",
+      "code": "import time\n\nfrom lm15 import LMRouter, Message, RETRYABLE_ERRORS, Request\n\ndef complete_with_retries(router, request, attempts=4):\n    for attempt in range(1, attempts + 1):\n        try:\n            return router.complete(request)\n        except RETRYABLE_ERRORS as error:\n            if attempt == attempts:\n                raise\n            wait = error.retry_after\n            if wait is None:\n                wait = 2 ** attempt\n            print(f\"{type(error).__name__}, waiting {wait} s\")\n            time.sleep(wait)\n\nrequest = Request(\n    model=\"openrouter:liquid/lfm-2.5-2.6b:free\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\n\nrouter = LMRouter()\nresponse = complete_with_retries(router, request)\nprint(response.text)",
+      "output": "RateLimitError, waiting 43.0 s\nAt night, gray squirrels, mice, and raccoons are among the most likely culprits for eating acorns under oak trees. These small mammals and opportunistic omnivores are highly active during twilight hours when acorns fall from branches and become easier to access.\n"
+    },
+    "gave_up": {
+      "model": "openrouter:liquid/lfm-2.5-2.6b:free",
+      "code": "import time\n\nfrom lm15 import LMRouter, Message, RETRYABLE_ERRORS, Request\n\ndef complete_with_retries(router, request, attempts=4):\n    for attempt in range(1, attempts + 1):\n        try:\n            return router.complete(request)\n        except RETRYABLE_ERRORS as error:\n            if attempt == attempts:\n                raise\n            wait = error.retry_after\n            if wait is None:\n                wait = 2 ** attempt\n            print(f\"{type(error).__name__}, waiting {wait} s\")\n            time.sleep(wait)\n\nrequest = Request(\n    model=\"openrouter:liquid/lfm-2.5-2.6b:free\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\n\nrouter = LMRouter()\nresponse = complete_with_retries(router, request)\nprint(response.text)",
+      "output": "RateLimitError, waiting 33.0 s\nRateLimitError, waiting 4 s\nRateLimitError, waiting 8 s\n",
+      "error": "RateLimitError: Rate limit exceeded: free-models-per-min.  (429) (openrouter, HTTP 429)"
+    },
+    "rate_limit": {
+      "model": "openrouter:liquid/lfm-2.5-2.6b:free",
+      "error": "RateLimitError: Provider returned error (429) (openrouter, HTTP 429)\n\n  Retry advice: 33 seconds (not a guarantee).\n  Provider rate-limit headers (raw; advisory): {\"retry-after\": [\"33\"]}\n\n  To fix:\n    - Wait a moment and retry\n    - Retry with backoff in your application layer (lm15 never retries for you)\n    - Check the reported limits and deployment capacity; a 429 does not prove the endpoint is unsupported\n",
+      "retry_after": 33.0,
+      "status": 429
+    }
+  },
+  "providers": {
+    "anthropic": {
+      "class": "UnsupportedModelError",
+      "status": 404,
+      "provider_code": "not_found_error"
+    },
+    "openai": {
+      "class": "UnsupportedModelError",
+      "status": 404,
+      "provider_code": "model_not_found"
+    },
+    "gemini": {
+      "class": "UnsupportedModelError",
+      "status": 404,
+      "provider_code": "NOT_FOUND"
+    },
+    "deepseek": {
+      "class": "UnsupportedModelError",
+      "status": 400,
+      "provider_code": "invalid_request_error"
+    },
+    "zai": {
+      "class": "UnsupportedModelError",
+      "status": 400,
+      "provider_code": "1211"
+    },
+    "openrouter": {
+      "class": "UnsupportedModelError",
+      "status": 400,
+      "provider_code": "400"
+    },
+    "groq": {
+      "class": "UnsupportedModelError",
+      "status": 404,
+      "provider_code": "model_not_found"
+    },
+    "openai-codex": {
+      "class": "UnsupportedModelError",
+      "status": 400,
+      "provider_code": null
+    }
+  }
+}

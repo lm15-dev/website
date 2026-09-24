@@ -79,8 +79,11 @@ A typo in the model’s name gets the same kind of answer from the provider:
 
 <CapturedAnswer set="providers" step="wrong_model" show="error" />
 
-In both cases the request reached the provider, and the error is the
-provider’s own, passed on by LM15. Model names also change over time, as
+In both cases the request reached the provider, and the message is the
+provider’s own, passed on by LM15. The kind of error is the same, an
+`UnsupportedModelError`, whichever provider answers, so your program can catch
+it in one place; [Handle errors and retries](/docs/errors-and-retries/) shows
+how. Model names also change over time, as
 providers release new models and retire old ones. Each provider’s website
 lists the models it serves today.
 

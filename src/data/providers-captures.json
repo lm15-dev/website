@@ -144,7 +144,8 @@
         ],
         "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
       },
-      "error": "InvalidRequestError: model: claude-haiku-9 (anthropic, HTTP 404, request req_011CfMS6hAUTcaM1Gz4kQ8NV)"
+      "error": "UnsupportedModelError: model: claude-haiku-9 (anthropic, HTTP 404, request req_011CfNPwggDqv4r9gicYFLj9)",
+      "date": "2026-09-24"
     },
     "wrong_provider": {
       "request": {
@@ -162,7 +163,8 @@
         ],
         "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
       },
-      "error": "UnsupportedModelError: The model `claude-haiku-4-5` does not exist or you do not have access to it. (openai, HTTP 404, request req_6e872a9da0064dfd82b9175633bf4d41)"
+      "error": "UnsupportedModelError: The model `claude-haiku-4-5` does not exist or you do not have access to it. (openai, HTTP 404, request req_286b59262e024b629039e5238064b8bc)",
+      "date": "2026-09-24"
     }
   }
 }

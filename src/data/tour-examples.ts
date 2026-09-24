@@ -102,7 +102,8 @@ export type TourView = Step | 'first' | 'response' | 'stream' | 'program' | 'fol
   | 'tools-search' | 'tools-define' | 'tools-vague' | 'tools-ask' | 'tools-answer' | 'tools-loop'
   | 'so-note' | 'so-plain' | 'so-schema' | 'so-ask' | 'so-use' | 'so-note-barn' | 'so-schema-other' | 'so-program'
   | 'conn-switch' | 'conn-key' | 'conn-local' | 'conn-custom'
-  | 'conv-start' | 'conv-parts' | 'conv-loop' | 'conv-save' | 'conv-load';
+  | 'conv-start' | 'conv-parts' | 'conv-loop' | 'conv-save' | 'conv-load'
+  | 'err-catch' | 'err-retry' | 'err-use';
 
 interface Parts { system: boolean; tools: boolean; config: boolean }
 const partsOf = (step: Step): Parts => {
@@ -159,12 +160,18 @@ interface Writer {
   convSave(): string;
   /** The next day: the saved conversation read back, and one more question. */
   convLoad(): string;
+  /** The errors page: send the request (made just before), and catch the provider's "no such model". */
+  errCatch(): string;
+  /** A function that sends a request, retrying what is worth retrying, after the provider's advised wait. */
+  errRetry(): string;
+  /** Use it: a router, the call, the answer printed. */
+  errUse(): string;
   /** A whole program around `body`: imports, and whatever the language needs to run it. */
   program(body: string, uses: Uses): string;
   /** The line that makes the router, when the program streams. */
   router(): string;
 }
-interface Uses { serde?: boolean; tool: boolean; config: boolean; stream: boolean; search?: boolean; loop?: boolean; schema?: boolean; typed?: boolean; env?: boolean; routerConfig?: boolean }
+interface Uses { errors?: 'catch' | 'retry'; serde?: boolean; tool: boolean; config: boolean; stream: boolean; search?: boolean; loop?: boolean; schema?: boolean; typed?: boolean; env?: boolean; routerConfig?: boolean }
 const C = TOUR.connect;
 type NoteKey = keyof typeof TOUR.extract.notes;
 const X = TOUR.extract;
@@ -351,6 +358,28 @@ ${models.map(m => `    ${q(m)},`).join('\n')}
   connUrlRouter: (server, url) => `router = ${api('LMRouter')}(${api('RouterConfig')}(
     base_urls={${q(server)}: ${q(url)}},
 ))`,
+  errCatch: () => `router = ${api('LMRouter')}()
+try:
+    response = ${api('router.complete')}(request)
+    print(response.text)
+except ${api('UnsupportedModelError')} as error:
+    print("No such model at", error.provider)
+    print(error)`,
+  errRetry: () => `def complete_with_retries(router, request, attempts=4):
+    for attempt in range(1, attempts + 1):
+        try:
+            return ${api('router.complete')}(request)
+        except ${api('RETRYABLE_ERRORS')} as error:
+            if attempt == attempts:
+                raise
+            wait = error.${api('retry_after')}
+            if wait is None:
+                wait = 2 ** attempt
+            print(f"{type(error).__name__}, waiting {wait} s")
+            time.sleep(wait)`,
+  errUse: () => `router = ${api('LMRouter')}()
+response = complete_with_retries(router, request)
+print(response.text)`,
   convStart: model => `router = ${api('LMRouter')}()
 messages = [${api('Message.user')}(${q(TOUR.prompt)})]
 response = ${api('router.complete')}(${api('Request')}(
@@ -391,8 +420,9 @@ router = ${api('LMRouter')}()
 print(${api('router.complete')}(followup).text)`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['FunctionTool'] : [])].sort();
-    const std = [...(uses.search || uses.serde ? ['import json'] : []), ...(uses.env ? ['import os'] : [])];
-    const lm15 = [...names, ...(uses.routerConfig ? ['RouterConfig'] : [])].sort();
+    const std = [...(uses.search || uses.serde ? ['import json'] : []), ...(uses.env ? ['import os'] : []), ...(uses.errors === 'retry' ? ['import time'] : [])];
+    const errorNames = uses.errors === 'catch' ? ['UnsupportedModelError'] : uses.errors === 'retry' ? ['RETRYABLE_ERRORS'] : [];
+    const lm15 = [...names, ...errorNames, ...(uses.routerConfig ? ['RouterConfig'] : [])].sort();
     const serde = uses.serde ? `\n${dim('from lm15.serde import request_from_dict, request_to_dict')}` : '';
     return `${std.length ? `${dim(std.join('\n'))}\n\n` : ''}${dim(`from lm15 import ${lm15.join(', ')}`)}${serde}\n\n${body}`;
   },
@@ -580,6 +610,33 @@ ${models.map(m => `  ${q(m)},`).join('\n')}
   connUrlRouter: (server, url) => `const router = new ${api('LMRouter')}({
   baseUrls: { ${q(server)}: ${q(url)} },
 });`,
+  errCatch: () => `const router = new ${api('LMRouter')}();
+try {
+  const response = await ${api('router.complete')}(request);
+  console.log(response.text);
+} catch (error) {
+  if (!(error instanceof ${api('UnsupportedModelError')})) throw error;
+  console.log("No such model at", error.provider);
+  console.log(error.message);
+}`,
+  errRetry: () => `async function completeWithRetries(
+  router: ${api('LMRouter')}, request: ${api('Request')}, attempts = 4,
+) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await ${api('router.complete')}(request);
+    } catch (error) {
+      if (!(error instanceof ${api('LM15Error')})) throw error;
+      if (!error.${api('retryable')} || attempt === attempts) throw error;
+      const wait = error.${api('retryAfter')} ?? 2 ** attempt;
+      console.log(\`\${error.name}, waiting \${wait} s\`);
+      await new Promise((done) => setTimeout(done, wait * 1000));
+    }
+  }
+}`,
+  errUse: () => `const router = new ${api('LMRouter')}();
+const response = await completeWithRetries(router, request);
+console.log(response.text);`,
   convStart: model => `const router = new ${api('LMRouter')}();
 const messages = [${api('Message.user')}(${q(TOUR.prompt)})];
 const response = await ${api('router.complete')}({
@@ -621,7 +678,7 @@ const followup = {
 const router = new ${api('LMRouter')}();
 console.log((await ${api('router.complete')}(followup)).text);`,
   program: (body, uses) => {
-    const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : []), ...(uses.serde ? ['Request'] : uses.schema || uses.typed ? ['type Request'] : [])];
+    const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : []), ...(uses.serde ? ['Request'] : uses.schema || uses.typed || uses.errors === 'retry' ? ['type Request'] : []), ...(uses.errors === 'catch' ? ['UnsupportedModelError'] : uses.errors === 'retry' ? ['LM15Error'] : [])];
     const fs = uses.serde ? `${dim('import { readFileSync, writeFileSync } from "node:fs";')}\n` : '';
     return `${fs}${dim(`import { ${names.join(', ')} } from "lm15";`)}\n\n${body}`;
   },
@@ -833,6 +890,39 @@ let router = ${api('LMRouter::with_config')}(
   connUrlRouter: (server, url) => `let router = ${api('LMRouter::with_config')}(
     ${api('RouterConfig::new')}().${api('base_url')}(${q(server)}, ${q(url)}),
 )?;`,
+  errCatch: () => `let router = ${api('LMRouter::new')}();
+match ${api('router.complete')}(&request).await {
+    Ok(response) => {
+        println!("{}", response.text().unwrap_or_default());
+    }
+    Err(error) if error.${api('is_a')}(${api('ErrorClass::UnsupportedModelError')}) => {
+        let provider = error.provider().unwrap_or_default();
+        println!("No such model at {provider}");
+        println!("{error}");
+    }
+    Err(error) => return Err(error.into()),
+}`,
+  errRetry: () => `async fn complete_with_retries(
+    router: &${api('LMRouter')},
+    request: &${api('Request')},
+    attempts: i32,
+) -> Result<${api('Response')}, ${api('Lm15Error')}> {
+    for attempt in 1.. {
+        let error = match ${api('router.complete')}(request).await {
+            Err(e) if e.${api('is_retryable')}() && attempt < attempts => e,
+            result => return result,
+        };
+        let backoff = 2f64.powi(attempt);
+        let wait = error.${api('retry_after')}().unwrap_or(backoff);
+        println!("{}, waiting {wait} s", error.class_name());
+        let pause = std::time::Duration::from_secs_f64(wait);
+        tokio::time::sleep(pause).await;
+    }
+    unreachable!()
+}`,
+  errUse: () => `let router = ${api('LMRouter::new')}();
+let response = complete_with_retries(&router, &request, 4).await?;
+println!("{}", response.text().unwrap_or_default());`,
   convStart: model => `let router = ${api('LMRouter::new')}();
 let mut messages = vec![${api('Message::user')}(${q(TOUR.prompt)})?];
 let request = ${api('Request')} {
@@ -886,8 +976,8 @@ let router = ${api('LMRouter::new')}();
 let response = ${api('router.complete')}(&followup).await?;
 println!("{}", response.text().unwrap_or_default());`,
   program: (body, uses) => {
-    const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.loop ? ['FinishReason'] : []), ...(uses.search ? ['JsonObject'] : []), ...(uses.routerConfig ? ['RouterConfig'] : [])].sort();
-    const deps = ['lm15', 'tokio (macros, rt-multi-thread)', ...(uses.tool || uses.schema || uses.serde ? ['serde_json'] : []), ...(uses.stream ? ['futures-util'] : [])];
+    const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.loop ? ['FinishReason'] : []), ...(uses.search ? ['JsonObject'] : []), ...(uses.routerConfig ? ['RouterConfig'] : []), ...(uses.errors === 'catch' ? ['ErrorClass'] : uses.errors === 'retry' ? ['Lm15Error', 'Response'] : [])].sort();
+    const deps = ['lm15', uses.errors === 'retry' ? 'tokio (macros, rt-multi-thread, time)' : 'tokio (macros, rt-multi-thread)', ...(uses.tool || uses.schema || uses.serde ? ['serde_json'] : []), ...(uses.stream ? ['futures-util'] : [])];
     return [
       ...(uses.stream ? [dim('use futures_util::StreamExt;')] : []),
       ...(uses.search ? [dim('use serde_json::Value;')] : []),
@@ -1134,6 +1224,45 @@ ${dim('if err != nil {\n    panic(err)\n}')}`,
     BaseURLs: map[string]string{${q(server)}: ${q(url)}},
 })
 ${dim('if err != nil {\n    panic(err)\n}')}`,
+  errCatch: () => `router := ${api('lm15.NewRouter')}()
+response, err := ${api('router.Complete')}(context.Background(), request)
+var lmErr *${api('lm15.Error')}
+unsupported := errors.As(err, &lmErr) &&
+    lmErr.Kind.${api('IsA')}(${api('lm15.KindUnsupportedModel')})
+switch {
+case err == nil:
+    fmt.Println(response.TextOr(""))
+case unsupported:
+    fmt.Println("No such model at", lmErr.Provider)
+    fmt.Println(lmErr)
+default:
+    panic(err)
+}`,
+  errRetry: () => `completeWithRetries := func(
+    router *${api('lm15.LMRouter')}, request *${api('lm15.Request')}, attempts int,
+) (*${api('lm15.Response')}, error) {
+    ctx := context.Background()
+    for attempt := 1; ; attempt++ {
+        response, err := ${api('router.Complete')}(ctx, request)
+        var lmErr *${api('lm15.Error')}
+        if !errors.As(err, &lmErr) || !lmErr.${api('Retryable')}() {
+            return response, err
+        }
+        if attempt == attempts {
+            return response, err
+        }
+        wait := math.Pow(2, float64(attempt))
+        if lmErr.${api('RetryAfter')} != nil {
+            wait = *lmErr.${api('RetryAfter')}
+        }
+        fmt.Printf("%s, waiting %v s\\n", lmErr.Kind, wait)
+        time.Sleep(time.Duration(wait * float64(time.Second)))
+    }
+}`,
+  errUse: () => `router := ${api('lm15.NewRouter')}()
+response, err := completeWithRetries(router, request, 4)
+${dim('if err != nil {\n    panic(err)\n}')}
+fmt.Println(response.TextOr(""))`,
   convStart: model => `router := ${api('lm15.NewRouter')}()
 messages := []${api('lm15.Message')}{
     ${api('lm15.UserMessage')}(${q(TOUR.prompt)}),
@@ -1195,7 +1324,7 @@ response, err := ${api('router.Complete')}(context.Background(), saved)
 ${dim('if err != nil {\n    panic(err)\n}')}
 fmt.Println(response.TextOr(""))`,
   program: (body, uses) => [
-    dim(`package main\n\nimport (\n    "context"\n${uses?.search || uses?.serde ? '    "encoding/json"\n' : ''}    "fmt"\n${uses?.env || uses?.serde ? '    "os"\n' : ''}${uses?.search ? '    "strings"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {`),
+    dim(`package main\n\nimport (\n    "context"\n${uses?.search || uses?.serde ? '    "encoding/json"\n' : ''}${uses?.errors ? '    "errors"\n' : ''}    "fmt"\n${uses?.errors === 'retry' ? '    "math"\n' : ''}${uses?.env || uses?.serde ? '    "os"\n' : ''}${uses?.search ? '    "strings"\n' : ''}${uses?.errors === 'retry' ? '    "time"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {`),
     indent(body, '    '),
     dim('}'),
   ].join('\n'),
@@ -1380,6 +1509,27 @@ ${models.map((m, i) => `  ${q(m)}${i < models.length - 1 ? ',' : ''}`).join('\n'
   connUrlRouter: (server, url) => `router <- ${api('new_router')}(
   base_urls = list(${q(server)} = ${q(url)})
 )`,
+  errCatch: () => `router <- ${api('new_router')}()
+tryCatch(
+  ${api('response_text')}(${api('complete')}(router, req)),
+  ${api('UnsupportedModelError')} = function(error) {
+    cat("No such model at", error$provider, "\\n")
+    cat(conditionMessage(error), "\\n")
+  }
+)`,
+  errRetry: () => `complete_with_retries <- function(router, req, attempts = 4) {
+  for (attempt in seq_len(attempts)) {
+    result <- tryCatch(${api('complete')}(router, req), ${api('LM15Error')} = identity)
+    if (!inherits(result, "LM15Error")) return(result)
+    if (!${api('retryable')}(result) || attempt == attempts) stop(result)
+    wait <- result$${api('retry_after')} %||% 2^attempt
+    cat(class(result)[[1]], ", waiting ", wait, " s\\n", sep = "")
+    Sys.sleep(wait)
+  }
+}`,
+  errUse: () => `router <- ${api('new_router')}()
+response <- complete_with_retries(router, req)
+${api('response_text')}(response)`,
   convStart: model => `router <- ${api('new_router')}()
 messages <- list(${api('message_user')}(${q(TOUR.prompt)}))
 response <- ${api('complete')}(router, ${api('request')}(
@@ -1591,6 +1741,29 @@ end`,
   connUrlRouter: (server, url) => `router = ${api('LMRouter')}(${api('RouterConfig')}(
     base_urls=Dict(${q(server)} => ${q(url)}),
 ))`,
+  errCatch: () => `router = ${api('LMRouter')}()
+try
+    println(${api('text')}(${api('complete')}(router, req)))
+catch error
+    error isa ${api('UnsupportedModelError')} || rethrow()
+    println("No such model at ", error.provider)
+    println(error)
+end`,
+  errRetry: () => `function complete_with_retries(router, req; attempts=4)
+    for attempt in 1:attempts
+        try
+            return ${api('complete')}(router, req)
+        catch error
+            (${api('retryable')}(error) && attempt < attempts) || rethrow()
+            wait = something(error.${api('retry_after')}, 2.0^attempt)
+            println(nameof(typeof(error)), ", waiting ", wait, " s")
+            sleep(wait)
+        end
+    end
+end`,
+  errUse: () => `router = ${api('LMRouter')}()
+response = complete_with_retries(router, req)
+println(${api('text')}(response))`,
   convStart: model => `router = ${api('LMRouter')}()
 messages = [${api('user')}(${q(TOUR.prompt)})]
 response = ${api('complete')}(router, ${api('Request')}(
@@ -1654,6 +1827,9 @@ function fitted(language: Language, w: Writer): Writer {
     connLoop: models => f(w.connLoop(models)),
     connKeyRouter: provider => f(w.connKeyRouter(provider)),
     connUrlRouter: (server, url) => f(w.connUrlRouter(server, url)),
+    errCatch: () => f(w.errCatch()),
+    errRetry: () => f(w.errRetry()),
+    errUse: () => f(w.errUse()),
     convStart: model => f(w.convStart(model)),
     convParts: () => f(w.convParts()),
     convLoop: model => f(w.convLoop(model)),
@@ -1697,6 +1873,9 @@ function marked(language: Language, view: TourView, model: string): string {
     case 'conn-key': return connKey(w, model);
     case 'conn-local': return `${w.request(C.localModel, partsOf('request'))}\n\n${w.ask()}`;
     case 'conn-custom': return connCustom(w, C.serverUrl);
+    case 'err-catch': return errCatch(w, model);
+    case 'err-retry': return w.errRetry();
+    case 'err-use': return w.errUse();
     case 'conv-start': return w.convStart(model);
     case 'conv-parts': return w.convParts();
     case 'conv-loop': return w.convLoop(model);
@@ -1725,6 +1904,26 @@ function connKey(w: Writer, model: string): string {
 function connCustom(w: Writer, url: string): string {
   return `${w.connUrlRouter(C.server, url)}\n\n${w.request(C.serverModel, partsOf('request'))}\n${call(w)}`;
 }
+/** The errors page's model: the reader's provider, and a model it does not have. */
+export const MISSING_MODEL = 'no-such-model';
+/** The request, for a model the provider does not have, sent and its refusal caught. */
+function errCatch(w: Writer, model: string): string {
+  return `${w.request(`${model.split(':')[0]}:${MISSING_MODEL}`, partsOf('request'))}\n\n${w.errCatch()}`;
+}
+/** The retry function, the request (for `model`), and the call. */
+function errRetryProgram(w: Writer, model: string): string {
+  return `${w.errRetry()}\n\n${w.request(model, partsOf('system'))}\n\n${w.errUse()}`;
+}
+/** Whole programs for the errors page, for a real provider: what the capture script runs. */
+export function errorPrograms(language: Language, provider: string, model: string): { catch: string; retry: string } {
+  const w = WRITERS[language];
+  const plainUses = { tool: false, config: false, stream: false };
+  return {
+    catch: done(w.program(errCatch(w, `${provider}:${model}`), { ...plainUses, errors: 'catch' })).text,
+    retry: done(w.program(errRetryProgram(w, `${provider}:${model}`), { ...plainUses, errors: 'retry' })).text,
+  };
+}
+
 /** `ask` without the line that makes a router (the router already exists). */
 const call = (w: Writer) => w.ask().split('\n').slice(1).join('\n');
 
@@ -1760,12 +1959,18 @@ export interface TourProgram {
   expect?: string[];
   /** The stand-in answers with the structured-output JSON (TOUR.extract.fixtureAnswer). */
   structured?: boolean;
+  /** The stand-in answers "no such model" (404), as Ollama does for a model it has not pulled. */
+  notFound?: boolean;
+  /** The stand-in answers the first request with a rate limit (429, Retry-After: 0), then normally. */
+  rateLimitedFirst?: boolean;
 }
 
 /** Where the run test's stand-in server listens (scripts/docs-fixture-server.py). */
 const STAND_IN = 'http://127.0.0.1:11434/v1';
 /** What the stand-in answers (scripts/docs-fixture-server.py). */
 const STAND_IN_REPLY = 'Probably wood mice.';
+/** A model the stand-in rate-limits once before answering (scripts/docs-fixture-server.py). */
+const BUSY_MODEL = 'busy-model';
 
 export function tourPrograms(language: Language, provider: string, model: string): TourProgram[] {
   const w = WRITERS[language];
@@ -1808,5 +2013,10 @@ export function tourPrograms(language: Language, provider: string, model: string
     { name: 'conv-start', source: done(w.program(`${w.convStart(id)}\n\n${w.convParts()}`, plainUses)).text, streams: false, expect: [STAND_IN_REPLY, 'text'] },
     { name: 'conv-save', source: done(w.program(`${w.convLoop(id)}\n\n${w.convSave()}\n\n${scoped(w.convLoad())}`, { ...plainUses, serde: true })).text, streams: false, requests: 4 },
   ];
-  return [{ name: 'first', source: done(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: done(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured, ...connect, ...conversation];
+  // The errors page: "no such model" caught; a rate limit, waited out and retried.
+  const errorsPage: TourProgram[] = [
+    { name: 'err-catch', source: errorPrograms(language, provider, model).catch, streams: false, notFound: true, expect: [`No such model at ${provider}`] },
+    { name: 'err-retry', source: done(w.program(errRetryProgram(w, `${provider}:${BUSY_MODEL}`), { ...plainUses, errors: 'retry' })).text, streams: false, rateLimitedFirst: true, requests: 2, expect: ['RateLimitError, waiting', STAND_IN_REPLY] },
+  ];
+  return [{ name: 'first', source: done(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: done(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured, ...connect, ...conversation, ...errorsPage];
 }

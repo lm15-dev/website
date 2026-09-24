@@ -116,7 +116,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     const dir = join(CACHE, 'rust');
     mkdirSync(join(dir, 'src/bin'), { recursive: true });
     for (const name of readdirSync(join(dir, 'src/bin'))) rmSync(join(dir, 'src/bin', name));
-    writeFileSync(join(dir, 'Cargo.toml'), `[package]\nname = "docs-examples"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n\n[dependencies]\nlm15 = { path = ${JSON.stringify(lm15)} }\ntokio = { version = "1", features = ["macros", "rt-multi-thread"] }\nfutures-util = "0.3"\nserde_json = "1"\n`);
+    writeFileSync(join(dir, 'Cargo.toml'), `[package]\nname = "docs-examples"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n\n[dependencies]\nlm15 = { path = ${JSON.stringify(lm15)} }\ntokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }\nfutures-util = "0.3"\nserde_json = "1"\n`);
     const list = programs('rust');
     for (const p of list) writeFileSync(join(dir, 'src/bin', `${p.name.replace(/-/g, '_')}.rs`), p.source + '\n');
     execFileSync(have('rcargo') ? 'rcargo' : 'cargo', ['build', '--release', '--quiet'], { cwd: dir, stdio: 'pipe', timeout: 1_200_000 });
@@ -171,7 +171,11 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       writeFileSync(join(dir, `${p.name}.R`), source + '\n');
       const call = 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_call)';
       const answer = p.structured ? 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_structured)' : reply;
-      const replyList = [...(p.toolCall ? [call] : []), ...Array((p.requests ?? 1) - (p.toolCall ? 1 : 0)).fill(answer)].join(', ');
+      // The errors page: the stand-in server's "no such model" and its one rate limit, as R's fake transport replies.
+      const missing = `list(status = 404L, headers = list(\`content-type\` = "application/json"), body = '{"error":{"message":"model \\\\"no-such-model\\\\" not found, try pulling it first","type":"api_error","param":null,"code":null}}')`;
+      const busy = 'list(status = 429L, headers = list(`content-type` = "application/json", `retry-after` = "0"), body = \'{"error":{"message":"Rate limit reached, please retry.","type":"rate_limit_error","code":"rate_limit_exceeded"}}\')';
+      const first = p.toolCall ? [call] : p.notFound ? [missing] : p.rateLimitedFirst ? [busy] : [];
+      const replyList = [...first, ...Array(Math.max(0, (p.requests ?? 1) - first.length)).fill(answer)].join(', ');
       // Programs that write files (a saved conversation) write them in their own folder, not the SDK's checkout.
       writeFileSync(join(dir, `run-${p.name}.R`), `setwd(${JSON.stringify(dir)})\n${replies}\n.docs_transport <- lm15::fake_transport(list(${replyList}))\nsource(${JSON.stringify(join(dir, `${p.name}.R`))}, print.eval = TRUE)\nfor (w in attr(.docs_transport, "requests")()) cat(rawToChar(w$body), "\\n", file = ${JSON.stringify(join(dir, `${p.name}.jsonl`))}, append = TRUE, sep = "")\n`);
       const stdout = nix(`R_LIBS=${JSON.stringify(lib)} Rscript --no-save ${JSON.stringify(join(dir, `run-${p.name}.R`))} 2>/dev/null`);

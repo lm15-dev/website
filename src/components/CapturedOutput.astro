@@ -3,9 +3,10 @@
 // for pages whose recordings are what a whole program printed.
 import authentication from '../data/authentication-captures.json';
 import conversations from '../data/conversations-captures.json';
+import errors from '../data/errors-captures.json';
 
-const SETS = { authentication, conversations } as const;
-const NAMES: Record<string, string> = { 'openai-codex': 'OpenAI Codex', anthropic: 'Anthropic', xai: 'xAI' };
+const SETS = { authentication, conversations, errors } as const;
+const NAMES: Record<string, string> = { 'openai-codex': 'OpenAI Codex', anthropic: 'Anthropic', xai: 'xAI', openrouter: 'OpenRouter' };
 
 interface Props {
   set?: keyof typeof SETS;
@@ -15,12 +16,12 @@ interface Props {
 }
 const { set = 'authentication', step, show = 'output' } = Astro.props;
 const captures = SETS[set];
-const run = (captures.steps as Record<string, { output: string; error?: string; model?: string }>)[step];
+const run = (captures.steps as Record<string, { output?: string; error?: string; model?: string }>)[step];
 if (!run) throw new Error(`CapturedOutput: no step ${step} in ${set}`);
 const date = new Date(`${captures.date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const [provider, ...rest] = (run.model ?? '').split(':');
 const who = run.model ? `${rest.join(':')} through ${NAMES[provider!] ?? provider}, ${date}` : date;
-const output = run.output.replace(/^\n+|\n+$/g, '');
+const output = (run.output ?? '').replace(/^\n+|\n+$/g, '');
 ---
 <figure class="captured not-content">
   {show !== 'error' && output && <>
