@@ -1,0 +1,175 @@
+---
+title: Send images and documents
+description: Put a photo or a PDF in a message next to your question. See how the same camera-trap photo fares with six models, which providers take which files, and what a file costs.
+---
+
+import DocsExample from '../../../components/DocsExample.astro';
+import CapturedOutput from '../../../components/CapturedOutput.astro';
+import captures from '../../../data/media-captures.json';
+import TOUR from '../../../data/tour-text.json';
+
+export const M = TOUR.media;
+export const tokens = (step) => Number(captures.steps[step].output.match(/(\d+) tokens in/)[1]);
+export const NAMES = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google Gemini', deepseek: 'DeepSeek', openrouter: 'OpenRouter', 'openai-codex': 'OpenAI Codex' };
+export const firstSentence = (text) => text.replace(/\*\*/g, '').split(/(?<=[.!?])\s/)[0];
+export const rows = [[captures.steps.photo.model, { text: captures.steps.photo.output.split('\n')[0], input_tokens: tokens('photo') }],
+  ...Object.entries(captures.providers).map(([id, r]) => [id, r.photo])].map(([id, r]) => {
+  const [provider, ...model] = id.split(':');
+  return { name: NAMES[provider] ?? provider, model: model.join(':'), said: firstSentence(r.text), tokens: r.input_tokens };
+});
+export const photoTokens = rows.map((r) => r.tokens);
+export const refused = captures.providers['deepseek:deepseek-chat'].log.error;
+
+A lot of what a research station records isn’t text. There are photos from
+camera traps, scanned forms, and reports saved as PDFs. Most language models
+can read these too, if you send the file along with your question, and that’s
+one of the most useful things they can do. It’s also one of the easiest to
+trust too much: a model looks at a grainy photo taken at night and answers in
+exactly the same tone it uses when it’s right.
+
+On this page, you’ll learn how to add an image or a document to a message. We’ll
+start with a photo from a camera trap, and look at the parts a message can be
+made of. Then we’ll send a PDF. Next, we’ll give the same photo to six models
+and compare what they see. We’ll finish with which providers take which files,
+and what a file costs.
+
+To run the examples, you’ll need LM15 installed and an API key (see
+[Make your first request](/docs/first-request/)), and the two files the
+examples read. Download [the photo](/docs-media/badger.jpg) and
+[the PDF](/docs-media/oak-grove-log.pdf), and save them next to your program.
+
+## A photo from a camera trap
+
+The examples in these guides follow [one small program](/docs/#the-example-well-build):
+an assistant for a wildlife research station. Something is eating the acorns
+under the station’s oak trees at night, and cameras like this one are how a
+station finds out what:
+
+<figure>
+  <img src="/docs-media/badger.jpg" alt="A black-and-white infrared camera-trap photo, taken at night. An animal with a striped face forages at the right edge, nose to the ground. The overlay reads 08-17-2014 02:22:45." width="1280" height="718" />
+  <figcaption>
+    “{M.credit.title}” by {M.credit.author},
+    <a href={M.credit.source}>Wikimedia Commons</a>,
+    <a href={M.credit.licenseUrl}>{M.credit.license}</a>.
+  </figcaption>
+</figure>
+
+Here’s how to ask the assistant about it:
+
+<DocsExample recipe="media-photo" />
+
+<CapturedOutput set="media" step="photo" />
+
+The answer names the animal and says what it’s doing, and both are right: it’s
+a badger, and its nose is down in the leaf litter. One detail is wrong,
+though. The model called it an *American* badger, and this photo was taken in
+France, where the badger is the European one. Nothing in the picture says which
+continent it’s on, so the model filled in a detail it couldn’t see. Keep that
+in mind: a model describing an image will add what seems likely, and it won’t
+tell you which parts it saw and which it guessed.
+
+Look at the input tokens too: {tokens('photo').toLocaleString('en-US')}. The
+question on its own is a few dozen tokens; the rest is the photo. Providers
+turn an image into tokens so the model can read it, and you pay for those
+tokens like any others.
+
+## A message made of parts
+
+Until now every message has been a single piece of text. A message is really a
+list of *parts*, and text is only one kind. This one has two: the question,
+and the image. They reach the model in the order you list them, so a question
+followed by a photo reads as “here’s my question, and here’s what it’s about.”
+
+The image part says two things: where the file is, and what kind of file it is
+(its *media type*, here `{M.photo.mediaType}`). A path is the simplest source:
+LM15 reads the file when it sends the request, and sends its bytes along. You
+can also give it bytes you already have in memory, a web address the provider
+fetches itself (not every provider can), or the id of a file you uploaded
+earlier.
+
+## A document
+
+A PDF is sent the same way, as a document part. Here is the station’s camera
+log for one week:
+
+<figure>
+  <img src="/docs-media/oak-grove-log.png" alt="A one-page table titled Oak grove camera log, listing seven nights from 15 to 21 September 2026 with the time each animal was first seen, the species, the count and notes." />
+  <figcaption>The station’s camera log (<a href="/docs-media/oak-grove-log.pdf">PDF</a>).</figcaption>
+</figure>
+
+<DocsExample recipe="media-log" />
+
+<CapturedOutput set="media" step="log" />
+
+That’s correct: wood mice and badgers came on two nights each, roe deer and
+wild boar on one. The model read a table out of a PDF and answered a question
+the table doesn’t answer directly, because it had to count.
+
+## The same photo, six models
+
+The model is the part of this that varies most. We sent the same photo and the
+same question to six models. Here is the first sentence of each answer, and
+what the photo cost in each case:
+
+<table>
+  <thead><tr><th>Provider</th><th>Model</th><th>What it said</th><th>Input tokens</th></tr></thead>
+  <tbody>{rows.map((r) => <tr><td>{r.name}</td><td><code>{r.model}</code></td><td>{r.said}</td><td>{r.tokens.toLocaleString('en-US')}</td></tr>)}</tbody>
+</table>
+
+Some models saw a badger, and some didn’t. One saw a porcupine, and another
+hedged between a skunk and a badger. Every wrong answer is written just as
+confidently as the right ones. The documents fared better, but not perfectly:
+Anthropic’s model counted the nights correctly and then said the camera
+recorded “five animal species” before listing four. So treat what a model says
+about a file as a first reading, not a record. When a decision depends on it,
+keep the file with the answer, so a person can check.
+
+The costs differ even more than the answers: the same photo cost
+{Math.min(...photoTokens).toLocaleString('en-US')} input tokens with one model
+and {Math.max(...photoTokens).toLocaleString('en-US')} with another. Providers
+turn images into tokens in their own ways, and some charge far more than
+others. Before you send a season’s worth of camera-trap photos, send one, and
+look at the input tokens.
+
+## Which providers take which files
+
+Every provider in the table above took the photo. PDFs are another matter.
+OpenAI’s Responses API, Anthropic and Gemini take them; the Chat Completions
+API that DeepSeek, OpenRouter, Groq, Z.AI and local servers use has no place
+for a document in a message. LM15 knows this, and refuses before sending
+anything, so it costs nothing:
+
+<pre class="lm-code not-content"><code>{refused}</code></pre>
+
+When a provider can’t take a PDF, you can turn it into something it can take:
+extract its text yourself and send that, or render its pages as images. Either
+way, you choose what the model receives.
+
+## Try it yourself
+
+Predict what will happen before you run each one.
+
+1. Send the photo with the question “When was this photo taken?”
+2. Send the PDF to DeepSeek. What comes back, and what does it cost?
+3. Ask how many animals the camera saw in total that week. What’s the right
+   answer?
+
+<details>
+<summary>What to expect</summary>
+
+1. The photo shows its own date and time in its bottom corner: 17 August 2014,
+   at 02:22:45. Models read printed text in images well, so this is the kind
+   of detail they usually get right, unlike the continent.
+2. The error above, before anything is sent, so it costs nothing.
+3. Thirteen: 2 + 1 + 4 + 2 + 1 + 3, with nothing on the night the battery was
+   flat. Check the model’s answer against the table: counting across a table
+   is where models slip.
+
+</details>
+
+## Next
+
+A photo you send stays in the conversation, and a conversation is sent again
+with every new question, so the photo is too, and so are its tokens.
+[Keep a conversation](/docs/conversations/) shows how a conversation grows,
+and what that costs.

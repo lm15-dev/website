@@ -25,7 +25,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -48,14 +48,21 @@ function programs(language: Language): Program[] {
   return [{ name: 'first-request', source: exampleSource(language, 'ollama', 'test-model'), streams: false }, ...tourPrograms(language, 'ollama', 'test-model')];
 }
 
+/** The files a program reads (a photo, a PDF), copied into the folder it runs in. */
+function provide(p: Program, dir: string): void {
+  for (const name of p.files ?? []) copyFileSync(join(ROOT, 'public/docs-media', name), join(dir, name));
+}
+
 /** Run `command` beside the stand-in server, in a namespace with only loopback. Returns stdout and the request bodies it received. */
-function sealed(command: string[], cwd: string, env: NodeJS.ProcessEnv = process.env): { stdout: string; bodies: unknown[] } {
+function sealed(command: string[], cwd: string, env: NodeJS.ProcessEnv = process.env, refused = false): { stdout: string; bodies: unknown[] } {
   const log = join(mkdtempSync(join(tmpdir(), 'lm15-docs-log-')), 'requests.jsonl');
   const script = 'ip link set lo up; python3 "$0" "$1" & P=$!; for i in $(seq 50); do (echo > /dev/tcp/127.0.0.1/11434) 2>/dev/null && break; sleep 0.1; done; shift; "$@"; R=$?; kill $P; exit $R';
   const run = spawnSync('unshare', ['-rn', 'bash', '-c', script, FIXTURE, log, ...command], { cwd, env, encoding: 'utf8', timeout: 120_000 });
-  assert.equal(run.status, 0, `${command.join(' ')} failed:\n${run.stdout}\n${run.stderr}`);
+  // A program that must be refused fails, and says why: its output is both streams.
+  if (refused) assert.notEqual(run.status, 0, `${command.join(' ')} was not refused:\n${run.stdout}`);
+  else assert.equal(run.status, 0, `${command.join(' ')} failed:\n${run.stdout}\n${run.stderr}`);
   const bodies = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
-  return { stdout: run.stdout, bodies };
+  return { stdout: refused ? `${run.stdout}\n${run.stderr}` : run.stdout, bodies };
 }
 
 const have = (tool: string) => spawnSync('sh', ['-c', `command -v ${tool}`]).status === 0;
@@ -63,7 +70,8 @@ const results = new Map<Language, Map<string, unknown[]>>();
 
 function record(language: Language, p: Program, stdout: string, bodies: unknown[]): void {
   const name = p.name, requests = p.requests ?? 1;
-  for (const expected of p.expect ?? [REPLY]) assert.ok(stdout.includes(expected), `${language} ${name}: "${expected}" was not printed:\n${stdout}`);
+  if (p.refuses) assert.match(stdout, p.refuses, `${language} ${name}: the refusal does not say why:\n${stdout}`);
+  else for (const expected of p.expect ?? [REPLY]) assert.ok(stdout.includes(expected), `${language} ${name}: "${expected}" was not printed:\n${stdout}`);
   assert.equal(bodies.length, requests, `${language} ${name}: expected ${requests} request(s), saw ${bodies.length}`);
   if (!results.has(language)) results.set(language, new Map());
   results.get(language)!.set(name, bodies);
@@ -91,7 +99,8 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     execFileSync('python3', ['-m', 'zipfile', '-e', join(ROOT, 'node_modules/lm15/runtime', wheel), join(dir, 'site')]);
     for (const p of programs('python')) {
       writeFileSync(join(dir, `${p.name}.py`), p.source + '\n');
-      const out = sealed(['python3', `${p.name}.py`], dir, { ...process.env, PYTHONPATH: join(dir, 'site') });
+      provide(p, dir);
+      const out = sealed(['python3', `${p.name}.py`], dir, { ...process.env, PYTHONPATH: join(dir, 'site') }, !!p.refuses);
       record('python', p, out.stdout, out.bodies);
     }
   },
@@ -105,7 +114,8 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'es2022', module: 'nodenext', moduleResolution: 'nodenext', strict: true, noEmit: true, skipLibCheck: true, types: ['node'] }, files: list.map(p => `${p.name}.ts`) }));
       execFileSync(process.execPath, [join(ROOT, 'node_modules/typescript/bin/tsc'), '-p', join(dir, 'tsconfig.json')], { stdio: 'pipe' });
       for (const p of list) {
-        const out = sealed([process.execPath, '--experimental-strip-types', '--no-warnings', `${p.name}.ts`], dir);
+        provide(p, dir);
+        const out = sealed([process.execPath, '--experimental-strip-types', '--no-warnings', `${p.name}.ts`], dir, process.env, !!p.refuses);
         record('typescript', p, out.stdout, out.bodies);
       }
     } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -121,7 +131,8 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     for (const p of list) writeFileSync(join(dir, 'src/bin', `${p.name.replace(/-/g, '_')}.rs`), p.source + '\n');
     execFileSync(have('rcargo') ? 'rcargo' : 'cargo', ['build', '--release', '--quiet'], { cwd: dir, stdio: 'pipe', timeout: 1_200_000 });
     for (const p of list) {
-      const out = sealed([join(dir, 'target/release', p.name.replace(/-/g, '_'))], dir);
+      provide(p, dir);
+      const out = sealed([join(dir, 'target/release', p.name.replace(/-/g, '_'))], dir, process.env, !!p.refuses);
       record('rust', p, out.stdout, out.bodies);
     }
   },
@@ -134,7 +145,8 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       mkdirSync(join(dir, p.name));
       writeFileSync(join(dir, p.name, 'main.go'), p.source + '\n');
       execFileSync('go', ['build', '-mod=mod', '-o', join(dir, `${p.name}.bin`), `./${p.name}`], { cwd: dir, stdio: 'pipe', timeout: 300_000 });
-      const out = sealed([join(dir, `${p.name}.bin`)], dir);
+      provide(p, dir);
+      const out = sealed([join(dir, `${p.name}.bin`)], dir, process.env, !!p.refuses);
       record('go', p, out.stdout, out.bodies);
     }
   },
@@ -164,9 +176,9 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
         : 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_reply)';
       // The page's code, with only the router's transport swapped; the recorded request goes to a file.
       // Every router in the program (the conversation page makes a second one, the next day).
-      const source = p.source.includes('new_router()')
-        ? p.source.replaceAll('new_router()', 'new_router(transport = .docs_transport)')
-        : p.source.replaceAll('new_router(', 'new_router(transport = .docs_transport, ');
+      const source = p.source
+        .replaceAll('new_router()', 'new_router(transport = .docs_transport)')
+        .replace(/new_router\((?!transport = )/g, 'new_router(transport = .docs_transport, ');
       assert.notEqual(source, p.source, `r ${p.name}: no router to give the fake transport`);
       writeFileSync(join(dir, `${p.name}.R`), source + '\n');
       const call = 'list(status = 200L, headers = list(`content-type` = "application/json"), body = .docs_call)';
@@ -177,9 +189,13 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       const first = p.toolCall ? [call] : p.notFound ? [missing] : p.rateLimitedFirst ? [busy] : [];
       const replyList = [...first, ...Array(Math.max(0, (p.requests ?? 1) - first.length)).fill(answer)].join(', ');
       // Programs that write files (a saved conversation) write them in their own folder, not the SDK's checkout.
-      writeFileSync(join(dir, `run-${p.name}.R`), `setwd(${JSON.stringify(dir)})\n${replies}\n.docs_transport <- lm15::fake_transport(list(${replyList}))\nsource(${JSON.stringify(join(dir, `${p.name}.R`))}, print.eval = TRUE)\nfor (w in attr(.docs_transport, "requests")()) cat(rawToChar(w$body), "\\n", file = ${JSON.stringify(join(dir, `${p.name}.jsonl`))}, append = TRUE, sep = "")\n`);
+      provide(p, dir);
+      const run = `source(${JSON.stringify(join(dir, `${p.name}.R`))}, print.eval = TRUE)`;
+      const guarded = p.refuses ? `tryCatch(${run}, error = function(e) cat("REFUSED:", conditionMessage(e), "\\n"))` : run;
+      writeFileSync(join(dir, `run-${p.name}.R`), `setwd(${JSON.stringify(dir)})\n${replies}\n.docs_transport <- lm15::fake_transport(list(${replyList}))\n${guarded}\nfor (w in attr(.docs_transport, "requests")()) cat(rawToChar(w$body), "\\n", file = ${JSON.stringify(join(dir, `${p.name}.jsonl`))}, append = TRUE, sep = "")\n`);
       const stdout = nix(`R_LIBS=${JSON.stringify(lib)} Rscript --no-save ${JSON.stringify(join(dir, `run-${p.name}.R`))} 2>/dev/null`);
-      const bodies = readFileSync(join(dir, `${p.name}.jsonl`), 'utf8').trim().split('\n').map(line => JSON.parse(line));
+      const recorded = join(dir, `${p.name}.jsonl`);
+      const bodies = existsSync(recorded) ? readFileSync(recorded, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
       record('r', p, stdout, bodies);
     }
   },
@@ -196,7 +212,8 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
       writeFileSync(join(dir, `${p.name}.jl`), p.source + '\n');
       // Nix resolves julia outside the namespace; the program runs inside it.
       const bin = execFileSync('nix', ['shell', 'nixpkgs#julia-bin', '-c', 'sh', '-c', 'command -v julia'], { encoding: 'utf8' }).trim();
-      const out = sealed([bin, `--project=${project}`, `${p.name}.jl`], dir);
+      provide(p, dir);
+      const out = sealed([bin, `--project=${project}`, `${p.name}.jl`], dir, process.env, !!p.refuses);
       record('julia', p, out.stdout, out.bodies);
     }
   },

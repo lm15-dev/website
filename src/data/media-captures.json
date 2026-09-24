@@ -1,0 +1,66 @@
+{
+  "date": "2026-09-24",
+  "steps": {
+    "photo": {
+      "model": "openai-codex:gpt-5.6-sol",
+      "code": "from lm15 import LMRouter, Message, Request\nfrom lm15.types import image\n\nphoto = image(path=\"badger.jpg\", media_type=\"image/jpeg\")\nrequest = Request(\n    model=\"openai-codex:gpt-5.6-sol\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user([\n        \"What animal is this, and what is it doing?\",\n        photo,\n    ])],\n)\nrouter = LMRouter()\nresponse = router.complete(request)\nprint(response.text)\nprint(response.usage.input_tokens, \"tokens in\")",
+      "output": "This appears to be an American badger, identifiable by its stocky body and pale stripe down the face. It is moving with its nose to the ground, likely sniffing or foraging for prey.\n1142 tokens in\n"
+    },
+    "log": {
+      "model": "openai-codex:gpt-5.6-sol",
+      "code": "from lm15 import LMRouter, Message, Request\nfrom lm15.types import document\n\nlogbook = document(\n    path=\"oak-grove-log.pdf\", media_type=\"application/pdf\",\n)\nrequest = Request(\n    model=\"openai-codex:gpt-5.6-sol\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user([\n        (\n            \"Which animals did this camera record, and on how many \"\n            \"nights did it see each one?\"\n        ),\n        logbook,\n    ])],\n)\nrouter = LMRouter()\nresponse = router.complete(request)\nprint(response.text)\nprint(response.usage.input_tokens, \"tokens in\")",
+      "output": "The camera recorded wood mice on 2 nights and badgers on 2 nights. It recorded roe deer on 1 night and wild boar on 1 night.\n1031 tokens in\n",
+      "date": "2026-09-24"
+    }
+  },
+  "providers": {
+    "openai:gpt-5-mini": {
+      "photo": {
+        "text": "This is a badger (the distinctive black-and-white facial stripes show a banded badger). It is foraging—nose down and sniffing or digging at the ground looking for food.",
+        "input_tokens": 1142
+      },
+      "log": {
+        "text": "The camera recorded wood mice (seen on 2 nights), badgers (2 nights), roe deer (1 night), and wild boar (1 night). Specifically, wood mice were recorded on 15 and 18 Sep, badgers on 16 and 20 Sep, roe deer on 19 Sep, and wild boar on 21 Sep.",
+        "input_tokens": 239
+      }
+    },
+    "anthropic:claude-haiku-4-5": {
+      "photo": {
+        "text": "This is a porcupine, as indicated by its distinctive quilled body visible on both sides of the frame. It appears to be foraging or walking along the ground at night, which is typical nocturnal behavior for porcupines as they search for food such as bark, vegetation, and other plant matter.",
+        "input_tokens": 1233
+      },
+      "log": {
+        "text": "Camera OAK-2 recorded five animal species over the monitoring period: wood mice (2 nights: September 15 and 18), badgers (2 nights: September 16 and 20), roe deer (1 night: September 19), and wild boar (1 night: September 21). No recordings were made on September 17 due to a flat battery, which was replaced on September 18.",
+        "input_tokens": 1848
+      }
+    },
+    "gemini:gemini-2.5-flash": {
+      "photo": {
+        "text": "This appears to be a badger, identifiable by its stout body and prominent facial stripes. It looks like it's actively foraging or digging in the substrate during the early morning hours.",
+        "input_tokens": 286
+      },
+      "log": {
+        "text": "The camera recorded wood mice on two nights (September 15th and 18th) and badgers on two nights (September 16th and 20th). Additionally, roe deer were seen on one night (September 19th) and wild boar on one night (September 21st).",
+        "input_tokens": 293
+      }
+    },
+    "deepseek:deepseek-chat": {
+      "photo": {
+        "text": "Based on the low-light trail camera image, this appears to be a striped skunk (or possibly a badger) captured at night while it is actively foraging or traveling across the ground.",
+        "input_tokens": 610
+      },
+      "log": {
+        "error": "UnsupportedFeatureError: deepseek: a document part in a user message has no slot on the Chat Completions wire (text and image_url only); the OpenAI Responses, Anthropic and Gemini dialects carry it (MAP-10)"
+      }
+    },
+    "openrouter:openai/gpt-4o-mini": {
+      "photo": {
+        "text": "This appears to be a badger, likely foraging on the ground. It seems to be moving around in search of food or exploring its environment.",
+        "input_tokens": 36873
+      },
+      "log": {
+        "error": "UnsupportedFeatureError: openrouter: a document part in a user message has no slot on the Chat Completions wire (text and image_url only); the OpenAI Responses, Anthropic and Gemini dialects carry it (MAP-10)"
+      }
+    }
+  }
+}

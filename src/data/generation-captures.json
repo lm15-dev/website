@@ -1,0 +1,58 @@
+{
+  "date": "2026-09-24",
+  "steps": {
+    "short": {
+      "model": "anthropic:claude-haiku-4-5",
+      "code": "from lm15 import Config, LMRouter, Message, Request\n\nrequest = Request(\n    model=\"anthropic:claude-haiku-4-5\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n    config=Config(max_tokens=20),\n)\n\nrouter = LMRouter()\nresponse = router.complete(request)\nprint(response.text)\nprint(response.finish_reason)",
+      "output": "Based on nocturnal feeding patterns, likely culprits are raccoons, opossums,\nlength\n"
+    },
+    "temperature": {
+      "model": "anthropic:claude-haiku-4-5",
+      "code": "from lm15 import Config, LMRouter, Message, Request\n\nrouter = LMRouter()\nfor temperature in [0.0, 1.0]:\n    for run in range(2):\n        response = router.complete(Request(\n            model=\"anthropic:claude-haiku-4-5\",\n            system=(\n                \"You are the field assistant for a wildlife research \"\n                \"station. Answer in two sentences.\"\n            ),\n            messages=[Message.user(\n                \"What might be eating the acorns under our oak trees \"\n                \"at night?\"\n            )],\n            config=Config(temperature=temperature),\n        ))\n        print(temperature, response.text)",
+      "output": "0.0 Based on nocturnal acorn consumption, you're likely dealing with raccoons, opossums, or possibly deer—all common nighttime foragers. You could set up a motion-activated camera to confirm which species is responsible, which would help us plan any management strategies if needed.\n0.0 Based on nocturnal acorn consumption, you're likely dealing with raccoons, opossums, or possibly deer—all common nighttime foragers. You could set up a motion-activated camera to confirm which species is responsible, which would help us plan any management strategies if needed.\n1.0 Based on nighttime acorn consumption, the most likely culprits are raccoons, opossums, or deer, as they're all nocturnal or crepuscular foragers that actively feed on acorns. You could set up a camera trap near the oak trees to identify which animal it is—this will help us understand local wildlife activity and plan any necessary management.\n1.0 Based on nocturnal acorn consumption, you're most likely dealing with deer, raccoons, or wild boar, depending on your region—though squirrels and jays also cache acorns heavily during the day. To narrow it down, check for tracks around the trees in the morning, look for scat, and note whether acorns are scattered or neatly buried, as different animals leave distinct feeding signs.\n"
+    },
+    "stop": {
+      "model": "anthropic:claude-haiku-4-5",
+      "code": "from lm15 import Config, LMRouter, Message, Request\n\nrequest = Request(\n    model=\"anthropic:claude-haiku-4-5\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station.\"\n    ),\n    messages=[Message.user(\n        \"List five animals that might eat acorns at night, one per \"\n        \"line, numbered.\"\n    )],\n    config=Config(stop=[\"4.\"]),\n)\n\nrouter = LMRouter()\nresponse = router.complete(request)\nprint(response.text)\nprint(response.finish_reason)",
+      "output": "# Animals That Eat Acorns at Night\n\n1. Deer\n2. Raccoons\n3. Wild boar\n\nstop\n"
+    },
+    "adapt": {
+      "model": "anthropic:claude-haiku-4-5",
+      "code": "from lm15 import (\n    Config, LMRouter, Message, Request, RouterConfig,\n    UnsupportedFeatureError,\n)\n\nrequest = Request(\n    model=\"anthropic:claude-haiku-4-5\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n    config=Config(temperature=1.5, seed=42),\n)\n\nrouter = LMRouter()\nresponse = router.complete(request)\nprint(response.text)\nfor a in response.adaptations:\n    print(a.field, a.action)\n\nfor a in router.plan(request):\n    print(a.field, a.action)\n\nstrict = LMRouter(RouterConfig(adaptations=\"refuse\"))\ntry:\n    print(strict.complete(request).text)\nexcept UnsupportedFeatureError as error:\n    print(\"Refused:\", error.feature)",
+      "output": "Based on common nocturnal acorn foragers, you're likely dealing with deer, raccoons, or wild boar, depending on your region—all of which actively feed at night. To narrow it down, look for tracks, scat, or signs of rooting/disturbance around the trees, and consider setting up a trail camera to confirm which species is responsible.\nconfig.max_tokens defaulted\nconfig.seed dropped\nconfig.temperature clamped\n"
+    },
+    "refuse": {
+      "model": "anthropic:claude-haiku-4-5",
+      "code": "from lm15 import (\n    Config, LMRouter, Message, Request, RouterConfig,\n    UnsupportedFeatureError,\n)\n\nrequest = Request(\n    model=\"anthropic:claude-haiku-4-5\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n    config=Config(temperature=1.5, seed=42),\n)\n\nrouter = LMRouter()\nresponse = router.complete(request)\nprint(response.text)\nfor a in response.adaptations:\n    print(a.field, a.action)\n\nfor a in router.plan(request):\n    print(a.field, a.action)\n\nstrict = LMRouter(RouterConfig(adaptations=\"refuse\"))\ntry:\n    print(strict.complete(request).text)\nexcept UnsupportedFeatureError as error:\n    print(\"Refused:\", error.feature)",
+      "output": "Refused: config.seed\n"
+    },
+    "plan": {
+      "model": "anthropic:claude-haiku-4-5",
+      "code": "from lm15 import (\n    Config, LMRouter, Message, Request, RouterConfig,\n    UnsupportedFeatureError,\n)\n\nrequest = Request(\n    model=\"anthropic:claude-haiku-4-5\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n    config=Config(temperature=1.5, seed=42),\n)\n\nrouter = LMRouter()\nresponse = router.complete(request)\nprint(response.text)\nfor a in response.adaptations:\n    print(a.field, a.action)\n\nfor a in router.plan(request):\n    print(a.field, a.action)\n\nstrict = LMRouter(RouterConfig(adaptations=\"refuse\"))\ntry:\n    print(strict.complete(request).text)\nexcept UnsupportedFeatureError as error:\n    print(\"Refused:\", error.feature)",
+      "output": "config.max_tokens defaulted\nconfig.seed dropped\nconfig.temperature clamped\n"
+    }
+  },
+  "records": [
+    {
+      "field": "config.max_tokens",
+      "action": "defaulted",
+      "asked": null,
+      "applied": 16384,
+      "reason": "the Messages API requires max_tokens and none was set; the class default was used"
+    },
+    {
+      "field": "config.seed",
+      "action": "dropped",
+      "asked": 42,
+      "applied": null,
+      "reason": "the Messages API has no seed field"
+    },
+    {
+      "field": "config.temperature",
+      "action": "clamped",
+      "asked": 1.5,
+      "applied": 1.0,
+      "reason": "the Messages API accepts temperature in [0, 1]; the canonical range is [0, 2]"
+    }
+  ]
+}

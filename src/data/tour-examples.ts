@@ -103,7 +103,9 @@ export type TourView = Step | 'first' | 'response' | 'stream' | 'program' | 'fol
   | 'so-note' | 'so-plain' | 'so-schema' | 'so-ask' | 'so-use' | 'so-note-barn' | 'so-schema-other' | 'so-program'
   | 'conn-switch' | 'conn-key' | 'conn-local' | 'conn-custom'
   | 'conv-start' | 'conv-parts' | 'conv-loop' | 'conv-save' | 'conv-load'
-  | 'err-catch' | 'err-retry' | 'err-use';
+  | 'err-catch' | 'err-retry' | 'err-use'
+  | 'gen-short' | 'gen-temperature' | 'gen-stop' | 'gen-adapt' | 'gen-plan' | 'gen-refuse'
+  | 'media-photo' | 'media-log';
 
 interface Parts { system: boolean; tools: boolean; config: boolean }
 const partsOf = (step: Step): Parts => {
@@ -166,16 +168,39 @@ interface Writer {
   errRetry(): string;
   /** Use it: a router, the call, the answer printed. */
   errUse(): string;
+  /** The generation page: a request with the station's instructions and the given settings. */
+  genRequest(model: string, question: GenQuestion, cfg: GenConfig): string;
+  /** Send it; print the answer and its finish reason. */
+  genShow(): string;
+  /** The same question at temperature 0 and at 1, twice each. */
+  genTemperature(model: string): string;
+  /** Send it; print the answer, then each recorded adaptation's field and action. */
+  genAdapt(): string;
+  /** Preview the adaptations with no request sent. */
+  genPlan(): string;
+  /** A router that refuses instead of adapting. */
+  genRefuse(): string;
+  /** The media page: a file from disk, as a part, and a request asking about it; sent, its answer and input tokens printed. */
+  mediaAsk(model: string, which: MediaKind): string;
   /** A whole program around `body`: imports, and whatever the language needs to run it. */
   program(body: string, uses: Uses): string;
   /** The line that makes the router, when the program streams. */
   router(): string;
 }
-interface Uses { errors?: 'catch' | 'retry'; serde?: boolean; tool: boolean; config: boolean; stream: boolean; search?: boolean; loop?: boolean; schema?: boolean; typed?: boolean; env?: boolean; routerConfig?: boolean }
+interface Uses { media?: MediaKind; generation?: boolean; errors?: 'catch' | 'retry'; serde?: boolean; tool: boolean; config: boolean; stream: boolean; search?: boolean; loop?: boolean; schema?: boolean; typed?: boolean; env?: boolean; routerConfig?: boolean }
 const C = TOUR.connect;
 type NoteKey = keyof typeof TOUR.extract.notes;
 const X = TOUR.extract;
 const V = TOUR.conversation;
+const G = TOUR.generation;
+const MEDIA = TOUR.media;
+type MediaKind = 'photo' | 'log';
+type GenQuestion = 'prompt' | 'list';
+interface GenConfig { maxTokens?: number; temperature?: number; seed?: number; stop?: string[] }
+const genSystem = (question: GenQuestion) => question === 'list' ? G.listSystem : TOUR.system;
+const genText = (question: GenQuestion) => question === 'list' ? G.listQuestion : TOUR.prompt;
+/** A number as the language writes a float literal (1.5, 1.0). */
+const float = (n: number) => Number.isInteger(n) ? `${n}.0` : String(n);
 const FILE = () => q(V.file);
 /** The places, as quoted values in any language's list syntax. */
 const placeList = (other: boolean) => [...X.places, ...(other ? [X.other] : [])].map(p => q(p)).join(', ');
@@ -358,6 +383,66 @@ ${models.map(m => `    ${q(m)},`).join('\n')}
   connUrlRouter: (server, url) => `router = ${api('LMRouter')}(${api('RouterConfig')}(
     base_urls={${q(server)}: ${q(url)}},
 ))`,
+  mediaAsk: (model, which) => {
+    const m = MEDIA[which], name = which === 'photo' ? 'photo' : 'logbook', fn = which === 'photo' ? 'image' : 'document';
+    const line = `${name} = ${api(fn)}(path=${q(m.file)}, media_type=${q(m.mediaType)})`;
+    const part = plain(line).length <= WIDTH ? line : `${name} = ${api(fn)}(
+    path=${q(m.file)}, media_type=${q(m.mediaType)},
+)`;
+    return `${part}
+request = ${api('Request')}(
+    model=${q(model)},
+    system=${q(TOUR.system)},
+    messages=[${api('Message.user')}([
+        ${q(m.question)},
+        ${name},
+    ])],
+)
+router = ${api('LMRouter')}()
+response = ${api('router.complete')}(request)
+print(response.text)
+print(response.usage.input_tokens, "tokens in")`;
+  },
+  genRequest: (model, question, cfg) => {
+    const args = [
+      ...(cfg.maxTokens !== undefined ? [`max_tokens=${val(String(cfg.maxTokens))}`] : []),
+      ...(cfg.temperature !== undefined ? [`temperature=${val(float(cfg.temperature))}`] : []),
+      ...(cfg.seed !== undefined ? [`seed=${val(String(cfg.seed))}`] : []),
+      ...(cfg.stop ? [`stop=[${cfg.stop.map(q).join(', ')}]`] : []),
+    ];
+    return `request = ${api('Request')}(
+    model=${q(model)},
+    system=${q(genSystem(question))},
+    messages=[${api('Message.user')}(${q(genText(question))})],
+    config=${api('Config')}(${args.join(', ')}),
+)`;
+  },
+  genShow: () => `router = ${api('LMRouter')}()
+response = ${api('router.complete')}(request)
+print(response.text)
+print(response.finish_reason)`,
+  genTemperature: model => `router = ${api('LMRouter')}()
+for temperature in [${val('0.0')}, ${val('1.0')}]:
+    for run in range(2):
+        response = ${api('router.complete')}(${api('Request')}(
+            model=${q(model)},
+            system=${q(TOUR.system)},
+            messages=[${api('Message.user')}(${q(TOUR.prompt)})],
+            config=${api('Config')}(temperature=temperature),
+        ))
+        print(temperature, response.text)`,
+  genAdapt: () => `router = ${api('LMRouter')}()
+response = ${api('router.complete')}(request)
+print(response.text)
+for a in response.${api('adaptations')}:
+    print(a.field, a.action)`,
+  genPlan: () => `for a in ${api('router.plan')}(request):
+    print(a.field, a.action)`,
+  genRefuse: () => `strict = ${api('LMRouter')}(${api('RouterConfig')}(adaptations=${q('refuse')}))
+try:
+    print(strict.complete(request).text)
+except ${api('UnsupportedFeatureError')} as error:
+    print("Refused:", error.feature)`,
   errCatch: () => `router = ${api('LMRouter')}()
 try:
     response = ${api('router.complete')}(request)
@@ -421,10 +506,13 @@ print(${api('router.complete')}(followup).text)`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['FunctionTool'] : [])].sort();
     const std = [...(uses.search || uses.serde ? ['import json'] : []), ...(uses.env ? ['import os'] : []), ...(uses.errors === 'retry' ? ['import time'] : [])];
-    const errorNames = uses.errors === 'catch' ? ['UnsupportedModelError'] : uses.errors === 'retry' ? ['RETRYABLE_ERRORS'] : [];
-    const lm15 = [...names, ...errorNames, ...(uses.routerConfig ? ['RouterConfig'] : [])].sort();
-    const serde = uses.serde ? `\n${dim('from lm15.serde import request_from_dict, request_to_dict')}` : '';
-    return `${std.length ? `${dim(std.join('\n'))}\n\n` : ''}${dim(`from lm15 import ${lm15.join(', ')}`)}${serde}\n\n${body}`;
+    const errorNames = [...(uses.media ? [] : []), ...(uses.errors === 'catch' ? ['UnsupportedModelError'] : uses.errors === 'retry' ? ['RETRYABLE_ERRORS'] : []), ...(uses.generation ? ['Config', 'RouterConfig', 'UnsupportedFeatureError'] : [])];
+    const lm15 = [...new Set([...names, ...errorNames, ...(uses.routerConfig ? ['RouterConfig'] : [])])].sort();
+    const serde = uses.serde ? `\n${dim('from lm15.serde import request_from_dict, request_to_dict')}` : uses.media ? `\n${dim(`from lm15.types import ${uses.media === 'photo' ? 'image' : 'document'}`)}` : '';
+    // A long import list wraps the way black writes it.
+    const line = `from lm15 import ${lm15.join(', ')}`;
+    const imports = line.length <= WIDTH ? line : `from lm15 import (\n${wrapNames(lm15, '    ')}\n)`;
+    return `${std.length ? `${dim(std.join('\n'))}\n\n` : ''}${dim(imports)}${serde}\n\n${body}`;
   },
 };
 
@@ -610,6 +698,70 @@ ${models.map(m => `  ${q(m)},`).join('\n')}
   connUrlRouter: (server, url) => `const router = new ${api('LMRouter')}({
   baseUrls: { ${q(server)}: ${q(url)} },
 });`,
+  mediaAsk: (model, which) => {
+    const m = MEDIA[which], name = which === 'photo' ? 'photo' : 'logbook', fn = which === 'photo' ? 'image' : 'document';
+    return `const ${name} = ${api(fn)}({
+  path: ${q(m.file)},
+  mediaType: ${q(m.mediaType)},
+});
+const router = new ${api('LMRouter')}();
+const response = await ${api('router.complete')}({
+  model: ${q(model)},
+  system: ${q(TOUR.system)},
+  messages: [${api('Message.user')}([
+    ${q(m.question)},
+    ${name},
+  ])],
+});
+console.log(response.text);
+console.log(response.usage.inputTokens, "tokens in");`;
+  },
+  genRequest: (model, question, cfg) => {
+    const fields = [
+      ...(cfg.maxTokens !== undefined ? [`maxTokens: ${val(String(cfg.maxTokens))}`] : []),
+      ...(cfg.temperature !== undefined ? [`temperature: ${val(String(cfg.temperature))}`] : []),
+      ...(cfg.seed !== undefined ? [`seed: ${val(String(cfg.seed))}`] : []),
+      ...(cfg.stop ? [`stop: [${cfg.stop.map(q).join(', ')}]`] : []),
+    ];
+    return `const request = {
+  model: ${q(model)},
+  system: ${q(genSystem(question))},
+  messages: [${api('Message.user')}(${q(genText(question))})],
+  config: { ${fields.join(', ')} },
+};`;
+  },
+  genShow: () => `const router = new ${api('LMRouter')}();
+const response = await ${api('router.complete')}(request);
+console.log(response.text);
+console.log(response.finishReason);`,
+  genTemperature: model => `const router = new ${api('LMRouter')}();
+for (const temperature of [${val('0')}, ${val('1')}]) {
+  for (let run = 0; run < 2; run++) {
+    const response = await ${api('router.complete')}({
+      model: ${q(model)},
+      system: ${q(TOUR.system)},
+      messages: [${api('Message.user')}(${q(TOUR.prompt)})],
+      config: { temperature },
+    });
+    console.log(temperature, response.text);
+  }
+}`,
+  genAdapt: () => `const router = new ${api('LMRouter')}();
+const response = await ${api('router.complete')}(request);
+console.log(response.text);
+for (const a of response.${api('adaptations')}) {
+  console.log(a.field, a.action);
+}`,
+  genPlan: () => `for (const a of await ${api('router.plan')}(request)) {
+  console.log(a.field, a.action);
+}`,
+  genRefuse: () => `const strict = new ${api('LMRouter')}({ adaptations: ${q('refuse')} });
+try {
+  console.log((await strict.complete(request)).text);
+} catch (error) {
+  if (!(error instanceof ${api('UnsupportedFeatureError')})) throw error;
+  console.log("Refused:", error.feature);
+}`,
   errCatch: () => `const router = new ${api('LMRouter')}();
 try {
   const response = await ${api('router.complete')}(request);
@@ -678,7 +830,7 @@ const followup = {
 const router = new ${api('LMRouter')}();
 console.log((await ${api('router.complete')}(followup)).text);`,
   program: (body, uses) => {
-    const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : []), ...(uses.serde ? ['Request'] : uses.schema || uses.typed || uses.errors === 'retry' ? ['type Request'] : []), ...(uses.errors === 'catch' ? ['UnsupportedModelError'] : uses.errors === 'retry' ? ['LM15Error'] : [])];
+    const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : []), ...(uses.serde ? ['Request'] : uses.schema || uses.typed || uses.errors === 'retry' ? ['type Request'] : []), ...(uses.errors === 'catch' ? ['UnsupportedModelError'] : uses.errors === 'retry' ? ['LM15Error'] : []), ...(uses.generation ? ['UnsupportedFeatureError'] : []), ...(uses.media === 'photo' ? ['image'] : uses.media === 'log' ? ['document'] : [])];
     const fs = uses.serde ? `${dim('import { readFileSync, writeFileSync } from "node:fs";')}\n` : '';
     return `${fs}${dim(`import { ${names.join(', ')} } from "lm15";`)}\n\n${body}`;
   },
@@ -890,6 +1042,90 @@ let router = ${api('LMRouter::with_config')}(
   connUrlRouter: (server, url) => `let router = ${api('LMRouter::with_config')}(
     ${api('RouterConfig::new')}().${api('base_url')}(${q(server)}, ${q(url)}),
 )?;`,
+  mediaAsk: (model, which) => {
+    const m = MEDIA[which], name = which === 'photo' ? 'photo' : 'logbook', T = which === 'photo' ? 'ImagePart' : 'DocumentPart', V = which === 'photo' ? 'Image' : 'Document';
+    return `let ${name} = ${api(T)} {
+    media_type: ${q(m.mediaType)}.into(),
+    path: Some(${q(m.file)}.into()),
+    ..Default::default()
+};
+let request = ${api('Request')} {
+    model: ${q(model)}.into(),
+    system: Some(${q(TOUR.system)}.into()),
+    messages: vec![${api('Message::user')}(vec![
+        ${api('Part::text')}(${q(m.question)}),
+        ${api(`Part::${V}`)}(${name}),
+    ])?],
+    ..Default::default()
+};
+let router = ${api('LMRouter::new')}();
+let response = ${api('router.complete')}(&request).await?;
+println!("{}", response.text().unwrap_or_default());
+if let Some(tokens) = response.usage.input_tokens {
+    println!("{tokens} tokens in");
+}`;
+  },
+  genRequest: (model, question, cfg) => {
+    const fields = [
+      ...(cfg.maxTokens !== undefined ? [`max_tokens: Some(${val(String(cfg.maxTokens))}),`] : []),
+      ...(cfg.temperature !== undefined ? [`temperature: Some(${val(float(cfg.temperature))}),`] : []),
+      ...(cfg.seed !== undefined ? [`seed: Some(${val(String(cfg.seed))}),`] : []),
+      ...(cfg.stop ? [`stop: vec![${cfg.stop.map(x => `${q(x)}.into()`).join(', ')}],`] : []),
+    ];
+    return `let request = ${api('Request')} {
+    model: ${q(model)}.into(),
+    system: Some(${q(genSystem(question))}.into()),
+    messages: vec![${api('Message::user')}(${q(genText(question))})?],
+    config: ${api('Config')} {
+${fields.map(f => `        ${f}`).join('\n')}
+        ..Default::default()
+    },
+    ..Default::default()
+};`;
+  },
+  genShow: () => `let router = ${api('LMRouter::new')}();
+let response = ${api('router.complete')}(&request).await?;
+println!("{}", response.text().unwrap_or_default());
+println!("{}", response.finish_reason);`,
+  genTemperature: model => `let router = ${api('LMRouter::new')}();
+for temperature in [${val('0.0')}, ${val('1.0')}] {
+    for _run in 0..2 {
+        let request = ${api('Request')} {
+            model: ${q(model)}.into(),
+            system: Some(${q(TOUR.system)}.into()),
+            messages: vec![${api('Message::user')}(${q(TOUR.prompt)})?],
+            config: ${api('Config')} {
+                temperature: Some(temperature),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = ${api('router.complete')}(&request).await?;
+        let text = response.text().unwrap_or_default();
+        println!("{temperature} {text}");
+    }
+}`,
+  genAdapt: () => `let router = ${api('LMRouter::new')}();
+let response = ${api('router.complete')}(&request).await?;
+println!("{}", response.text().unwrap_or_default());
+for a in &response.${api('adaptations')} {
+    println!("{} {}", a.field, a.action);
+}`,
+  genPlan: () => `for a in ${api('router.plan')}(&request)? {
+    println!("{} {}", a.field, a.action);
+}`,
+  genRefuse: () => `let strict = ${api('LMRouter::with_config')}(
+    ${api('RouterConfig::new')}().${api('adaptations')}(${api('AdaptationPolicy::Refuse')}),
+)?;
+match strict.complete(&request).await {
+    Ok(response) => {
+        println!("{}", response.text().unwrap_or_default());
+    }
+    Err(e) if e.${api('is_a')}(${api('ErrorClass::UnsupportedFeatureError')}) => {
+        println!("Refused: {}", e.${api('feature')}().unwrap_or_default());
+    }
+    Err(e) => return Err(e.into()),
+}`,
   errCatch: () => `let router = ${api('LMRouter::new')}();
 match ${api('router.complete')}(&request).await {
     Ok(response) => {
@@ -976,7 +1212,7 @@ let router = ${api('LMRouter::new')}();
 let response = ${api('router.complete')}(&followup).await?;
 println!("{}", response.text().unwrap_or_default());`,
   program: (body, uses) => {
-    const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.loop ? ['FinishReason'] : []), ...(uses.search ? ['JsonObject'] : []), ...(uses.routerConfig ? ['RouterConfig'] : []), ...(uses.errors === 'catch' ? ['ErrorClass'] : uses.errors === 'retry' ? ['Lm15Error', 'Response'] : [])].sort();
+    const names = ['LMRouter', 'Message', 'Request', ...(uses.config ? ['Config'] : []), ...(uses.tool ? ['FunctionTool', 'Tool'] : []), ...(uses.stream ? ['ResponseStream'] : []), ...(uses.loop ? ['FinishReason'] : []), ...(uses.search ? ['JsonObject'] : []), ...(uses.routerConfig ? ['RouterConfig'] : []), ...(uses.errors === 'catch' ? ['ErrorClass'] : uses.errors === 'retry' ? ['Lm15Error', 'Response'] : []), ...(uses.generation ? ['AdaptationPolicy', 'Config', 'ErrorClass', 'RouterConfig'] : []), ...(uses.media === 'photo' ? ['ImagePart', 'Part'] : uses.media === 'log' ? ['DocumentPart', 'Part'] : [])].filter((n, i, all) => all.indexOf(n) === i).sort();
     const deps = ['lm15', uses.errors === 'retry' ? 'tokio (macros, rt-multi-thread, time)' : 'tokio (macros, rt-multi-thread)', ...(uses.tool || uses.schema || uses.serde ? ['serde_json'] : []), ...(uses.stream ? ['futures-util'] : [])];
     return [
       ...(uses.stream ? [dim('use futures_util::StreamExt;')] : []),
@@ -1224,6 +1460,97 @@ ${dim('if err != nil {\n    panic(err)\n}')}`,
     BaseURLs: map[string]string{${q(server)}: ${q(url)}},
 })
 ${dim('if err != nil {\n    panic(err)\n}')}`,
+  mediaAsk: (model, which) => {
+    const m = MEDIA[which], name = which === 'photo' ? 'photo' : 'logbook', fn = which === 'photo' ? 'lm15.Image' : 'lm15.Document';
+    return `${name} := ${api(fn)}(${api('lm15.WithPath')}(${q(m.file)}))
+request := &${api('lm15.Request')}{
+    Model:  ${q(model)},
+    System: ${api('lm15.System')}(${q(TOUR.system)}),
+    Messages: []${api('lm15.Message')}{
+        ${api('lm15.UserParts')}(
+            ${api('lm15.Text')}(${q(m.question)}),
+            ${name},
+        ),
+    },
+}
+router := ${api('lm15.NewRouter')}()
+response, err := ${api('router.Complete')}(context.Background(), request)
+${dim('if err != nil {\n    panic(err)\n}')}
+fmt.Println(response.TextOr(""))
+if in := response.Usage.InputTokens; in != nil {
+    fmt.Println(*in, "tokens in")
+}`;
+  },
+  genRequest: (model, question, cfg) => {
+    const entries: [string, string][] = [
+      ...(cfg.maxTokens !== undefined ? [['MaxTokens', `${api('lm15.I')}(${val(String(cfg.maxTokens))})`] as [string, string]] : []),
+      ...(cfg.temperature !== undefined ? [['Temperature', `${api('lm15.F')}(${val(String(cfg.temperature))})`] as [string, string]] : []),
+      ...(cfg.seed !== undefined ? [['Seed', `${api('lm15.I')}(${val(String(cfg.seed))})`] as [string, string]] : []),
+      ...(cfg.stop ? [['Stop', `[]string{${cfg.stop.map(q).join(', ')}}`] as [string, string]] : []),
+    ];
+    const pad = Math.max(...entries.map(([k]) => k.length)) + 1;
+    const fields = entries.map(([k, v]) => `${`${k}:`.padEnd(pad + 1)}${v}`);
+    return `request := &${api('lm15.Request')}{
+    Model:  ${q(model)},
+    System: ${api('lm15.System')}(${q(genSystem(question))}),
+    Messages: []${api('lm15.Message')}{
+        ${api('lm15.UserMessage')}(${q(genText(question))}),
+    },
+    Config: ${api('lm15.Config')}{
+${fields.map(f => `        ${f},`).join('\n')}
+    },
+}`;
+  },
+  genShow: () => `router := ${api('lm15.NewRouter')}()
+response, err := ${api('router.Complete')}(context.Background(), request)
+${dim('if err != nil {\n    panic(err)\n}')}
+fmt.Println(response.TextOr(""))
+fmt.Println(response.FinishReason)`,
+  genTemperature: model => `router := ${api('lm15.NewRouter')}()
+ctx := context.Background()
+for _, temperature := range []float64{${val('0')}, ${val('1')}} {
+    for run := 0; run < 2; run++ {
+        request := &${api('lm15.Request')}{
+            Model:  ${q(model)},
+            System: ${api('lm15.System')}(${q(TOUR.system)}),
+            Messages: []${api('lm15.Message')}{
+                ${api('lm15.UserMessage')}(${q(TOUR.prompt)}),
+            },
+            Config: ${api('lm15.Config')}{Temperature: ${api('lm15.F')}(temperature)},
+        }
+        response, err := ${api('router.Complete')}(ctx, request)
+${dim('        if err != nil {\n            panic(err)\n        }')}
+        fmt.Println(temperature, response.TextOr(""))
+    }
+}`,
+  genAdapt: () => `router := ${api('lm15.NewRouter')}()
+response, err := ${api('router.Complete')}(context.Background(), request)
+${dim('if err != nil {\n    panic(err)\n}')}
+fmt.Println(response.TextOr(""))
+for _, a := range response.${api('Adaptations')} {
+    fmt.Println(a.Field, a.Action)
+}`,
+  genPlan: () => `records, err := ${api('router.Plan')}(request)
+${dim('if err != nil {\n    panic(err)\n}')}
+for _, a := range records {
+    fmt.Println(a.Field, a.Action)
+}`,
+  genRefuse: () => `strict, err := ${api('lm15.NewRouterWithConfig')}(${api('lm15.RouterConfig')}{
+    ${api('Adaptations')}: ${q('refuse')},
+})
+${dim('if err != nil {\n    panic(err)\n}')}
+answer, err := strict.Complete(context.Background(), request)
+var lmErr *${api('lm15.Error')}
+refused := errors.As(err, &lmErr) &&
+    lmErr.Kind.${api('IsA')}(${api('lm15.KindUnsupportedFeature')})
+switch {
+case err == nil:
+    fmt.Println(answer.TextOr(""))
+case refused:
+    fmt.Println("Refused:", lmErr.${api('Feature')})
+default:
+    panic(err)
+}`,
   errCatch: () => `router := ${api('lm15.NewRouter')}()
 response, err := ${api('router.Complete')}(context.Background(), request)
 var lmErr *${api('lm15.Error')}
@@ -1324,7 +1651,7 @@ response, err := ${api('router.Complete')}(context.Background(), saved)
 ${dim('if err != nil {\n    panic(err)\n}')}
 fmt.Println(response.TextOr(""))`,
   program: (body, uses) => [
-    dim(`package main\n\nimport (\n    "context"\n${uses?.search || uses?.serde ? '    "encoding/json"\n' : ''}${uses?.errors ? '    "errors"\n' : ''}    "fmt"\n${uses?.errors === 'retry' ? '    "math"\n' : ''}${uses?.env || uses?.serde ? '    "os"\n' : ''}${uses?.search ? '    "strings"\n' : ''}${uses?.errors === 'retry' ? '    "time"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {`),
+    dim(`package main\n\nimport (\n    "context"\n${uses?.search || uses?.serde ? '    "encoding/json"\n' : ''}${uses?.errors || uses?.generation ? '    "errors"\n' : ''}    "fmt"\n${uses?.errors === 'retry' ? '    "math"\n' : ''}${uses?.env || uses?.serde ? '    "os"\n' : ''}${uses?.search ? '    "strings"\n' : ''}${uses?.errors === 'retry' ? '    "time"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {`),
     indent(body, '    '),
     dim('}'),
   ].join('\n'),
@@ -1508,6 +1835,67 @@ ${models.map((m, i) => `  ${q(m)}${i < models.length - 1 ? ',' : ''}`).join('\n'
 )`,
   connUrlRouter: (server, url) => `router <- ${api('new_router')}(
   base_urls = list(${q(server)} = ${q(url)})
+)`,
+  mediaAsk: (model, which) => {
+    const m = MEDIA[which], name = which === 'photo' ? 'photo' : 'logbook', fn = which === 'photo' ? 'image_part' : 'document_part';
+    return `${name} <- ${api(fn)}(
+  path = ${q(m.file)},
+  media_type = ${q(m.mediaType)}
+)
+req <- ${api('request')}(
+  ${q(model)},
+  list(${api('message_user')}(list(
+    ${q(m.question)},
+    ${name}
+  ))),
+  system = ${q(TOUR.system)}
+)
+router <- ${api('new_router')}()
+response <- ${api('complete')}(router, req)
+${api('response_text')}(response)
+response$usage$input_tokens`;
+  },
+  genRequest: (model, question, cfg) => {
+    const args = [
+      ...(cfg.maxTokens !== undefined ? [`max_tokens = ${val(String(cfg.maxTokens))}`] : []),
+      ...(cfg.temperature !== undefined ? [`temperature = ${val(String(cfg.temperature))}`] : []),
+      ...(cfg.seed !== undefined ? [`seed = ${val(String(cfg.seed))}`] : []),
+      ...(cfg.stop ? [`stop = list(${cfg.stop.map(q).join(', ')})`] : []),
+    ];
+    return `req <- ${api('request')}(
+  ${q(model)},
+  list(${api('message_user')}(${q(genText(question))})),
+  system = ${q(genSystem(question))},
+  config = ${api('config')}(${args.join(', ')})
+)`;
+  },
+  genShow: () => `router <- ${api('new_router')}()
+response <- ${api('complete')}(router, req)
+${api('response_text')}(response)
+response$finish_reason`,
+  genTemperature: model => `router <- ${api('new_router')}()
+for (temperature in c(${val('0')}, ${val('1')})) {
+  for (run in 1:2) {
+    req <- ${api('request')}(
+      ${q(model)},
+      list(${api('message_user')}(${q(TOUR.prompt)})),
+      system = ${q(TOUR.system)},
+      config = ${api('config')}(temperature = temperature)
+    )
+    cat(temperature, ${api('response_text')}(${api('complete')}(router, req)), "\\n")
+  }
+}`,
+  genAdapt: () => `router <- ${api('new_router')}()
+response <- ${api('complete')}(router, req)
+${api('response_text')}(response)
+for (a in response$${api('adaptations')}) cat(a$field, a$action, "\\n")`,
+  genPlan: () => `for (a in ${api('plan')}(router, req)) cat(a$field, a$action, "\\n")`,
+  genRefuse: () => `strict <- ${api('new_router')}(adaptations = ${q('refuse')})
+tryCatch(
+  ${api('response_text')}(${api('complete')}(strict, req)),
+  ${api('UnsupportedFeatureError')} = function(error) {
+    cat("Refused:", error$feature, "\\n")
+  }
 )`,
   errCatch: () => `router <- ${api('new_router')}()
 tryCatch(
@@ -1741,6 +2129,70 @@ end`,
   connUrlRouter: (server, url) => `router = ${api('LMRouter')}(${api('RouterConfig')}(
     base_urls=Dict(${q(server)} => ${q(url)}),
 ))`,
+  mediaAsk: (model, which) => {
+    const m = MEDIA[which], name = which === 'photo' ? 'photo' : 'logbook', fn = which === 'photo' ? 'image' : 'document';
+    const line = `${name} = ${api(fn)}(path=${q(m.file)}, media_type=${q(m.mediaType)})`;
+    const part = plain(line).length <= WIDTH ? line : `${name} = ${api(fn)}(
+    path=${q(m.file)}, media_type=${q(m.mediaType)},
+)`;
+    return `${part}
+req = ${api('Request')}(
+    ${q(model)},
+    ${api('user')}([
+        ${q(m.question)},
+        ${name},
+    ]);
+    system=${q(TOUR.system)},
+)
+router = ${api('LMRouter')}()
+response = ${api('complete')}(router, req)
+println(${api('text')}(response))
+println(response.usage.input_tokens, " tokens in")`;
+  },
+  genRequest: (model, question, cfg) => {
+    const args = [
+      ...(cfg.maxTokens !== undefined ? [`max_tokens=${val(String(cfg.maxTokens))}`] : []),
+      ...(cfg.temperature !== undefined ? [`temperature=${val(float(cfg.temperature))}`] : []),
+      ...(cfg.seed !== undefined ? [`seed=${val(String(cfg.seed))}`] : []),
+      ...(cfg.stop ? [`stop=[${cfg.stop.map(q).join(', ')}]`] : []),
+    ];
+    return `req = ${api('Request')}(
+    ${q(model)},
+    ${api('user')}(${q(genText(question))});
+    system=${q(genSystem(question))},
+    config=${api('Config')}(${args.join(', ')}),
+)`;
+  },
+  genShow: () => `router = ${api('LMRouter')}()
+response = ${api('complete')}(router, req)
+println(${api('text')}(response))
+println(response.finish_reason)`,
+  genTemperature: model => `router = ${api('LMRouter')}()
+for temperature in (${val('0.0')}, ${val('1.0')}), run in 1:2
+    req = ${api('Request')}(
+        ${q(model)},
+        ${api('user')}(${q(TOUR.prompt)});
+        system=${q(TOUR.system)},
+        config=${api('Config')}(; temperature),
+    )
+    println(temperature, " ", ${api('text')}(${api('complete')}(router, req)))
+end`,
+  genAdapt: () => `router = ${api('LMRouter')}()
+response = ${api('complete')}(router, req)
+println(${api('text')}(response))
+for a in response.${api('adaptations')}
+    println(a.field, " ", a.action)
+end`,
+  genPlan: () => `for a in ${api('plan')}(router, req)
+    println(a.field, " ", a.action)
+end`,
+  genRefuse: () => `strict = ${api('LMRouter')}(${api('RouterConfig')}(adaptations=${q('refuse')}))
+try
+    println(${api('text')}(${api('complete')}(strict, req)))
+catch error
+    error isa ${api('UnsupportedFeatureError')} || rethrow()
+    println("Refused: ", error.feature)
+end`,
   errCatch: () => `router = ${api('LMRouter')}()
 try
     println(${api('text')}(${api('complete')}(router, req)))
@@ -1827,6 +2279,13 @@ function fitted(language: Language, w: Writer): Writer {
     connLoop: models => f(w.connLoop(models)),
     connKeyRouter: provider => f(w.connKeyRouter(provider)),
     connUrlRouter: (server, url) => f(w.connUrlRouter(server, url)),
+    mediaAsk: (model, which) => f(w.mediaAsk(model, which)),
+    genRequest: (model, question, cfg) => f(w.genRequest(model, question, cfg)),
+    genShow: () => f(w.genShow()),
+    genTemperature: model => f(w.genTemperature(model)),
+    genAdapt: () => f(w.genAdapt()),
+    genPlan: () => f(w.genPlan()),
+    genRefuse: () => f(w.genRefuse()),
     errCatch: () => f(w.errCatch()),
     errRetry: () => f(w.errRetry()),
     errUse: () => f(w.errUse()),
@@ -1873,6 +2332,14 @@ function marked(language: Language, view: TourView, model: string): string {
     case 'conn-key': return connKey(w, model);
     case 'conn-local': return `${w.request(C.localModel, partsOf('request'))}\n\n${w.ask()}`;
     case 'conn-custom': return connCustom(w, C.serverUrl);
+    case 'media-photo': return w.mediaAsk(model, 'photo');
+    case 'media-log': return w.mediaAsk(model, 'log');
+    case 'gen-short': return `${w.genRequest(model, 'prompt', { maxTokens: G.shortLimit })}\n\n${w.genShow()}`;
+    case 'gen-temperature': return w.genTemperature(model);
+    case 'gen-stop': return `${w.genRequest(model, 'list', { stop: [G.stop] })}\n\n${w.genShow()}`;
+    case 'gen-adapt': return `${w.genRequest(model, 'prompt', { temperature: G.hot, seed: G.seed })}\n\n${w.genAdapt()}`;
+    case 'gen-plan': return w.genPlan();
+    case 'gen-refuse': return w.genRefuse();
     case 'err-catch': return errCatch(w, model);
     case 'err-retry': return w.errRetry();
     case 'err-use': return w.errUse();
@@ -1914,6 +2381,27 @@ function errCatch(w: Writer, model: string): string {
 function errRetryProgram(w: Writer, model: string): string {
   return `${w.errRetry()}\n\n${w.request(model, partsOf('system'))}\n\n${w.errUse()}`;
 }
+/** Whole programs for the media page, for a real provider: what the capture script runs. */
+export function mediaPrograms(language: Language, provider: string, model: string): Record<MediaKind, string> {
+  const w = WRITERS[language];
+  const program = (which: MediaKind) => done(w.program(w.mediaAsk(`${provider}:${model}`, which), { tool: false, config: false, stream: false, media: which })).text;
+  return { photo: program('photo'), log: program('log') };
+}
+
+/** Whole programs for the generation page, for a real provider: what the capture script runs. */
+export function generationPrograms(language: Language, provider: string, model: string): Record<string, string> {
+  const w = WRITERS[language];
+  const id = `${provider}:${model}`;
+  // Only the program that refuses needs the refusal's names.
+  const program = (body: string, refuses = false) => done(w.program(body, { tool: false, config: true, stream: false, generation: refuses })).text;
+  return {
+    short: program(`${w.genRequest(id, 'prompt', { maxTokens: G.shortLimit })}\n\n${w.genShow()}`),
+    temperature: program(w.genTemperature(id)),
+    stop: program(`${w.genRequest(id, 'list', { stop: [G.stop] })}\n\n${w.genShow()}`),
+    adapt: program(`${w.genRequest(id, 'prompt', { temperature: G.hot, seed: G.seed })}\n\n${w.genAdapt()}\n\n${w.genPlan()}\n\n${w.genRefuse()}`, true),
+  };
+}
+
 /** Whole programs for the errors page, for a real provider: what the capture script runs. */
 export function errorPrograms(language: Language, provider: string, model: string): { catch: string; retry: string } {
   const w = WRITERS[language];
@@ -1963,6 +2451,10 @@ export interface TourProgram {
   notFound?: boolean;
   /** The stand-in answers the first request with a rate limit (429, Retry-After: 0), then normally. */
   rateLimitedFirst?: boolean;
+  /** Files the program reads, copied from public/docs-media into its folder before it runs. */
+  files?: string[];
+  /** The program must be refused before anything is sent: it fails, sends nothing, and says this. */
+  refuses?: RegExp;
 }
 
 /** Where the run test's stand-in server listens (scripts/docs-fixture-server.py). */
@@ -2018,5 +2510,20 @@ export function tourPrograms(language: Language, provider: string, model: string
     { name: 'err-catch', source: errorPrograms(language, provider, model).catch, streams: false, notFound: true, expect: [`No such model at ${provider}`] },
     { name: 'err-retry', source: done(w.program(errRetryProgram(w, `${provider}:${BUSY_MODEL}`), { ...plainUses, errors: 'retry' })).text, streams: false, rateLimitedFirst: true, requests: 2, expect: ['RateLimitError, waiting', STAND_IN_REPLY] },
   ];
-  return [{ name: 'first', source: done(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: done(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured, ...connect, ...conversation, ...errorsPage];
+  // The generation page: a length limit, temperature, a stop sequence; adaptations, their preview, and refusing them.
+  const gen = generationPrograms(language, provider, model);
+  const generationPage: TourProgram[] = [
+    { name: 'gen-short', source: gen.short!, streams: false, expect: [STAND_IN_REPLY, 'stop'] },
+    { name: 'gen-temperature', source: gen.temperature!, streams: false, requests: 4 },
+    { name: 'gen-stop', source: gen.stop!, streams: false },
+    { name: 'gen-adapt', source: gen.adapt!, streams: false, requests: 2 },
+  ];
+  // The media page: a photo, which every wire carries; a PDF, which the Chat Completions wire
+  // (the stand-in speaks it) has no slot for, so every language must refuse it before sending.
+  const media = mediaPrograms(language, provider, model);
+  const mediaPage: TourProgram[] = [
+    { name: 'media-photo', source: media.photo, streams: false, files: [MEDIA.photo.file] },
+    { name: 'media-log', source: media.log, streams: false, files: [MEDIA.log.file], requests: 0, refuses: /document/i },
+  ];
+  return [{ name: 'first', source: done(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: done(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured, ...connect, ...conversation, ...errorsPage, ...generationPage, ...mediaPage];
 }

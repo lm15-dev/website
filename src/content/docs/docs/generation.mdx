@@ -1,0 +1,201 @@
+---
+title: Control generation
+description: Cap an answer's length, turn its randomness up or down, and tell it where to stop, with one set of settings for every provider. See what LM15 records when a provider can't take a setting as asked, preview it without sending, or refuse instead.
+---
+
+import DocsExample from '../../../components/DocsExample.astro';
+import CapturedOutput from '../../../components/CapturedOutput.astro';
+import captures from '../../../data/generation-captures.json';
+import TOUR from '../../../data/tour-text.json';
+
+export const G = TOUR.generation;
+export const record = (field) => captures.records.find((r) => r.field === field);
+
+When you send a model a question, you control more than the question. You can
+cap how long the answer may be, tell the model where to stop, and turn up or
+down how much chance goes into its choice of words. These settings matter most
+when a program reads the answer rather than a person, because a program needs
+answers of a predictable length and shape. The difficulty is that every
+provider offers a slightly different set of settings, each with its own
+limits. LM15 gives you one set of settings for every provider, and when a
+provider can't take one as you asked, it adapts the request and tells you
+exactly what it changed.
+
+On this page, you’ll learn the three settings you’ll use most: a length limit,
+temperature, and stop sequences. We’ll start by looking at what each one does
+to a real answer. Then we’ll send settings that a provider can’t honour as
+written, and read the record of what LM15 changed. We’ll finish by previewing
+that record without sending anything, and by asking LM15 to refuse instead of
+adapting.
+
+To run the examples, you’ll need LM15 installed and an API key; see
+[Make your first request](/docs/first-request/). The answers on this page were
+recorded with Anthropic, and each box says which model.
+
+## A length limit
+
+The examples in these guides follow [one small program](/docs/#the-example-well-build):
+an assistant for a wildlife research station. A request’s settings are a group
+of their own, next to its instructions and messages. Here is the station’s
+first question with a tight length limit:
+
+<DocsExample recipe="gen-short" />
+
+<CapturedOutput set="generation" step="short" />
+
+The answer stops in the middle of a list, after {G.shortLimit} tokens (a token
+is a word, or a piece of one), and the finish reason says why: `length`. A
+length limit is a ceiling, not a target. The model doesn’t plan a shorter
+answer to fit; it stops when it reaches the limit, wherever it is.
+
+So check the finish reason before you use an answer: `stop` means the model
+finished what it was saying, and `length` means it was cut off. A good rule of
+thumb is to set the limit high enough that `stop` is the usual outcome, and to
+ask for brevity in the instructions instead, as the station’s instructions do
+with “Answer in two sentences.”
+
+## Temperature
+
+Each time a model writes a word, it chooses among the words that could come
+next. Temperature controls how much chance goes into that choice. At 0, the
+model nearly always takes the most likely word; higher values give less likely
+words more of a chance. Here is the same question, sent twice at each of two
+temperatures:
+
+<DocsExample recipe="gen-temperature" />
+
+<CapturedOutput set="generation" step="temperature" />
+
+At 0, the two answers are identical, word for word. At 1, they start in much the
+same way and then part: one suggests a camera trap, the other looking for
+tracks and scat. A low temperature suits answers a program will read or
+compare; a higher one suits drafts and ideas. Don’t build a program that relies
+on identical output, though: providers don’t promise it even at 0, and a new
+version of a model changes its answers anyway.
+
+The range is from 0 to 2. Not every provider accepts all of it; we’ll come back
+to that in [When a provider can’t take a setting](#when-a-provider-cant-take-a-setting).
+
+## Stop sequences
+
+A stop sequence is a piece of text at which the model stops writing. It’s
+useful when you only want part of what the model would produce. Here the
+station asks for five animals, and stops at the fourth:
+
+<DocsExample recipe="gen-stop" />
+
+<CapturedOutput set="generation" step="stop" />
+
+The model wrote a heading and three animals, reached “{G.stop}”, and stopped. The
+stop sequence itself isn’t part of the answer, and the finish reason is `stop`.
+The heading was the model’s own idea; instructions, not stop sequences, are
+how you shape what comes before the stop.
+
+Not every provider has stop sequences. OpenAI’s Responses API has none, so
+LM15 applies them itself: it receives the answer as it’s written and closes the
+connection as soon as the sequence appears. The price is the token counts,
+which the provider only sends at the very end, so a response cut this way
+reports none.
+
+## When a provider can’t take a setting
+
+The settings are the same for every provider, but the providers aren’t.
+Anthropic, for example, accepts temperatures up to 1, not 2, and it has no seed
+at all. (A seed asks the provider to make its random choices repeatable.) Send
+both anyway, and print what comes back with the answer:
+
+<DocsExample recipe="gen-adapt" />
+
+<CapturedOutput set="generation" step="adapt" />
+
+The request went through, and the response carries a record of three changes,
+one line each:
+
+- The temperature was **clamped** from {record('config.temperature').asked} to
+  {record('config.temperature').applied.toFixed(1)}, the highest value Anthropic
+  accepts.
+- The seed was **dropped**, because Anthropic’s API has nowhere to put it.
+- The length limit was **defaulted**: Anthropic requires one, the request had
+  none, and LM15 sent the model’s own ceiling of
+  {record('config.max_tokens').applied.toLocaleString('en-US')} tokens.
+
+Each record names the setting, what LM15 did, what you asked for, what was
+sent, and a one-sentence reason. There are six things LM15 can do:
+
+| Action | What it means |
+| --- | --- |
+| `dropped` | The provider has nowhere to put the setting, so it was left out. |
+| `clamped` | A value outside the provider’s range was moved to the nearest one it accepts. |
+| `substituted` | The closest equivalent was sent instead. |
+| `client_side` | LM15 does it itself, like a stop sequence on the Responses API. |
+| `satisfied` | The provider already behaves the way you asked. |
+| `defaulted` | The provider requires a value you didn’t set, so LM15 supplied one. |
+
+Nothing is printed unless you look. The record is data on the response, so
+your program can ignore it, log it, or act on it. LM15 makes a change like
+these only when the change is the obvious one. When adapting would mean
+guessing in a way that could cost money or break your program, it refuses
+instead, before anything is sent. For example, OpenAI Codex has no length limit,
+and LM15 refuses one rather than quietly remove it (see
+[Make your first request](/docs/first-request/#when-something-goes-wrong)).
+
+## Preview without sending
+
+You can see these changes before you send anything. The router builds the
+request, keeps the record, and throws the request away:
+
+<DocsExample recipe="gen-plan" />
+
+<CapturedOutput set="generation" step="plan" />
+
+It’s the same record as before, and nothing was sent, so it cost nothing. Use
+it to check a request against several providers before you choose one.
+
+## Refuse instead
+
+Sometimes a changed setting is worse than no answer: in a test suite, or when
+you compare providers and each one must get exactly the same request. Tell the
+router to refuse instead of adapting:
+
+<DocsExample recipe="gen-refuse" />
+
+<CapturedOutput set="generation" step="refuse" />
+
+This time nothing was sent. The error names the setting it refused, so your
+program can remove it and try again. Only changes to what you asked for are
+refused: a `defaulted` length limit, or a setting the provider already
+`satisfied`, changes nothing you asked, so it goes through and is still
+recorded. There’s a third choice, `silent`, which adapts in the same way but
+leaves the record off the response.
+
+## Try it yourself
+
+Predict what will happen before you run each one.
+
+1. Under `refuse`, send only a temperature of {G.hot} to Anthropic, with no
+   seed. Which setting does the error name? Is the missing length limit
+   refused too?
+2. Send a temperature of {G.hot} to Google Gemini, which accepts values up to
+   2. Will the response carry a record?
+3. Change the stop sequence to “Raccoons”. What will the answer end with?
+
+<details>
+<summary>What to expect</summary>
+
+1. `config.temperature`. The length limit isn’t refused: supplying a value you
+   didn’t set changes nothing you asked for, so it’s recorded as `defaulted`
+   and the request goes on, until the temperature is refused.
+2. No. The value is within Gemini’s range, so it’s sent as you wrote it, and
+   there’s nothing to record.
+3. With whatever came just before the word “Raccoons”, if the model lists
+   them at all. The stop sequence can appear anywhere in the text, not only at
+   the start of a line, and it’s never included in the answer.
+
+</details>
+
+## Next
+
+Reasoning models have one more setting: how much they think before they
+answer. [Work with reasoning models](/docs/reasoning/) covers it. The answer
+format is a setting too, and it has
+[a page of its own](/docs/structured-output/).

@@ -86,5 +86,32 @@
     ],
     "nextDay": "Which of those should we look for first?",
     "file": "conversation.json"
+  },
+  "generation": {
+    "shortLimit": 20,
+    "listSystem": "You are the field assistant for a wildlife research station.",
+    "listQuestion": "List five animals that might eat acorns at night, one per line, numbered.",
+    "stop": "4.",
+    "hot": 1.5,
+    "seed": 42
+  },
+  "media": {
+    "photo": {
+      "file": "badger.jpg",
+      "mediaType": "image/jpeg",
+      "question": "What animal is this, and what is it doing?"
+    },
+    "log": {
+      "file": "oak-grove-log.pdf",
+      "mediaType": "application/pdf",
+      "question": "Which animals did this camera record, and on how many nights did it see each one?"
+    },
+    "credit": {
+      "author": "peupleloup",
+      "title": "Blaireau au début de la nuit",
+      "license": "CC BY-SA 2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Blaireau_au_d%C3%A9but_de_la_nuit_(14968237296).jpg"
+    }
   }
 }
