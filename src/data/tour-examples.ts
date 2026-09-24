@@ -151,7 +151,13 @@ const X = TOUR.extract;
 const placeList = (other: boolean) => [...X.places, ...(other ? [X.other] : [])].map(p => q(p)).join(', ');
 
 const q = (text: string) => `"${val(text)}"`;
-const indent = (text: string, by: string) => text.split('\n').map(line => (line ? by + line : line)).join('\n');
+/** Starts a line that continues a multi-line string: program frames don't indent it, and it is removed before `finish`. */
+const RAW = '\u000e';
+const indent = (text: string, by: string) => text.split('\n').map(line => (!line || line.startsWith(RAW) ? line : by + line)).join('\n');
+/** `finish`, without the multi-line-string sentinels. */
+const done = (marked: string): Code => finish(marked.replaceAll(RAW, ''));
+/** A note's text as a multi-line value: its later lines start at column 0, whatever the frame's indent. */
+const lines = (text: string) => val(text.split('\n').join('\n' + RAW));
 
 const python: Writer = {
   tool: (vague = false) => `sightings_tool = ${api('FunctionTool')}(
@@ -253,7 +259,7 @@ for turn in range(${val(String(TOUR.maxTurns))}):
     messages.append(${api('Message.tool')}(results))
 else:
     raise RuntimeError("still calling tools after ${TOUR.maxTurns} turns")`,
-  soNote: key => `note = ${q(X.notes[key])}`,
+  soNote: key => `note = """${lines(X.notes[key])}"""`,
   soPlain: model => `request = ${api('Request')}(
     model=${q(model)},
     system=${q(X.system)},
@@ -418,7 +424,7 @@ for (let turn = 0; ; turn++) {
   );
   messages.push(${api('Message.tool')}(results));
 }`,
-  soNote: key => `const note = ${q(X.notes[key])};`,
+  soNote: key => `const note = \`${lines(X.notes[key])}\`;`,
   soPlain: model => `const request: ${api('Request')} = {
   model: ${q(model)},
   system: ${q(X.system)},
@@ -604,7 +610,7 @@ for turn in 0.. {
     }
     messages.push(${api('Message::tool_results')}(results)?);
 }`,
-  soNote: key => `let note = ${q(X.notes[key])};`,
+  soNote: key => `let note = r"${lines(X.notes[key])}";`,
   soPlain: model => `let request = ${api('Request')} {
     model: ${q(model)}.into(),
     system: Some(${q(X.system)}.into()),
@@ -824,7 +830,7 @@ ${dim('        if err != nil {\n            panic(err)\n        }')}
     }
     messages = append(messages, ${api('lm15.ToolMessageParts')}(results...))
 }`,
-  soNote: key => `note := ${q(X.notes[key])}`,
+  soNote: key => `note := \`${lines(X.notes[key])}\``,
   soPlain: model => `request := &${api('lm15.Request')}{
     Model:    ${q(model)},
     System:   ${api('lm15.System')}(${q(X.system)}),
@@ -1005,7 +1011,7 @@ if (response$finish_reason == "tool_call") {
   stop("still calling tools after ${TOUR.maxTurns} turns")
 }
 ${api('response_text')}(response)`,
-  soNote: key => `note <- ${q(X.notes[key])}`,
+  soNote: key => `note <- "${lines(X.notes[key])}"`,
   soPlain: model => `req <- ${api('request')}(
   ${q(model)},
   list(${api('message_user')}(note)),
@@ -1162,7 +1168,7 @@ for turn in 1:${val(String(TOUR.maxTurns))}
     push!(messages, ${api('tool_message')}(results...))
 end
 answered || error("still calling tools after ${TOUR.maxTurns} turns")`,
-  soNote: key => `note = ${q(X.notes[key])}`,
+  soNote: key => `note = """${lines(X.notes[key])}"""`,
   soPlain: model => `req = ${api('Request')}(
     ${q(model)},
     ${api('user')}(note);
@@ -1299,7 +1305,7 @@ function streamProgram(w: Writer, model: string): string {
 }
 
 export function tourCode(language: Language, view: TourView, provider: string, model: string): Code {
-  return finish(marked(language, view, `${provider}:${model}`));
+  return done(marked(language, view, `${provider}:${model}`));
 }
 
 /**
@@ -1327,25 +1333,25 @@ export function tourPrograms(language: Language, provider: string, model: string
   const complete = STEPS.map(step => {
     const parts = partsOf(step);
     const body = [...(parts.tools ? [w.tool(), ''] : []), w.request(id, parts), '', w.response()].join('\n');
-    return { name: step, source: finish(w.program(body, { tool: parts.tools, config: parts.config, stream: false })).text, streams: false };
+    return { name: step, source: done(w.program(body, { tool: parts.tools, config: parts.config, stream: false })).text, streams: false };
   });
   // The follow-ups: the first answer, then the second question with or without the conversation.
   const followUps = (['followup', 'forgetful'] as const).map(name => {
     const body = [w.request(id, partsOf('system')), '', w.response(), '', w.followUp(id, name === 'followup')].join('\n');
-    return { name, source: finish(w.program(body, { tool: false, config: false, stream: false })).text, streams: false, requests: 2 };
+    return { name, source: done(w.program(body, { tool: false, config: false, stream: false })).text, streams: false, requests: 2 };
   });
   // The tools page: the call printed; the call answered; the loop.
   const tools = { tool: true, config: false, stream: false };
   const toolPrograms: TourProgram[] = [
-    { name: 'tools-ask', source: finish(w.program(`${w.tool()}\n\n${w.askTool(id)}`, tools)).text, streams: false, toolCall: true, expect: ['search_sightings', 'oak grove'] },
-    { name: 'tools-answer', source: finish(w.program(`${w.search()}\n\n${w.tool()}\n\n${w.askTool(id)}\n\n${w.answerTool()}`, { ...tools, search: true })).text, streams: false, toolCall: true, requests: 2 },
-    { name: 'tools-loop', source: finish(toolLoopProgram(w, id)).text, streams: false, toolCall: true, requests: 2 },
+    { name: 'tools-ask', source: done(w.program(`${w.tool()}\n\n${w.askTool(id)}`, tools)).text, streams: false, toolCall: true, expect: ['search_sightings', 'oak grove'] },
+    { name: 'tools-answer', source: done(w.program(`${w.search()}\n\n${w.tool()}\n\n${w.askTool(id)}\n\n${w.answerTool()}`, { ...tools, search: true })).text, streams: false, toolCall: true, requests: 2 },
+    { name: 'tools-loop', source: done(toolLoopProgram(w, id)).text, streams: false, toolCall: true, requests: 2 },
   ];
   // The structured-output page: plain text; the schema asked and used; the fixed schema on the barn note.
   const structured: TourProgram[] = [
-    { name: 'so-plain', source: finish(w.program(`${w.soNote('stream')}\n\n${w.soPlain(id)}`, { tool: false, config: false, stream: false, typed: true })).text, streams: false },
-    { name: 'so-ask', source: finish(soProgram(w, id, 'stream', false)).text, streams: false, structured: true, expect: ['badger', 'stream'] },
-    { name: 'so-fixed', source: finish(soProgram(w, id, 'barn', true)).text, streams: false, structured: true, expect: ['badger'] },
+    { name: 'so-plain', source: done(w.program(`${w.soNote('stream')}\n\n${w.soPlain(id)}`, { tool: false, config: false, stream: false, typed: true })).text, streams: false },
+    { name: 'so-ask', source: done(soProgram(w, id, 'stream', false)).text, streams: false, structured: true, expect: ['badger', 'stream'] },
+    { name: 'so-fixed', source: done(soProgram(w, id, 'barn', true)).text, streams: false, structured: true, expect: ['badger'] },
   ];
-  return [{ name: 'first', source: finish(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: finish(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured];
+  return [{ name: 'first', source: done(firstProgram(w, id)).text, streams: false }, ...complete, { name: 'program', source: done(streamProgram(w, id)).text, streams: true }, ...followUps, ...toolPrograms, ...structured];
 }

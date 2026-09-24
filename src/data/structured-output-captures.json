@@ -11,7 +11,7 @@
             "parts": [
               {
                 "type": "text",
-                "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                "text": "Checked the stream camera this morning. Three\nbadgers came through overnight, one of them limping.\nA fox passed later, just before dawn."
               }
             ]
           }
@@ -19,11 +19,11 @@
         "system": "You are the field assistant for a wildlife research station. Turn each field note into sighting records."
       },
       "model": "gpt-5.6-sol",
-      "text": "| Species | Count | Time observed | Condition/notes | Detection method |\n|---|---:|---|---|---|\n| Badger | 3 | Overnight | One individual was limping | Stream camera |\n| Fox | 1 | Just before dawn | No unusual condition noted | Stream camera |",
+      "text": "| Record | Location | Species | Count | Time | Notes |\n|---|---|---|---:|---|---|\n| 1 | Stream camera | Badger | 3 | Overnight | One individual was limping. |\n| 2 | Stream camera | Fox | 1 | Just before dawn | Passed after the badgers. |\n\nObservation date was not specified; footage was reviewed this morning.",
       "data": null,
       "finish_reason": "stop",
-      "input_tokens": 59,
-      "output_tokens": 131,
+      "input_tokens": 60,
+      "output_tokens": 156,
       "adaptations": []
     },
     "ask": {
@@ -35,7 +35,7 @@
             "parts": [
               {
                 "type": "text",
-                "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                "text": "Checked the stream camera this morning. Three\nbadgers came through overnight, one of them limping.\nA fox passed later, just before dawn."
               }
             ]
           }
@@ -104,7 +104,7 @@
         ]
       },
       "finish_reason": "stop",
-      "input_tokens": 129,
+      "input_tokens": 130,
       "output_tokens": 41,
       "adaptations": []
     },
@@ -117,7 +117,7 @@
             "parts": [
               {
                 "type": "text",
-                "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                "text": "Around midnight an owl was calling from the old\nbarn roof, probably a tawny. Two hares in the barn\nfield at first light."
               }
             ]
           }
@@ -170,13 +170,13 @@
         }
       },
       "model": "gpt-5.6-sol",
-      "text": "{\"sightings\":[{\"species\":\"tawny owl\",\"count\":1,\"place\":\"oak grove\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
+      "text": "{\"sightings\":[{\"species\":\"tawny owl\",\"count\":1,\"place\":\"meadow\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
       "data": {
         "sightings": [
           {
             "species": "tawny owl",
             "count": 1,
-            "place": "oak grove"
+            "place": "meadow"
           },
           {
             "species": "hare",
@@ -186,8 +186,8 @@
         ]
       },
       "finish_reason": "stop",
-      "input_tokens": 128,
-      "output_tokens": 160,
+      "input_tokens": 130,
+      "output_tokens": 155,
       "adaptations": []
     },
     "fixed": {
@@ -199,7 +199,7 @@
             "parts": [
               {
                 "type": "text",
-                "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                "text": "Around midnight an owl was calling from the old\nbarn roof, probably a tawny. Two hares in the barn\nfield at first light."
               }
             ]
           }
@@ -253,7 +253,7 @@
         }
       },
       "model": "gpt-5.6-sol",
-      "text": "{\"sightings\":[{\"species\":\"tawny owl\",\"count\":1,\"place\":\"other\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
+      "text": "{\"sightings\":[{\"species\":\"tawny owl\",\"count\":1,\"place\":\"other\"},{\"species\":\"hare\",\"count\":2,\"place\":\"other\"}]}",
       "data": {
         "sightings": [
           {
@@ -264,13 +264,13 @@
           {
             "species": "hare",
             "count": 2,
-            "place": "meadow"
+            "place": "other"
           }
         ]
       },
       "finish_reason": "stop",
-      "input_tokens": 130,
-      "output_tokens": 105,
+      "input_tokens": 132,
+      "output_tokens": 121,
       "adaptations": []
     },
     "deer": {
@@ -282,7 +282,7 @@
             "parts": [
               {
                 "type": "text",
-                "text": "Dusk, edge of the oak grove. Two deer browsing on fallen acorns, one small with spots still showing. Too far to be sure of the species: roe or fallow."
+                "text": "Dusk, edge of the oak grove. Two deer browsing on\nfallen acorns, one small with spots still showing.\nToo far to be sure of the species: roe or fallow."
               }
             ]
           }
@@ -347,8 +347,8 @@
         ]
       },
       "finish_reason": "stop",
-      "input_tokens": 140,
-      "output_tokens": 75,
+      "input_tokens": 141,
+      "output_tokens": 71,
       "adaptations": []
     }
   },
@@ -363,7 +363,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                  "text": "Checked the stream camera this morning. Three\nbadgers came through overnight, one of them limping.\nA fox passed later, just before dawn."
                 }
               ]
             }
@@ -433,8 +433,8 @@
           ]
         },
         "finish_reason": "stop",
-        "input_tokens": 131,
-        "output_tokens": 443,
+        "input_tokens": 132,
+        "output_tokens": 296,
         "adaptations": []
       },
       "trap": {
@@ -446,7 +446,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                  "text": "Around midnight an owl was calling from the old\nbarn roof, probably a tawny. Two hares in the barn\nfield at first light."
                 }
               ]
             }
@@ -515,8 +515,8 @@
           ]
         },
         "finish_reason": "stop",
-        "input_tokens": 128,
-        "output_tokens": 442,
+        "input_tokens": 130,
+        "output_tokens": 497,
         "adaptations": []
       }
     },
@@ -530,7 +530,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                  "text": "Checked the stream camera this morning. Three\nbadgers came through overnight, one of them limping.\nA fox passed later, just before dawn."
                 }
               ]
             }
@@ -584,7 +584,7 @@
           }
         },
         "model": "claude-haiku-4-5-20251001",
-        "text": "{\"sightings\": [{\"species\": \"badger\", \"count\": 3, \"place\": \"stream\"}, {\"species\": \"fox\", \"count\": 1, \"place\": \"stream\"}]}",
+        "text": "{\"sightings\":[{\"species\":\"badger\",\"count\":3,\"place\":\"stream\"},{\"species\":\"fox\",\"count\":1,\"place\":\"stream\"}]}",
         "data": {
           "sightings": [
             {
@@ -600,8 +600,8 @@
           ]
         },
         "finish_reason": "stop",
-        "input_tokens": 353,
-        "output_tokens": 48,
+        "input_tokens": 355,
+        "output_tokens": 37,
         "adaptations": [
           {
             "field": "config.max_tokens",
@@ -619,7 +619,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                  "text": "Around midnight an owl was calling from the old\nbarn roof, probably a tawny. Two hares in the barn\nfield at first light."
                 }
               ]
             }
@@ -688,7 +688,7 @@
           ]
         },
         "finish_reason": "stop",
-        "input_tokens": 347,
+        "input_tokens": 349,
         "output_tokens": 42,
         "adaptations": [
           {
@@ -709,7 +709,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                  "text": "Checked the stream camera this morning. Three\nbadgers came through overnight, one of them limping.\nA fox passed later, just before dawn."
                 }
               ]
             }
@@ -779,7 +779,7 @@
           ]
         },
         "finish_reason": "stop",
-        "input_tokens": 49,
+        "input_tokens": 51,
         "output_tokens": 30,
         "adaptations": []
       },
@@ -792,7 +792,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                  "text": "Around midnight an owl was calling from the old\nbarn roof, probably a tawny. Two hares in the barn\nfield at first light."
                 }
               ]
             }
@@ -861,7 +861,7 @@
           ]
         },
         "finish_reason": "stop",
-        "input_tokens": 48,
+        "input_tokens": 50,
         "output_tokens": 31,
         "adaptations": []
       }
@@ -876,7 +876,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                  "text": "Checked the stream camera this morning. Three\nbadgers came through overnight, one of them limping.\nA fox passed later, just before dawn."
                 }
               ]
             }
@@ -946,7 +946,7 @@
           ]
         },
         "finish_reason": "stop",
-        "input_tokens": 137,
+        "input_tokens": 138,
         "output_tokens": 32,
         "adaptations": []
       },
@@ -959,7 +959,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                  "text": "Around midnight an owl was calling from the old\nbarn roof, probably a tawny. Two hares in the barn\nfield at first light."
                 }
               ]
             }
@@ -1012,11 +1012,11 @@
           }
         },
         "model": "openai/gpt-4o-mini",
-        "text": "{\"sightings\":[{\"species\":\"tawny owl\",\"count\":1,\"place\":\"oak grove\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
+        "text": "{\"sightings\":[{\"species\":\"owl\",\"count\":1,\"place\":\"oak grove\"},{\"species\":\"hare\",\"count\":2,\"place\":\"meadow\"}]}",
         "data": {
           "sightings": [
             {
-              "species": "tawny owl",
+              "species": "owl",
               "count": 1,
               "place": "oak grove"
             },
@@ -1028,8 +1028,8 @@
           ]
         },
         "finish_reason": "stop",
-        "input_tokens": 134,
-        "output_tokens": 36,
+        "input_tokens": 136,
+        "output_tokens": 33,
         "adaptations": []
       }
     },
@@ -1043,7 +1043,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                  "text": "Checked the stream camera this morning. Three\nbadgers came through overnight, one of them limping.\nA fox passed later, just before dawn."
                 }
               ]
             }
@@ -1107,7 +1107,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                  "text": "Around midnight an owl was calling from the old\nbarn roof, probably a tawny. Two hares in the barn\nfield at first light."
                 }
               ]
             }
@@ -1172,7 +1172,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                  "text": "Checked the stream camera this morning. Three\nbadgers came through overnight, one of them limping.\nA fox passed later, just before dawn."
                 }
               ]
             }
@@ -1226,11 +1226,11 @@
           }
         },
         "model": "glm-4.5-air",
-        "text": "# Wildlife Sighting Records\n\n## Record 1\n- **Species:** Badger\n- **Number:** 3\n- **Date:** Today\n- **Time:** Overnight\n- **Location:** Stream camera\n- **Notes:** One individual observed limping\n\n## Record 2\n- **Species:** Fox\n- **Number:** 1\n- **Date:** Today\n- **Time:** Just before dawn\n- **Location:** Stream camera\n- **Notes:** None specified",
+        "text": "# Wildlife Sighting Records\n\n## Record 1\n- **Date**: Unspecified\n- **Time**: Overnight\n- **Location**: Stream camera\n- **Species**: Badger\n- **Count**: 3 individuals\n- **Notes**: One individual observed limping\n\n## Record 2\n- **Date**: Unspecified\n- **Time**: Just before dawn\n- **Location**: Stream camera\n- **Species**: Fox\n- **Count**: 1 individual\n- **Notes**: None mentioned",
         "data": null,
         "finish_reason": "stop",
-        "input_tokens": 55,
-        "output_tokens": 360,
+        "input_tokens": 56,
+        "output_tokens": 387,
         "adaptations": [
           {
             "field": "config.response_format",
@@ -1248,7 +1248,7 @@
               "parts": [
                 {
                   "type": "text",
-                  "text": "Around midnight an owl was calling from the old barn roof, probably a tawny. Two hares in the barn field at first light."
+                  "text": "Around midnight an owl was calling from the old\nbarn roof, probably a tawny. Two hares in the barn\nfield at first light."
                 }
               ]
             }
@@ -1301,11 +1301,11 @@
           }
         },
         "model": "glm-4.5-air",
-        "text": "**Sighting Record 1**\n- Date: [Not recorded]\n- Time: Around midnight\n- Location: Old barn roof\n- Species: Tawny owl (Strix aluco) - tentative ID\n- Count: 1 individual\n- Notes: Calling/vocalizing\n\n**Sighting Record 2**\n- Date: [Not recorded] - presumed same day as owl sighting\n- Time: First light (dawn)\n- Location: Barn field\n- Species: European hare (Lepus europaeus)\n- Count: 2 individuals\n- Notes: Observed at dawn",
+        "text": "# Wildlife Sighting Records\n\n## Record 1\n- **Date**: [Date not provided]\n- **Time**: Around midnight\n- **Location**: Old barn roof\n- **Species**: Tawny owl (Suspected identification)\n- **Count**: 1 (heard only)\n- **Notes**: Owl heard calling from the barn roof\n\n## Record 2\n- **Date**: [Date not provided] (assuming same night/dawn period)\n- **Time**: First light (dawn)\n- **Location**: Barn field\n- **Species**: Hare\n- **Count**: 2\n- **Notes**: Observed at dawn in the barn field",
         "data": null,
         "finish_reason": "stop",
-        "input_tokens": 55,
-        "output_tokens": 412,
+        "input_tokens": 58,
+        "output_tokens": 391,
         "adaptations": [
           {
             "field": "config.response_format",
@@ -1326,7 +1326,7 @@
             "parts": [
               {
                 "type": "text",
-                "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                "text": "Checked the stream camera this morning. Three\nbadgers came through overnight, one of them limping.\nA fox passed later, just before dawn."
               }
             ]
           }
@@ -1390,7 +1390,7 @@
             "parts": [
               {
                 "type": "text",
-                "text": "Checked the stream camera this morning. Three badgers came through overnight, one of them limping. A fox passed later, just before dawn."
+                "text": "Checked the stream camera this morning. Three\nbadgers came through overnight, one of them limping.\nA fox passed later, just before dawn."
               }
             ]
           }
@@ -1403,7 +1403,7 @@
         }
       },
       "model": "deepseek-flash",
-      "text": "{\"sightings\": [{\"species\": \"badger\", \"count\": 3, \"notes\": \"one limping\", \"time\": \"overnight\", \"location\": \"stream camera\"}, {\"species\": \"fox\", \"count\": 1, \"notes\": null, \"time\": \"just before dawn\", \"location\": \"stream camera\"}]}",
+      "text": "{\"sightings\": [{\"species\": \"badger\", \"count\": 3, \"notes\": \"one limping\", \"time\": \"overnight\", \"location\": \"stream camera\"}, {\"species\": \"fox\", \"count\": 1, \"time\": \"just before dawn\", \"location\": \"stream camera\"}]}",
       "data": {
         "sightings": [
           {
@@ -1416,15 +1416,14 @@
           {
             "species": "fox",
             "count": 1,
-            "notes": null,
             "time": "just before dawn",
             "location": "stream camera"
           }
         ]
       },
       "finish_reason": "stop",
-      "input_tokens": 80,
-      "output_tokens": 76,
+      "input_tokens": 81,
+      "output_tokens": 71,
       "adaptations": []
     }
   }

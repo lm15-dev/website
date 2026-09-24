@@ -12,58 +12,49 @@ Recipes: `so-note`, `so-plain`, `so-schema`, `so-ask`, `so-use`, `so-note-barn`,
 ### python
 
 ```python
-note = (
-    "Checked the stream camera this morning. Three badgers came "
-    "through overnight, one of them limping. A fox passed later, "
-    "just before dawn."
-)
+note = """Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn."""
 ```
 
 ### typescript
 
 ```ts
-const note =
-    "Checked the stream camera this morning. Three badgers came " +
-    "through overnight, one of them limping. A fox passed later, " +
-    "just before dawn.";
+const note = `Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn.`;
 ```
 
 ### rust
 
 ```rust
-let note = concat!(
-    "Checked the stream camera this morning. Three badgers came ",
-    "through overnight, one of them limping. A fox passed later, ",
-    "just before dawn.",
-);
+let note = r"Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn.";
 ```
 
 ### go
 
 ```go
-note :=
-    "Checked the stream camera this morning. Three badgers came " +
-    "through overnight, one of them limping. A fox passed later, " +
-    "just before dawn."
+note := `Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn.`
 ```
 
 ### r
 
 ```r
-note <- paste(
-    "Checked the stream camera this morning. Three badgers came",
-    "through overnight, one of them limping. A fox passed later,",
-    "just before dawn."
-)
+note <- "Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn."
 ```
 
 ### julia
 
 ```julia
-note =
-    "Checked the stream camera this morning. Three badgers came " *
-    "through overnight, one of them limping. A fox passed later, " *
-    "just before dawn."
+note = """Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn."""
 ```
 
 ## `so-plain`
@@ -575,54 +566,49 @@ end
 ### python
 
 ```python
-note = (
-    "Around midnight an owl was calling from the old barn roof, "
-    "probably a tawny. Two hares in the barn field at first light."
-)
+note = """Around midnight an owl was calling from the old
+barn roof, probably a tawny. Two hares in the barn
+field at first light."""
 ```
 
 ### typescript
 
 ```ts
-const note =
-    "Around midnight an owl was calling from the old barn roof, " +
-    "probably a tawny. Two hares in the barn field at first light.";
+const note = `Around midnight an owl was calling from the old
+barn roof, probably a tawny. Two hares in the barn
+field at first light.`;
 ```
 
 ### rust
 
 ```rust
-let note = concat!(
-    "Around midnight an owl was calling from the old barn roof, ",
-    "probably a tawny. Two hares in the barn field at first ",
-    "light.",
-);
+let note = r"Around midnight an owl was calling from the old
+barn roof, probably a tawny. Two hares in the barn
+field at first light.";
 ```
 
 ### go
 
 ```go
-note :=
-    "Around midnight an owl was calling from the old barn roof, " +
-    "probably a tawny. Two hares in the barn field at first " +
-    "light."
+note := `Around midnight an owl was calling from the old
+barn roof, probably a tawny. Two hares in the barn
+field at first light.`
 ```
 
 ### r
 
 ```r
-note <- paste(
-    "Around midnight an owl was calling from the old barn roof,",
-    "probably a tawny. Two hares in the barn field at first light."
-)
+note <- "Around midnight an owl was calling from the old
+barn roof, probably a tawny. Two hares in the barn
+field at first light."
 ```
 
 ### julia
 
 ```julia
-note =
-    "Around midnight an owl was calling from the old barn roof, " *
-    "probably a tawny. Two hares in the barn field at first light."
+note = """Around midnight an owl was calling from the old
+barn roof, probably a tawny. Two hares in the barn
+field at first light."""
 ```
 
 ## `so-schema-other`
@@ -854,11 +840,9 @@ sighting_schema = {
     "additionalProperties": False,
 }
 
-note = (
-    "Checked the stream camera this morning. Three badgers came "
-    "through overnight, one of them limping. A fox passed later, "
-    "just before dawn."
-)
+note = """Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn."""
 
 request = Request(
     model="provider:model",
@@ -915,10 +899,9 @@ const sightingSchema = {
   additionalProperties: false,
 };
 
-const note =
-    "Checked the stream camera this morning. Three badgers came " +
-    "through overnight, one of them limping. A fox passed later, " +
-    "just before dawn.";
+const note = `Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn.`;
 
 const request: Request = {
   model: "provider:model",
@@ -982,11 +965,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "additionalProperties": false
     });
 
-    let note = concat!(
-        "Checked the stream camera this morning. Three badgers came ",
-        "through overnight, one of them limping. A fox passed later, ",
-        "just before dawn.",
-    );
+    let note = r"Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn.";
 
     let format = serde_json::json!({
         "type": "json_schema",
@@ -1061,10 +1042,9 @@ func main() {
         "additionalProperties": false,
     }
 
-    note :=
-        "Checked the stream camera this morning. Three badgers came " +
-        "through overnight, one of them limping. A fox passed later, " +
-        "just before dawn."
+    note := `Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn.`
 
     request := &lm15.Request{
         Model:    "provider:model",
@@ -1138,11 +1118,9 @@ sighting_schema <- json_object(
   additionalProperties = FALSE
 )
 
-note <- paste(
-    "Checked the stream camera this morning. Three badgers came",
-    "through overnight, one of them limping. A fox passed later,",
-    "just before dawn."
-)
+note <- "Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn."
 
 req <- request(
   "provider:model",
@@ -1201,10 +1179,9 @@ sighting_schema = Dict(
     "additionalProperties" => false,
 )
 
-note =
-    "Checked the stream camera this morning. Three badgers came " *
-    "through overnight, one of them limping. A fox passed later, " *
-    "just before dawn."
+note = """Checked the stream camera this morning. Three
+badgers came through overnight, one of them limping.
+A fox passed later, just before dawn."""
 
 req = Request(
     "provider:model",

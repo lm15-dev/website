@@ -35,14 +35,9 @@ Next, we’ll look at a subtle way a schema can go wrong, and how to avoid it.
 We’ll finish by looking at which providers support schemas, and what LM15 does
 when one doesn’t.
 
-### Prerequisites
-
-This page builds on [Make your first request](/docs/first-request/). The
-answers shown are real: we ran each step with `gpt-5.6-sol` through OpenAI
-Codex, so yours will probably be worded a little differently. The code follows
-the language, provider, and model you picked at the top of the page. Each
-example builds on the one before, and [the whole program](#the-whole-program)
-is near the end.
+To run the examples, you’ll need LM15 installed and an API key; see
+[Make your first request](/docs/first-request/). The examples build on each
+other, and [the whole program](#the-whole-program) is near the end.
 
 ## Field notes
 
@@ -185,9 +180,9 @@ room for an honest answer, you’ll get a dishonest one.
 “Other” isn’t a place, though. It only says “not one of these”, so if you need
 to know where, add a text field for the observer’s own words. And a list of
 places can’t say what each place means. The hares were in “the barn field”:
-`gpt-5.6-sol` put them in the {hares(s.fixed).place}, but other models chose
-“other”. If the difference matters, describe each place, in the schema or in
-the instructions.
+is that the meadow, or somewhere else? In our runs, models answered both ways.
+If the difference matters, describe each place, in the schema or in the
+instructions.
 
 ## The whole program
 
