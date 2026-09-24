@@ -61,15 +61,14 @@ secure pages, and OpenRouter returns only to HTTPS or localhost.
 
 ```sh
 node relay/serve-local.mjs --port 8787 --allow-origin https://lambda.tail69222b.ts.net:10443
-npm run dev -- --port 4399 --allowed-hosts lambda.tail69222b.ts.net
+LM15_DEV_RELAY_URL=https://lambda.tail69222b.ts.net:18787 npm run dev -- --port 4399 --allowed-hosts lambda.tail69222b.ts.net
 tailscale serve --bg --https=10443 http://127.0.0.1:4399
 tailscale serve --bg --https=18787 http://127.0.0.1:8787
 ```
 
 Open `https://lambda.tail69222b.ts.net:10443/playground/`, then More → Open
-the sign-in lab, and set the relay address to
-`https://lambda.tail69222b.ts.net:18787` (the field appears only on private
-addresses). Undo with `tailscale serve --https=10443 off` and
+the sign-in lab. `LM15_DEV_RELAY_URL` makes the lab use that relay; the relay
+address field (shown only on private addresses) can change it. Undo with `tailscale serve --https=10443 off` and
 `tailscale serve --https=18787 off`. Requests then leave from lambda, not from
 Cloudflare; a provider that treats Cloudflare differently can answer
 differently once deployed.
