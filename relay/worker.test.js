@@ -124,6 +124,7 @@ test("the deployed allow-list names every relay endpoint the SDK's login profile
     "https://github.com/login/device/code", "https://github.com/login/oauth/access_token", "https://api.github.com/copilot_internal/v2/token",
     "https://auth.meta.com/oidc/device/authorization/", "https://auth.meta.com/oidc/device/token/", "https://api.meta.ai/muse-code/key",
     "https://chatgpt.com/backend-api/codex/responses", "https://chatgpt.com/backend-api/codex/models", "https://api.kimi.com/coding/v1/messages",
+    "https://api.anthropic.com/v1/messages", "https://api.anthropic.com/v1/models",
   ]) assert.equal(upstreamAllowed(new URL(url), listed), true, url);
 });
 

@@ -19,6 +19,8 @@ enabled = false
 # Comma-separated. Every other upstream and origin is refused by name.
 # An upstream is a host (every path) or host/path (that path; a trailing / allows the paths under it).
 # Beyond TypeSafe, these are the sign-in and model endpoints lm15-contract auth/managed/browser.json
-# found closed to web pages (2026-09-24); the page asks before using any of them.
-ALLOWED_UPSTREAMS = "api.typesafe.ai,auth.x.ai/oauth2/device/code,auth.x.ai/oauth2/token,platform.claude.com/v1/oauth/token,github.com/login/device/code,github.com/login/oauth/access_token,api.github.com/copilot_internal/v2/token,auth.meta.com/oidc/device/authorization/,auth.meta.com/oidc/device/token/,api.meta.ai/muse-code/key,chatgpt.com/backend-api/codex/,api.kimi.com/coding/"
+# found closed to web pages (2026-09-24); the page asks before using any of them. Anthropic's two paths are
+# there because Anthropic refuses a Claude subscription token on any request carrying Origin (live, 2026-09-24);
+# the relay drops Origin.
+ALLOWED_UPSTREAMS = "api.typesafe.ai,auth.x.ai/oauth2/device/code,auth.x.ai/oauth2/token,platform.claude.com/v1/oauth/token,github.com/login/device/code,github.com/login/oauth/access_token,api.github.com/copilot_internal/v2/token,auth.meta.com/oidc/device/authorization/,auth.meta.com/oidc/device/token/,api.meta.ai/muse-code/key,chatgpt.com/backend-api/codex/,api.kimi.com/coding/,api.anthropic.com/v1/messages,api.anthropic.com/v1/models"
 ALLOWED_ORIGINS = "https://lm15.dev,https://www.lm15.dev"
