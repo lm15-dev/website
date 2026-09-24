@@ -1,0 +1,36 @@
+{
+  "date": "2026-09-24",
+  "lm15": "1.0.0rc3",
+  "steps": {
+    "answers": {
+      "code": "from lm15 import (Config, LMRouter, Message, Request,\n                  choice, judgments, score, yes_no)\n\nanswers = judgments(\n    animal=choice(\"Which animal is the note mainly about?\",\n                  [\"badger\", \"fox\", \"owl\", \"hare\", \"deer\"]),\n    certainty=score(\"How sure is the observer of the species?\",\n                    [\"guess\", \"probable\", \"confident\"]),\n    hurt=yes_no(\"Does the note report a hurt animal?\"),\n)\n",
+      "output": ""
+    },
+    "ask": {
+      "code": "note = (\"Checked the stream camera this morning. Three\\n\"\n        \"badgers came through overnight, one of them limping.\\n\"\n        \"A fox passed later, just before dawn.\")\n\nrouter = LMRouter()\nreply = router.complete(Request(\n    model=\"jev-latest\",\n    messages=[Message.user(note)],\n    config=Config(response_format=answers,\n                  probabilities=\"if_available\"),\n))\nprint(reply.data)\nprint(reply.probabilities)\nprint(reply.method)\n",
+      "output": "{'animal': 'badger', 'certainty': 2, 'hurt': True}\n{'animal': {'badger': 1.0, 'fox': 0.0, 'owl': 0.0, 'hare': 0.0, 'deer': 0.0}, 'certainty': {'0': 0.0, '1': 0.05, '2': 0.95}, 'hurt': {'true': 0.98, 'false': 0.020000000000000018}}\nprovider_classification\n",
+      "model": "typesafe:jev-latest"
+    },
+    "expected": {
+      "code": "print(reply.expected(\"certainty\"))\n",
+      "output": "1.95\n",
+      "model": "typesafe:jev-latest"
+    },
+    "chat": {
+      "code": "reply = router.complete(Request(\n    model=\"anthropic:claude-haiku-4-5\",\n    messages=[Message.user(note)],\n    config=Config(response_format=answers,\n                  probabilities=\"if_available\"),\n))\nprint(reply.data)\nprint(reply.probabilities)\nfor change in reply.adaptations:\n    print(change.field, change.action)\n",
+      "output": "{'animal': 'badger', 'certainty': 2, 'hurt': True}\nNone\nconfig.max_tokens defaulted\nconfig.probabilities dropped\n",
+      "model": "anthropic:claude-haiku-4-5"
+    },
+    "required": {
+      "code": "reply = router.complete(Request(\n    model=\"anthropic:claude-haiku-4-5\",\n    messages=[Message.user(note)],\n    config=Config(response_format=answers,\n                  probabilities=\"required\"),\n))\n",
+      "error": "UnsupportedFeatureError: anthropic: config.probabilities='required' but this wire cannot measure a distribution over the declared keys (it returns a pick only); use 'if_available' or a provider that can (typesafe, or a vLLM/SGLang server that honours logprob_token_ids)\n",
+      "output": "",
+      "model": "anthropic:claude-haiku-4-5"
+    },
+    "table": {
+      "code": "notes = {\n    \"stream\": note,\n    \"barn\": (\"Around midnight an owl was calling from the old\\n\"\n             \"barn roof, probably a tawny. Two hares in the barn\\n\"\n             \"field at first light.\"),\n    \"deer\": (\"Dusk, edge of the oak grove. Two deer browsing on\\n\"\n             \"fallen acorns, one small with spots still showing.\\n\"\n             \"Too far to be sure of the species: roe or fallow.\"),\n}\nfor name, text in notes.items():\n    reply = router.complete(Request(\n        model=\"jev-latest\",\n        messages=[Message.user(text)],\n        config=Config(response_format=answers,\n                      probabilities=\"if_available\"),\n    ))\n    sure = reply.expected(\"certainty\")\n    print(f\"{name:7}{reply.data['animal']:8}{sure:.2f}\")\n",
+      "output": "stream badger  1.97\nbarn   owl     0.95\ndeer   deer    0.04\n",
+      "model": "typesafe:jev-latest"
+    }
+  }
+}

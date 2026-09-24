@@ -5,10 +5,11 @@ import authentication from '../data/authentication-captures.json';
 import conversations from '../data/conversations-captures.json';
 import errors from '../data/errors-captures.json';
 import generation from '../data/generation-captures.json';
+import judgments from '../data/judgments-captures.json';
 import media from '../data/media-captures.json';
 
-const SETS = { authentication, conversations, errors, generation, media } as const;
-const NAMES: Record<string, string> = { 'openai-codex': 'OpenAI Codex', anthropic: 'Anthropic', xai: 'xAI', openrouter: 'OpenRouter' };
+const SETS = { authentication, conversations, errors, generation, judgments, media } as const;
+const NAMES: Record<string, string> = { 'openai-codex': 'OpenAI Codex', anthropic: 'Anthropic', xai: 'xAI', openrouter: 'OpenRouter', typesafe: 'TypeSafe' };
 
 interface Props {
   set?: keyof typeof SETS;

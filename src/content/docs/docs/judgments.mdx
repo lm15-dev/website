@@ -1,0 +1,209 @@
+---
+title: "Ask for judgments with probabilities"
+description: Ask a model to decide, not to write — pick a category, place something on a scale, answer yes or no — and get back how sure it was, as a probability for every option, together with how that probability was measured.
+---
+
+import PythonExample from '../../../components/PythonExample.astro';
+import CapturedOutput from '../../../components/CapturedOutput.astro';
+
+A lot of what a program asks a model is really a decision: which category a
+message belongs to, where a report falls on a scale, whether something
+happened or not. For those, you rarely want a paragraph back, and you often
+need to know how sure the answer is, so that you can act on the confident ones
+and send the doubtful ones to a person. A model's own words can't tell you
+that. "I'm fairly confident" is more writing, not a measurement.
+
+In LM15, a question like this is called a *judgment*: you declare the answers
+you accept, and you get back the pick, plus a probability for every option when
+the model can measure one. Each probability comes labelled with how it was
+measured, so a number never changes meaning when you change model.
+
+On this page, we’ll describe three judgments and ask them of TypeSafe’s Jev,
+a model built to answer this kind of question with probabilities. We’ll read
+what comes back, then send exactly the same request to an ordinary chat model
+and see what changes. Next, we’ll ask LM15 to refuse rather than answer
+without numbers. We’ll finish by judging several notes in a row and putting
+the results side by side.
+
+:::note[Python only, for now]
+Judgments work in Python, TypeScript, Rust and Go; R and Julia don’t have them
+yet. This page’s examples are in Python whichever language you chose. They
+need LM15 1.0.0rc3 or later: `pip install --pre lm15`.
+:::
+
+To run the examples, you’ll need a TypeSafe API key in `TYPESAFE_API_KEY`, and
+for one section an Anthropic key, set up as in
+[Make your first request](/docs/first-request/#set-an-api-key). Each example
+builds on the ones before it, like cells in a notebook.
+
+## Describe the answers you accept
+
+The examples in these guides follow [one small program](/docs/#the-example-well-build):
+an assistant for a wildlife research station. Observers write short field
+notes, and the station wants three facts from each one: which animal the note
+is mainly about, how sure the observer was of the species, and whether an
+animal was hurt. Each fact is a judgment:
+
+<PythonExample set="judgments" name="answers" />
+
+There are three kinds, one for each kind of question:
+
+- `choice` picks one of a set of options, here five animals. The order
+  doesn’t matter.
+- `score` places the answer on ordered levels, from the lowest to the highest.
+  Here, `guess` is below `probable`, which is below `confident`, and that order
+  will matter later.
+- `yes_no` answers yes or no.
+
+Each one takes the question in plain words, which the model reads, and
+`judgments` gathers them into one description of the answer. That description
+is an ordinary JSON schema, the same thing
+[Get structured output](/docs/structured-output/) uses; the three helpers
+only save you writing it by hand. So far nothing has been sent.
+
+## Ask Jev
+
+Here’s the note from the stream camera, sent to Jev with the answers above.
+`probabilities="if_available"` asks for the numbers wherever the model can
+measure them:
+
+<PythonExample set="judgments" name="ask" />
+
+<CapturedOutput set="judgments" step="ask" />
+
+Three lines, three things to read:
+
+- **`data` is the pick**, one entry per judgment: `badger`, level `2`, and
+  `True`. A `score` answers with the number of its level, counting from 0, so
+  `2` is `confident`. It’s a plain dictionary, ready to store.
+- **`probabilities` is how sure Jev was**, one set of numbers per judgment,
+  over exactly the options you declared. Jev put everything on `badger`,
+  which fits: the note names badgers first and the fox only in passing. For the
+  certainty it put 0.95 on `confident` and 0.05 on `probable`. For yes or no,
+  Jev measures one number, the chance of “yes”; “no” is 1 minus it, which is
+  why it prints as `0.020000000000000018` instead of `0.02` (a rounding quirk
+  of how computers store decimals, not a second measurement).
+- **`method` says how the numbers were measured**: `provider_classification`
+  means the provider’s own model produced them. We’ll come back to why that
+  label matters.
+
+Because `certainty` is ordered, its numbers can also be summed up as a single
+position on the scale, weighting each level by its probability:
+
+<PythonExample set="judgments" name="expected" />
+
+<CapturedOutput set="judgments" step="expected" />
+
+That’s 0 × 0.0 + 1 × 0.05 + 2 × 0.95: close to the top of a scale that runs
+from 0 (`guess`) to 2 (`confident`). One number per note is much easier to sort
+and compare than three, as we’ll see at the end of the page.
+
+## The same request on a chat model
+
+Now the same request, with only the model changed, to Anthropic’s small model:
+
+<PythonExample set="judgments" name="chat" />
+
+<CapturedOutput set="judgments" step="chat" />
+
+The pick is the same, and still a plain dictionary: the chat model received the
+answers as a JSON schema and filled it in. But `probabilities` is `None`, and
+two lines say why. A chat model writes one answer; it doesn’t report how likely
+each option was, so LM15 had nothing to measure. Rather than make numbers up,
+it *dropped* the setting and recorded that it did. (The other line is
+unrelated: Anthropic requires a length limit, and LM15 filled in its default;
+see [Control generation](/docs/generation/).)
+
+This is the general rule for probabilities in LM15: they are either measured,
+or absent. Never invented, and never quietly different from what you asked.
+
+## When the numbers are the point
+
+If your program can’t work without the probabilities, say so with
+`"required"`:
+
+<PythonExample set="judgments" name="required" />
+
+<CapturedOutput set="judgments" step="required" show="error" />
+
+LM15 refuses before sending anything, so the refusal costs nothing, and the
+message names the providers that can measure probabilities. Use `"required"`
+whenever a missing number would be a bug, for example when a person only
+reviews the answers below some probability.
+
+## Many notes, side by side
+
+Probabilities pay off when you compare answers. Here are the station’s three
+notes, judged one after another, printing the animal and the expected
+certainty for each:
+
+<PythonExample set="judgments" name="table" />
+
+<CapturedOutput set="judgments" step="table" />
+
+Read the last column against the notes’ own words. The stream note just
+reports what the camera saw: 1.97, almost fully `confident`. The barn note
+says “probably a tawny”: 0.95, `probable`. The deer note says “too far to be
+sure of the species”: 0.04, a `guess`. The picks alone would have given `2`,
+`1` and `0`; the expected values also show how firmly each level was chosen,
+which is what you’d sort by to decide which notes a person should check.
+
+Notice too that the stream note scored 1.95 in the earlier call and 1.97 here.
+Jev’s numbers vary slightly from one request to the next, so treat the second
+decimal as noise.
+
+## What the numbers mean
+
+A probability from Jev and one from another method can look identical and
+still measure different things. Besides Jev, LM15 can measure probabilities on
+a vLLM server (0.29 or later) that reports the likelihood of each answer’s
+tokens; there, `method` is `candidate_sequence_likelihood`, and
+`provider_data["coverage"]` says how much of the model’s probability landed on
+your options at all. Neither method is calibrated on *your* notes until you
+check it against answers you know. That’s why `method` travels with the
+numbers instead of being a setting: when you change model, a 0.8 can’t
+silently start to mean something else. Jev’s own confidence score, when it
+sends one, is kept unchanged in `provider_data["typesafe"]`.
+
+Jev also reads its input differently from a chat model. It takes exactly one
+user message and nothing else: no instructions (`system`) and no earlier
+conversation. LM15 refuses a request that has either, rather than inventing a
+way to squeeze them in. Context goes in the message itself, or in the
+question’s own words. To give Jev structured input, send
+`Message.user(data({...}))` with a dictionary; Jev reads it as data, and a chat
+model receives the same request as JSON text.
+
+## Try it yourself
+
+1. In `answers`, replace the `certainty` levels with just `["unsure", "sure"]`.
+   Before running it, predict the deer note’s expected certainty: close to 0,
+   close to 1, or in between?
+2. Add a fourth judgment, `young=yes_no("Does the note mention a young animal?")`,
+   and run the table again. Which note should answer yes?
+3. Send the table’s requests with `probabilities="required"` to
+   `anthropic:claude-haiku-4-5`. How many requests reach Anthropic?
+
+<details>
+<summary>Answers</summary>
+
+1. Close to 0 (it was 0.00 when we tried it, on September 24, 2026): “too far
+   to be sure” points clearly at `unsure`. The surprise is the barn note: with
+   no middle level, “probably a tawny” falls to `unsure` too (0.02). The levels
+   you offer shape the answers, so choose them for the decision you’ll make.
+2. The deer note: “one small with spots still showing” is a fawn (0.97 for
+   yes when we tried it). The other two answer no.
+3. None. The first request is refused before it is sent, so the loop stops
+   there, with the same `UnsupportedFeatureError` as above.
+
+</details>
+
+## Next
+
+Judgments are structured output with one addition, the probabilities; for
+answers that are free-form data rather than choices, see
+[Get structured output](/docs/structured-output/). When you judge many notes in a
+row, some requests will meet a rate limit; see
+[Handle errors and retries](/docs/errors-and-retries/). The rules behind this
+page are in the shared contract:
+[judgments (MAP-14)](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-17-judgments.md)
+and [what Jev reads](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-19-jev-state.md).

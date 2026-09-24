@@ -3,9 +3,10 @@
 // (for pages that are Python only for now, such as "Set up authentication").
 import { Code } from '@astrojs/starlight/components';
 
-const FILES = import.meta.glob('../data/authentication/*.py', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
-interface Props { name: string }
-const code = FILES[`../data/authentication/${Astro.props.name}.py`];
-if (code === undefined) throw new Error(`PythonExample: no example ${Astro.props.name}`);
+const FILES = import.meta.glob('../data/{authentication,judgments}/*.py', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+interface Props { name: string; set?: 'authentication' | 'judgments' }
+const { name, set = 'authentication' } = Astro.props;
+const code = FILES[`../data/${set}/${name}.py`];
+if (code === undefined) throw new Error(`PythonExample: no example ${set}/${name}`);
 ---
 <Code code={code.trimEnd()} lang="python" />

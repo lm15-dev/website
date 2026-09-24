@@ -11,6 +11,10 @@ export const sidebar = [
     { label: 'Set up authentication', slug: 'docs/authentication' },
     { label: 'Choose a model', slug: 'docs/models' },
   ] },
+  { label: 'Use tools', items: [
+    { label: 'Call your own functions', slug: 'docs/function-tools' },
+    { label: 'Use provider tools', slug: 'docs/provider-tools' },
+  ] },
   { label: 'Generate responses', items: [
     { label: 'Keep a conversation', slug: 'docs/conversations' },
     { label: 'Stream a response', slug: 'docs/streaming' },
@@ -20,10 +24,6 @@ export const sidebar = [
     { label: 'Ask for judgments with probabilities', slug: 'docs/judgments' },
     { label: 'Send images and documents', slug: 'docs/media-inputs' },
     { label: 'Cache prompts', slug: 'docs/prompt-caching' },
-  ] },
-  { label: 'Use tools', items: [
-    { label: 'Call your own functions', slug: 'docs/function-tools' },
-    { label: 'Use provider tools', slug: 'docs/provider-tools' },
   ] },
   { label: 'Build your app', items: [
     { label: 'Handle errors and retries', slug: 'docs/errors-and-retries' },
