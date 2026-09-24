@@ -20,15 +20,28 @@ import { adapterFor } from "lm15/browser";
 export const RELAY_URL = "https://lm15-relay.mrive052.workers.dev";
 
 /**
- * Where the relay is. On a loopback host (the local playground, the browser
- * tests) `localStorage["lm15.playground.relay-url"]` may point at another
- * Worker, so a developer can try their own deployment; on the public site the
- * constant is the only source — a stored override of where keys go would
- * be one more thing a page script could change.
+ * A page served from this person's own machines: loopback, or their Tailscale
+ * network (a MagicDNS name under .ts.net, or an address in 100.64.0.0/10),
+ * the same private hosts the relay and the demo server already trust.
+ */
+export function privatePageHost(hostname: string): boolean {
+  if (["localhost", "127.0.0.1", "[::1]"].includes(hostname)) return true;
+  if (/^[a-z0-9-]+\.[a-z0-9-]+\.ts\.net$/i.test(hostname)) return true;
+  const m = /^100\.(\d+)\.\d+\.\d+$/.exec(hostname);
+  return m !== null && Number(m[1]) >= 64 && Number(m[1]) <= 127;
+}
+
+/**
+ * Where the relay is. On a private host (the local playground, the browser
+ * tests, a playground opened from another of this person's machines over
+ * Tailscale) `localStorage["lm15.playground.relay-url"]` may point at another
+ * relay, so a developer can try their own; on the public site the constant is
+ * the only source — a stored override of where keys go would be one more
+ * thing a page script could change.
  */
 export function relayUrl(): string {
   try {
-    if (["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return localStorage.getItem("lm15.playground.relay-url") ?? RELAY_URL;
+    if (privatePageHost(location.hostname)) return localStorage.getItem("lm15.playground.relay-url") ?? RELAY_URL;
   } catch {
     // no window (tests), no storage
   }

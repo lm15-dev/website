@@ -24,7 +24,7 @@ import {
   AuthOperationError, Message, loginAdapter, loginMethods, loginProviders, pathRelay, renewalDue, runLogin, runRenewal,
   type AuthUI, type ExchangeRecord, type LoginMethod, type LoginOutcome, type ManualCodePrompt, type Notice, type Prompt, type RelayConfig, type RelayStage,
 } from "lm15/browser";
-import { relayUrl } from "./relay.ts";
+import { privatePageHost, relayUrl } from "./relay.ts";
 
 const RETURN_CHANNEL = "lm15-login-return";
 const RETURN_MARK = "#lm15-return=";
@@ -139,6 +139,25 @@ export class LoginLab {
       consent.append(el("label", { class: "checkbox lab-check" }, box, el("span", {}, el("b", { text: `Relay ${STAGE_LABEL[stage]}. ` }), `What crosses it: ${RELAY_CROSSES[stage]}`)));
     }
     consent.append(el("p", { class: "setting-help", text: "Your choice lasts until this tab closes." }));
+    if (privatePageHost(location.hostname)) {
+      // A playground on this person's own machines may use their own relay (relay.ts explains why only here).
+      const address = el("input", { type: "url", value: relayUrl(), spellcheck: "false", "aria-label": "Relay address", class: "lab-relay-url" });
+      address.addEventListener("change", () => {
+        const value = address.value.trim().replace(/\/$/, "");
+        try {
+          if (value) localStorage.setItem("lm15.playground.relay-url", new URL(value).origin);
+          else localStorage.removeItem("lm15.playground.relay-url");
+        } catch {
+          address.setCustomValidity("Not a URL");
+          address.reportValidity();
+          return;
+        }
+        address.setCustomValidity("");
+        address.value = relayUrl();
+        this.#renderMethods();
+      });
+      consent.append(el("label", { class: "lab-relay-address" }, "Relay address (this page is on a private address, so you may use your own relay): ", address));
+    }
 
     this.#methods = el("div", { class: "lab-methods" });
     this.#steps = el("div", { class: "lab-steps", "aria-live": "polite" });

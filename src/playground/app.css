@@ -400,3 +400,5 @@ dialog::backdrop { background: #10241c55; }
 .lab-log tr[data-ok="false"] td { color: var(--danger); }
 .lab-log tr.lab-outcome td { font-weight: 500; }
 .lab-return-banner { margin: 0; padding: 10px 24px; background: var(--accent-soft); color: var(--ink); font-size: 13px; }
+.lab-relay-address { display: grid; gap: 4px; font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+.lab-relay-url { padding: 4px 8px; font-size: 12px; }

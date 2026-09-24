@@ -4,7 +4,10 @@
  * before they are deployed. Same code, same allow-lists (read from
  * wrangler.toml), served over plain HTTP on loopback.
  *
- *   node relay/serve-local.mjs [--port 8787]
+ *   node relay/serve-local.mjs [--port 8787] [--allow-origin https://host.tailnet.ts.net:10443]
+ *
+ * `--allow-origin` (repeatable) adds a page origin to wrangler.toml's list for
+ * this local run only, e.g. a playground published over Tailscale Serve.
  *
  * Then, in a playground served on localhost, point the page at it once:
  *   localStorage["lm15.playground.relay-url"] = "http://127.0.0.1:8787"
@@ -25,6 +28,8 @@ const toml = readFileSync(new URL("./wrangler.toml", import.meta.url), "utf8");
 const vars = Object.fromEntries([...toml.matchAll(/^([A-Z_]+) = "([^"]*)"$/gm)].map((m) => [m[1], m[2]]));
 const portIndex = process.argv.indexOf("--port");
 const port = portIndex > 0 ? Number(process.argv[portIndex + 1]) : 8787;
+const extraOrigins = process.argv.flatMap((arg, i) => (arg === "--allow-origin" && process.argv[i + 1] ? [new URL(process.argv[i + 1]).origin] : []));
+if (extraOrigins.length) vars.ALLOWED_ORIGINS = [vars.ALLOWED_ORIGINS, ...extraOrigins].filter(Boolean).join(",");
 
 const server = createServer(async (req, res) => {
   try {
@@ -52,5 +57,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`lm15 relay (local) on http://127.0.0.1:${port}`);
+  console.log(`lm15 relay (local) on http://127.0.0.1:${port}${extraOrigins.length ? `; also serving pages at ${extraOrigins.join(", ")}` : ""}`);
 });

@@ -50,3 +50,26 @@ providers the prompt is shown for.
 ```sh
 node --test relay/worker.test.js
 ```
+
+## Try relay changes before deploying them (the sign-in lab)
+
+`relay/serve-local.mjs` runs `worker.js` on this machine with the allow-lists
+from `wrangler.toml`. To use it from another of your machines (e.g. the laptop,
+while the playground runs on lambda), publish both over Tailscale Serve. The
+page must be HTTPS: sign-in needs Web Crypto, which browsers give only to
+secure pages, and OpenRouter returns only to HTTPS or localhost.
+
+```sh
+node relay/serve-local.mjs --port 8787 --allow-origin https://lambda.tail69222b.ts.net:10443
+npm run dev -- --port 4399 --allowed-hosts lambda.tail69222b.ts.net
+tailscale serve --bg --https=10443 http://127.0.0.1:4399
+tailscale serve --bg --https=18787 http://127.0.0.1:8787
+```
+
+Open `https://lambda.tail69222b.ts.net:10443/playground/`, then More → Open
+the sign-in lab, and set the relay address to
+`https://lambda.tail69222b.ts.net:18787` (the field appears only on private
+addresses). Undo with `tailscale serve --https=10443 off` and
+`tailscale serve --https=18787 off`. Requests then leave from lambda, not from
+Cloudflare; a provider that treats Cloudflare differently can answer
+differently once deployed.
