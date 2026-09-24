@@ -72,3 +72,30 @@ address field (shown only on private addresses) can change it. Undo with `tailsc
 `tailscale serve --https=18787 off`. Requests then leave from lambda, not from
 Cloudflare; a provider that treats Cloudflare differently can answer
 differently once deployed.
+
+## The encrypted tunnel (prototype)
+
+`relay/tunnel-local.mjs` is a second kind of relay: a WebSocket in, a TCP
+connection to a provider's port 443 out, bytes copied. The page runs TLS itself
+(lm15-ts `tunnelRelay`: rustls compiled to WebAssembly, shipped as
+`dist/tls/lm15-tls.wasm`) and verifies the provider's certificate, so the
+tunnel carries ciphertext: it cannot read codes, tokens, prompts or replies,
+and cannot impersonate the provider. It still sees the page's origin and IP,
+which provider host, when, and how many bytes. It can allow hosts, not paths.
+
+```sh
+node relay/tunnel-local.mjs --port 8789 --allow-origin https://lambda.tail69222b.ts.net:10443
+tailscale serve --bg --https=18789 http://127.0.0.1:8789
+LM15_DEV_RELAY_URL=https://lambda.tail69222b.ts.net:18787 \
+LM15_DEV_TUNNEL_URL=wss://lambda.tail69222b.ts.net:18789/tunnel \
+  npm run dev -- --port 4399 --allowed-hosts lambda.tail69222b.ts.net
+```
+
+The sign-in lab then offers "Encrypted tunnel (prototype)". Only the dev server
+names a tunnel and allows `wss:` in the page's CSP; the published page does not.
+
+Where it can run: a Cloudflare Worker's outbound TCP (`connect()`) is refused
+to Cloudflare IP ranges. On 2026-09-24 that ruled out auth.x.ai, api.x.ai,
+chatgpt.com, auth.openai.com, openrouter.ai and api.kimi.com / auth.kimi.com
+from a Worker; Anthropic, GitHub and Meta hosts were reachable. A tunnel for
+the others needs a host outside Cloudflare.

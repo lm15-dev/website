@@ -1,7 +1,7 @@
 /** Build the playground separately from Astro: no docs scripts run on the key-bearing page. */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { socialHead } from '../social-card.mjs';
@@ -37,6 +37,12 @@ export function buildPlayground({ production = true } = {}) {
       const path = relative(source, file);
       if (path.endsWith('.js') && !path.startsWith('cjs/')) copy(file, `${target}/${path}`);
     }
+  }
+  // The in-page TLS module for the encrypted-tunnel prototype (lm15-ts `npm run build:tls`), when the SDK build has it.
+  const tlsWasm = join(sdk, 'dist/tls/lm15-tls.wasm');
+  if (existsSync(tlsWasm)) {
+    if (!readFileSync(tlsWasm).subarray(0, 4).equals(Buffer.from([0, 97, 115, 109]))) throw new Error('Invalid TLS wasm file');
+    copy(tlsWasm, 'dist/tls/lm15-tls.wasm');
   }
   copy(join(root, 'src/playground/app.css'), 'playground/app.css');
   copy(join(root, 'src/styles/theme.css'), 'playground/theme.css');
@@ -77,7 +83,8 @@ export function buildPlayground({ production = true } = {}) {
   const shareTags = socialHead('LM15 Playground', 'Try LM15 in JavaScript, Python, Rust and Go, directly in your browser.', 'https://lm15.dev/playground/')
     .map(({ attrs }) => `<meta ${Object.entries(attrs).map(([key, value]) => `${key}="${escapeAttribute(value)}"`).join(' ')}>`).join('\n');
   // Development allows local model servers; production narrows to https. blob: is the prefetched Python stdlib handed to Pyodide.
-  const DEV_CONNECT = "connect-src 'self' blob: https: http://localhost:* http://127.0.0.1:*";
+  // wss: is the encrypted-tunnel prototype (relay/tunnel-local.mjs); production does not list it yet.
+  const DEV_CONNECT = "connect-src 'self' blob: https: wss: http://localhost:* http://127.0.0.1:*";
   if (!html.includes(DEV_CONNECT)) throw new Error('The page CSP connect-src is not the one the build narrows');
   html = html.replace(oldMap, newMap).replace(hash(oldMap), hash(newMap))
     .replace('href="./app.css"', `href="${prefix}/playground/app.css"`)

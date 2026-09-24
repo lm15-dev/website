@@ -26,7 +26,9 @@ const playgroundDev = {
           res.setHeader('Content-Type', 'text/html');
           res.setHeader('Cache-Control', 'no-store');
           // LM15_DEV_RELAY_URL: the relay running beside this dev server (relay/serve-local.mjs), used on private hosts only.
-          const relay = process.env.LM15_DEV_RELAY_URL ? `<meta name="lm15-dev-relay" content="${new URL(process.env.LM15_DEV_RELAY_URL).origin}">` : '';
+          const relay = (process.env.LM15_DEV_RELAY_URL ? `<meta name="lm15-dev-relay" content="${new URL(process.env.LM15_DEV_RELAY_URL).origin}">` : '')
+            // LM15_DEV_TUNNEL_URL: the encrypted tunnel prototype (relay/tunnel-local.mjs), e.g. wss://host:18789/tunnel.
+            + (process.env.LM15_DEV_TUNNEL_URL ? `<meta name="lm15-dev-tunnel" content="${new URL(process.env.LM15_DEV_TUNNEL_URL).toString()}">` : '');
           res.end(readFileSync('.build/public/playground/index.html', 'utf8').replace('</head>', relay + '</head>').replace('</body>', '<script src="/__playground_dev.js"></script></body>')); return;
         }
         next();

@@ -21,10 +21,17 @@
  */
 
 import {
-  AuthOperationError, Message, loginAdapter, loginMethods, loginProviders, pathRelay, renewalDue, runLogin, runRenewal,
+  AuthOperationError, Message, TlsEngine, loginAdapter, loginMethods, loginProviders, loginWay, pathRelay, renewalDue, runLogin, runRenewal, tunnelRelay,
   type AuthUI, type ExchangeRecord, type LoginMethod, type LoginOutcome, type ManualCodePrompt, type Notice, type Prompt, type RelayConfig, type RelayStage,
 } from "lm15/browser";
-import { privatePageHost, relayUrl } from "./relay.ts";
+import { privatePageHost, relayUrl, tunnelUrl } from "./relay.ts";
+
+/** The rustls module ships beside the SDK (dist/tls); loaded only when the tunnel is chosen. */
+let tlsEngine: Promise<TlsEngine> | undefined;
+function tls(): Promise<TlsEngine> {
+  tlsEngine ??= TlsEngine.load(new URL("./tls/lm15-tls.wasm", import.meta.resolve("lm15/browser")));
+  return tlsEngine;
+}
 
 const RETURN_CHANNEL = "lm15-login-return";
 
@@ -81,6 +88,9 @@ interface ModelRecord {
 type LogEntry = ({ kind: "auth" } & ExchangeRecord) | ({ kind: "model" } & ModelRecord) | { kind: "outcome"; provider: string; method: string; result: string; detail: string };
 
 const STAGE_LABEL: Readonly<Record<RelayStage, string>> = { auth: "sign-in traffic", catalog: "model lists", inference: "model calls" };
+/** What an encrypted tunnel can see, whatever the stage. */
+const TUNNEL_SEES = "which provider you reach, when, and how much data moves. Not your codes, tokens, prompts or replies: this page encrypts them for the provider itself (rustls, compiled to WebAssembly) and checks the provider's certificate, so the tunnel cannot read or impersonate. The encryption runs in this page's code, so you still trust whoever serves this page.";
+
 const RELAY_CROSSES: Readonly<Record<RelayStage, string>> = {
   auth: "sign-in codes, device codes, and your access and refresh tokens. Whoever runs the relay could act as you until you sign out or revoke access.",
   catalog: "your access token or key.",
@@ -95,6 +105,8 @@ const DEFAULT_MODELS: Readonly<Record<string, string>> = {
 export class LoginLab {
   readonly #dialog: HTMLDialogElement;
   readonly #consent = new Set<RelayStage>();
+  /** How consented stages travel: a forwarding relay (reads them) or the encrypted tunnel (cannot). */
+  #mode: "forward" | "tunnel" = "forward";
   readonly #sessions = new Map<string, LoginOutcome>();
   readonly #log: LogEntry[] = [];
   #attempt: AbortController | undefined;
@@ -114,14 +126,20 @@ export class LoginLab {
   }
 
   #relay(): RelayConfig | undefined {
+    if (this.#consent.size === 0) return undefined;
+    if (this.#mode === "tunnel" && tunnelUrl()) return tunnelRelay(tunnelUrl(), { stages: [...this.#consent], tls: tls() });
     const url = relayUrl();
-    if (!url || this.#consent.size === 0) return undefined;
+    if (!url) return undefined;
     return pathRelay(url, { stages: [...this.#consent], userAgentHeader: "x-lm15-user-agent" });
   }
 
   #env(): { platform: "browser"; relay?: RelayConfig } {
     const relay = this.#relay();
     return relay ? { platform: "browser", relay } : { platform: "browser" };
+  }
+
+  #crosses(stage: RelayStage): string {
+    return this.#mode === "tunnel" && tunnelUrl() ? `The tunnel sees ${TUNNEL_SEES}` : `What crosses it: ${RELAY_CROSSES[stage]}`;
   }
 
   // ─── Layout ──────────────────────────────────────────────────────
@@ -131,13 +149,30 @@ export class LoginLab {
     close.addEventListener("click", () => this.#dialog.close());
     const consent = el("fieldset", { class: "lab-consent" }, el("legend", { text: "The lm15 relay" }),
       el("p", { class: "setting-help", text: `Some sign-in and model endpoints do not let a web page read their replies. For those, and only if you tick a box below, this page sends the request through the lm15 relay (${relayUrl() || "not deployed"}): a small server lm15 runs, which keeps no log. Anything else goes straight from this page to the provider.` }));
+    const stageTexts: Array<[RelayStage, HTMLElement]> = [];
+    if (tunnelUrl()) {
+      const choice = el("div", { class: "lab-mode", role: "radiogroup", "aria-label": "How the relay carries requests" });
+      for (const [mode, label] of [["forward", "Forwarding relay: it reads and forwards each request"], ["tunnel", "Encrypted tunnel (prototype): it only passes encrypted bytes along"]] as const) {
+        const radio = el("input", { type: "radio", name: "lab-relay-mode", value: mode, ...(mode === this.#mode ? { checked: true } : {}) });
+        radio.addEventListener("change", () => {
+          if (!radio.checked) return;
+          this.#mode = mode;
+          for (const [stage, span] of stageTexts) span.textContent = this.#crosses(stage);
+          this.#renderMethods();
+        });
+        choice.append(el("label", { class: "checkbox" }, radio, label));
+      }
+      consent.append(choice);
+    }
     for (const stage of ["auth", "catalog", "inference"] as const) {
       const box = el("input", { type: "checkbox" });
       box.addEventListener("change", () => {
         if (box.checked) this.#consent.add(stage); else this.#consent.delete(stage);
         this.#renderMethods();
       });
-      consent.append(el("label", { class: "checkbox lab-check" }, box, el("span", {}, el("b", { text: `Relay ${STAGE_LABEL[stage]}. ` }), `What crosses it: ${RELAY_CROSSES[stage]}`)));
+      const text = el("span", { text: this.#crosses(stage) });
+      stageTexts.push([stage, text]);
+      consent.append(el("label", { class: "checkbox lab-check" }, box, el("span", {}, el("b", { text: `Relay ${STAGE_LABEL[stage]}. ` }), text)));
     }
     consent.append(el("p", { class: "setting-help", text: "Your choice lasts until this tab closes." }));
     if (privatePageHost(location.hostname)) {
@@ -244,7 +279,7 @@ export class LoginLab {
         body.append(el("tr", { class: `lab-outcome ${entry.result}` }, el("td", { text: entry.provider }), el("td", { colspan: "5", text: `${entry.method}: ${entry.result}${entry.detail ? ` — ${entry.detail}` : ""}` })));
         continue;
       }
-      const way = entry.via === "direct" ? "direct" : "relay";
+      const way = entry.via === "direct" ? "direct" : entry.via === "tunnel" || entry.via.startsWith("https://") && tunnelUrl() && new URL(tunnelUrl()).host === new URL(entry.via).host ? "tunnel" : "relay";
       const result = entry.kind === "auth"
         ? entry.failure ? `failed: ${entry.failure}` : `HTTP ${entry.status}${entry.oauthError ? ` ${entry.oauthError}` : ""}`
         : entry.detail;
@@ -262,7 +297,7 @@ export class LoginLab {
       date: new Date().toISOString(),
       origin: location.origin,
       browser: navigator.userAgent,
-      relay: this.#relay() ? { origin: this.#relay()!.origin, stages: [...this.#consent] } : null,
+      relay: this.#relay() ? { origin: this.#relay()!.origin, encrypted: this.#relay()!.encrypted === true, stages: [...this.#consent] } : null,
       entries: this.#log,
     }, null, 2);
   }
@@ -330,9 +365,11 @@ export class LoginLab {
   async #adapter(provider: string, stage: "catalog" | "inference") {
     let outcome = this.#sessions.get(provider)!;
     if (renewalDue(outcome.material)) outcome = await this.#renewOutcome(provider);
-    const adapter = loginAdapter(outcome, { ...this.#env(), stage });
+    const env = this.#env();
+    const adapter = loginAdapter(outcome, { ...env, stage });
+    const way = loginWay(outcome, stage, env);
+    const via = way.via === "direct" ? "direct" : way.encrypted ? "tunnel" : "relay";
     const url = new URL(adapter.baseUrl);
-    const via = url.origin === new URL(relayUrl() || "https://none.invalid").origin ? "relay" : "direct";
     const host = via === "relay" ? url.pathname.split("/")[1] ?? url.host : url.host;
     return { adapter, host, via };
   }

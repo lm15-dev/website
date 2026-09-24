@@ -54,6 +54,21 @@ function devRelayUrl(): string | undefined {
   }
 }
 
+/**
+ * The encrypted tunnel (relay/tunnel-local.mjs), a prototype: only a
+ * development server on a private host names one (`LM15_DEV_TUNNEL_URL`,
+ * `<meta name="lm15-dev-tunnel">`). Empty elsewhere: the public site has none.
+ */
+export function tunnelUrl(): string {
+  try {
+    if (!privatePageHost(location.hostname)) return "";
+    const value = document.querySelector<HTMLMetaElement>('meta[name="lm15-dev-tunnel"]')?.content;
+    return value ? new URL(value).toString() : "";
+  } catch {
+    return "";
+  }
+}
+
 export function relayUrl(): string {
   try {
     if (privatePageHost(location.hostname)) return localStorage.getItem("lm15.playground.relay-url") ?? devRelayUrl() ?? RELAY_URL;
