@@ -9,7 +9,7 @@
  * lm15 wheel 0.5 MB; both are served by this site, no CDN.
  */
 
-import { Message, Response, type Request } from "lm15/browser";
+import { Message, Response, type Request } from "@lm15/lm15/browser";
 import { EXAMPLE_API_KEY, examplePython, keyless, streams, type Connection, type Settings, type Wire } from "../experience.ts";
 import { isJudgeRequest, judgePython, specOfRequest, type JudgeSource } from "../judge.ts";
 import type { Runtime } from "./index.ts";

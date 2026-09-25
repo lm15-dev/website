@@ -13,7 +13,7 @@
  * snapshot in experience.ts, the same setup with the transcript restored and
  * one call, because re-running the story would ask the model again.
  */
-import type { Message } from "lm15/browser";
+import type { Message } from "@lm15/lm15/browser";
 import { api, comment, dim, finish, mark, type Code } from "./marks.ts";
 import { GO_ERR, GO_ERR_IN_LOOP, configLines, goConfig, goMessage, goProgram, indent, jsClient, jsMessage, judgmentsOnly, plainText, pyClient, pyImports, pyMessage, qv, replayNames, replayParts, rustClient, rustMessage, rustReplayImports, rv, streams, turnSource, type Connection, type Ghost, type Settings } from "./experience.ts";
 
@@ -64,7 +64,7 @@ export function storyJavascript(connection: Connection, settings: Settings, turn
   if (connection.provider === "anthropic") imports.splice(1, 0, "access");
   const system = settings.system.trim();
   const config = configLines(settings, "javascript", ghost).map((line) => line.trim().replace(/,$/, ""));
-  const lines = [dim(`import { ${imports.join(", ")} } from "lm15/browser";`), "", ...jsClient(connection), `const model = ${qv(connection.model, "model")};`];
+  const lines = [dim(`import { ${imports.join(", ")} } from "@lm15/lm15/browser";`), "", ...jsClient(connection), `const model = ${qv(connection.model, "model")};`];
   if (system) lines.push(`const system = ${qv(system, "system")};`);
   lines.push("", ...(opening.length ? ["const messages = [", ...indent(opening.map((i) => jsMessage(messages[i]!, i)).join("\n"), 1).split("\n"), "];"] : ["const messages = [];"]));
   lines.push("", comment(`// ${ONE_TURN}`), "async function ask(text) {", `  messages.push(${api("Message.user")}(text));`,

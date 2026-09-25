@@ -10,7 +10,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { stringifyJson } from "lm15/browser";
+import { stringifyJson } from "@lm15/lm15/browser";
 import { goExamples, goStories } from "./support/go-examples.ts";
 
 /** The program with `return dump(request)` after the request is built: nothing after it runs, so no provider is called. */

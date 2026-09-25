@@ -23,7 +23,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
-import { Message, Request as RequestNs, UnsupportedFeatureError, continuationState, thinking, utf8Decode } from "lm15/browser";
+import { Message, Request as RequestNs, UnsupportedFeatureError, continuationState, thinking, utf8Decode } from "@lm15/lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
 import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, buildRequest, createClient, exampleConversation, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyless, slashCommand, streams, type Connection, type Settings } from "../src/playground/experience.ts";
 import { RustCodec } from "../src/playground/runtimes/rust.ts";
@@ -111,11 +111,11 @@ test(`JavaScript: all ${cases.length} variants type-check, execute, and build th
     calls.push({ url, body: new TextDecoder().decode(init.body as Uint8Array<ArrayBuffer>) });
     return replyFor(url);
   });
-  const entry = import.meta.resolve('lm15/browser');
+  const entry = import.meta.resolve('@lm15/lm15/browser');
   for (const [i, c] of cases.entries()) {
     calls = [];
     const want = await expected(c);
-    const url = `data:text/javascript,${encodeURIComponent(`// variant ${i}\n` + sources[i]!.replace('"lm15/browser"', JSON.stringify(entry)) + "\nexport { request, response };")}`;
+    const url = `data:text/javascript,${encodeURIComponent(`// variant ${i}\n` + sources[i]!.replace('"@lm15/lm15/browser"', JSON.stringify(entry)) + "\nexport { request, response };")}`;
     if (want.refused) {
       await assert.rejects(import(url), (e: unknown) => e instanceof Error && e.name === "UnsupportedFeatureError", `${c.connection.provider}: the JavaScript text refuses as the page does`);
       assert.equal(calls.length, 0);
@@ -191,7 +191,7 @@ test("Rust: standalone examples match the generator and the pinned SDK imports",
 });
 
 test("a transcript parsed off the wire (RawNumber lexemes in an opaque payload) renders and builds in every language", {}, async () => {
-  const { parseJson } = await import("lm15/browser");
+  const { parseJson } = await import("@lm15/lm15/browser");
   // What a JavaScript turn leaves in the transcript: numbers from the provider's body are RawNumber, not Number.
   const fromWire = Message.fromJSON(parseJson('{"role":"assistant","parts":[{"type":"text","text":"Earlier answer","continuation":[{"provider":"openai","kind":"reasoning_item","data":{"n":1.0,"big":12345678901234567890}}]}]}') as never);
   const transcript = [Message.user("Earlier question"), fromWire];

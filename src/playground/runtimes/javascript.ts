@@ -1,6 +1,6 @@
 /** The JavaScript runtime: this page's own `lm15/browser`, no loading step. */
 
-import { ResponseStream, stringifyJson, utf8Decode, type Request, type Response } from "lm15/browser";
+import { ResponseStream, stringifyJson, utf8Decode, type Request, type Response } from "@lm15/lm15/browser";
 import { createClient, streams, type Connection, type Wire } from "../experience.ts";
 import { isJudgeRequest } from "../judge.ts";
 import type { Runtime } from "./index.ts";

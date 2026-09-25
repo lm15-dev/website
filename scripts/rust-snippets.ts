@@ -9,7 +9,7 @@
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Message, continuationState, thinking } from "lm15/browser";
+import { Message, continuationState, thinking } from "@lm15/lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
 import { DEFAULT_SETTINGS, judgmentsOnly, exampleConversation, exampleRust, type Connection, type Settings } from "../src/playground/experience.ts";
 

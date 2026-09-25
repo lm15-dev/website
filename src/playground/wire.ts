@@ -1,4 +1,4 @@
-import { RawNumber, parseJson, stringifyJson } from "lm15/browser";
+import { RawNumber, parseJson, stringifyJson } from "@lm15/lm15/browser";
 import type { Wire } from "./experience.ts";
 
 function sorted(value: unknown): unknown {

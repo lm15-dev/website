@@ -1,5 +1,5 @@
 /** The playground: a chat or a judge set, its settings, and the same request in four languages that actually run. */
-import { Message, parseJson, stringifyJson, text as textPart, type Request } from "lm15/browser";
+import { Message, parseJson, stringifyJson, text as textPart, type Request } from "@lm15/lm15/browser";
 import { CONNECTIONS } from "./connections.ts";
 import { Credentials } from "./credentials.ts";
 import { renderCode } from "./code-view.ts";

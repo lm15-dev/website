@@ -9,7 +9,7 @@ import { socialHead } from '../social-card.mjs';
 export const root = resolve(import.meta.dirname, '..');
 export const siteDir = join(root, 'dist');
 export const generatedDir = join(root, '.build/public');
-const sdk = join(root, 'node_modules/lm15');
+const sdk = join(root, 'node_modules/@lm15/lm15');
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export function filesUnder(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
@@ -78,7 +78,7 @@ export function buildPlayground({ production = true } = {}) {
   if (!oldMap) throw new Error('Missing import map');
   const hash = text => `'sha256-${createHash('sha256').update(text).digest('base64')}'`;
   if (!html.includes(hash(oldMap))) throw new Error('Import map is not covered by the page CSP');
-  const newMap = JSON.stringify({ imports: { 'lm15/browser': `${prefix}/dist/browser.js` } });
+  const newMap = JSON.stringify({ imports: { '@lm15/lm15/browser': `${prefix}/dist/browser.js` } });
   const escapeAttribute = value => String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   const shareTags = socialHead('LM15 Playground', 'Try LM15 in JavaScript, Python, Rust and Go, directly in your browser.', 'https://lm15.dev/playground/')
     .map(({ attrs }) => `<meta ${Object.entries(attrs).map(([key, value]) => `${key}="${escapeAttribute(value)}"`).join(' ')}>`).join('\n');

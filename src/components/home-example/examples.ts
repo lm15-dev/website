@@ -51,7 +51,7 @@ response = ${api('router.complete')}(${api('Request')}(
 ))
 
 print(response.text)`,
-    typescript: `${dim('import { LMRouter, Message } from "lm15";')}
+    typescript: `${dim('import { LMRouter, Message } from "@lm15/lm15";')}
 
 const router = new ${api('LMRouter')}();
 const response = await ${api('router.complete')}({

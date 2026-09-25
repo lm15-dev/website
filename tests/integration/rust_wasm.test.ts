@@ -19,7 +19,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { RustCodec, RustCodecError } from "../../src/playground/runtimes/rust.ts";
 import "lm15/node";
-import { parseJson } from "lm15/browser";
+import { parseJson } from "@lm15/lm15/browser";
 import { ensureRustWasm, root } from "../support/runtimes.ts";
 import * as hostDriver from "../support/contract-driver.ts";
 

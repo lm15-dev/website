@@ -25,7 +25,7 @@ export const DEFAULT_SELECTION: DocSelection = { language: 'python', provider: '
 // Language-specific setup belongs beside the recipes, not in duplicated pages.
 export const SETUP: Record<Language, { href: string; text: string }> = {
   python: { href: 'https://lm15-dev.github.io/lm15-python/getting-started/', text: 'Install LM15 using the Python getting-started guide.' },
-  typescript: { href: 'https://github.com/lm15-dev/lm15-ts#readme', text: 'Install LM15 using the TypeScript SDK guide. This example runs in Node.js.' },
+  typescript: { href: 'https://github.com/lm15-dev/lm15-ts#readme', text: 'Install LM15 with npm install @lm15/lm15 (TypeScript SDK guide). This example runs in Node.js.' },
   rust: { href: 'https://github.com/lm15-dev/lm15-rs#readme', text: 'Add LM15 and Tokio using the Rust SDK guide.' },
   go: { href: 'https://github.com/lm15-dev/lm15-go#readme', text: 'Add LM15 to your Go module using the Go SDK guide.' },
   r: { href: '/compatibility/languages/', text: 'The R package is not yet publicly available. This example previews its current API.' },

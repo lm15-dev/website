@@ -11,7 +11,7 @@
  * placeholders in the text.
  */
 
-import { Message, OpenAIChatLM, RawNumber, Request as RequestNs, adapterFor, access, lookup, stringifyJson, type Config, type ContinuationState, type ProviderLM, type ReasoningEffort, type Request } from "lm15/browser";
+import { Message, OpenAIChatLM, RawNumber, Request as RequestNs, adapterFor, access, lookup, stringifyJson, type Config, type ContinuationState, type ProviderLM, type ReasoningEffort, type Request } from "@lm15/lm15/browser";
 import { api, comment, dim, finish, quotedOpaque, quotedValue, val, type Code } from "./marks.ts";
 import { relayBaseUrl, relayed } from "./relay.ts";
 
@@ -284,7 +284,7 @@ export function exampleJavascript(connection: Connection, settings: Settings, me
   const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", "Message", "Request", ...(streamed ? ["ResponseStream"] : []), ...(replay.state ? ["continuationState"] : []), ...(replay.text ? ["text"] : []), ...(replay.thinking ? ["thinking"] : [])];
   if (connection.provider === "anthropic") imports.splice(1, 0, "access");
   const chunk = replay.text ? "piece" : "text"; // the streamed variable steps aside for the `text` constructor
-  const lines = [dim(`import { ${imports.join(", ")} } from "lm15/browser";`), "", ...jsClient(connection)];
+  const lines = [dim(`import { ${imports.join(", ")} } from "@lm15/lm15/browser";`), "", ...jsClient(connection)];
   lines.push("", `const request = ${api("Request.create")}({`, `  model: ${qv(connection.model, "model")},`);
   if (settings.system.trim()) lines.push(`  system: ${qv(settings.system.trim(), "system")},`);
   if (messages.length) {

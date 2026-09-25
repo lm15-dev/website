@@ -16,7 +16,7 @@
  *
  * SDKs: Python from the wheel and TypeScript from the build the website pins
  * (node_modules/lm15); Rust and Go at the commits pinned in
- * node_modules/lm15/runtime/sources.json, extracted from the sibling checkouts'
+ * node_modules/@lm15/lm15/runtime/sources.json, extracted from the sibling checkouts'
  * history (LM15_RS_DIR, LM15_GO_DIR) whatever they have checked out;
  * R and Julia from their checkouts (LM15_R_DIR, LM15_JL_DIR) through Nix.
  * R runs with its real router but its fake transport: its curl transport fails
@@ -39,7 +39,7 @@ const FIXTURE = join(ROOT, 'scripts/docs-fixture-server.py');
 const CACHE = join(homedir(), '.cache/lm15-docs-examples');
 const REPLY = 'Probably wood mice.';
 const sdk = (variable: string, name: string) => resolve(process.env[variable] ?? join(ROOT, '..', name));
-const pins = JSON.parse(readFileSync(join(ROOT, 'node_modules/lm15/runtime/sources.json'), 'utf8')) as Record<string, string>;
+const pins = JSON.parse(readFileSync(join(ROOT, 'node_modules/@lm15/lm15/runtime/sources.json'), 'utf8')) as Record<string, string>;
 const wanted = new Set((process.env['LM15_DOCS_LANGUAGES'] ?? LANGUAGES.map(l => l.id).join(',')).split(','));
 
 type Program = TourProgram;
@@ -93,10 +93,10 @@ function pinned(language: string, checkout: string, pin: string | undefined): st
 const runners: Record<Language, (t: import('node:test').TestContext) => void> = {
   python(t) {
     if (!have('python3')) return t.skip('python3 not found');
-    const wheel = readdirSync(join(ROOT, 'node_modules/lm15/runtime')).find(name => name.endsWith('.whl'));
+    const wheel = readdirSync(join(ROOT, 'node_modules/@lm15/lm15/runtime')).find(name => name.endsWith('.whl'));
     assert.ok(wheel, 'the pinned Python wheel');
     const dir = mkdtempSync(join(tmpdir(), 'lm15-docs-py-'));
-    execFileSync('python3', ['-m', 'zipfile', '-e', join(ROOT, 'node_modules/lm15/runtime', wheel), join(dir, 'site')]);
+    execFileSync('python3', ['-m', 'zipfile', '-e', join(ROOT, 'node_modules/@lm15/lm15/runtime', wheel), join(dir, 'site')]);
     for (const p of programs('python')) {
       writeFileSync(join(dir, `${p.name}.py`), p.source + '\n');
       provide(p, dir);
@@ -105,7 +105,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     }
   },
   typescript() {
-    // Inside the website, so `import "lm15"` resolves to the pinned build.
+    // Inside the website, so `import "@lm15/lm15"` resolves to the pinned build.
     const dir = mkdtempSync(join(ROOT, '.docs-run-'));
     try {
       const list = programs('typescript');

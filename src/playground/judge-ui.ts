@@ -8,7 +8,7 @@
  * the two modes share one provider, one key, one set of language tabs.
  */
 
-import { judgmentsInSchema, stringifyJson, type Judgment, type JsonObject, type JsonValue, type Request } from "lm15/browser";
+import { judgmentsInSchema, stringifyJson, type Judgment, type JsonObject, type JsonValue, type Request } from "@lm15/lm15/browser";
 import { keyless, type Connection } from "./experience.ts";
 import { comment, finish, type Code } from "./marks.ts";
 import { EXAMPLE_SPEC, distribution, emptyState, exampleState, expectedLevel, freeName, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, parseProperties, parseStateObject, pickLabel, questionSource, readQuestions, stateIsBlank, verdictOf, withQuestion, withoutQuestion, type Echo, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type StateValue, type Turn, type Verdict } from "./judge.ts";

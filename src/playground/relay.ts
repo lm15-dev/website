@@ -14,7 +14,7 @@
  * provider is the same adapter with `baseUrl` pointing at the relay.
  */
 
-import { adapterFor } from "lm15/browser";
+import { adapterFor } from "@lm15/lm15/browser";
 
 /** The deployed Worker (relay/README.md). Empty until deployed: the page then explains instead of offering. */
 export const RELAY_URL = "https://lm15-relay.mrive052.workers.dev";

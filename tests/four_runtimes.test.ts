@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseJson, stringifyJson } from "lm15/browser";
+import { parseJson, stringifyJson } from "@lm15/lm15/browser";
 import { LANGUAGES, rustString } from "../src/playground/experience.ts";
 import { goExamples } from "./support/go-examples.ts";
 import { wireOf, RustCodecError } from "../src/playground/runtimes/rust.ts";

@@ -19,7 +19,7 @@
  * touches the DOM or the network.
  */
 
-import { Message, RawNumber, Request as RequestNs, choice, isJsonObject, judgments, judgmentsInSchema, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "lm15/browser";
+import { Message, RawNumber, Request as RequestNs, choice, isJsonObject, judgments, judgmentsInSchema, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "@lm15/lm15/browser";
 import { GO_ERR, goProgram, jsClient, judgmentsOnly, pyClient, pyImports, rustClient, rustString, rv, type Connection } from "./experience.ts";
 import { api, comment, dim, finish, group, mark, plain, quotedValue, val, type Code } from "./marks.ts";
 
@@ -404,7 +404,7 @@ export function judgeJavascript(connection: Connection, spec: JudgeSpec, value: 
   const { lines: questionLines, uses } = questionsCode(spec, "javascript");
   const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", ...(connection.provider === "anthropic" ? ["access"] : []), "Message", "Request", "judgments", ...[...uses].sort()];
   const jev = judgmentsOnly(connection.provider);
-  const lines = [dim(`import { ${imports.join(", ")} } from "lm15/browser";`), "", ...jsClient(connection), `const model = ${qv(connection.model, "model")};`];
+  const lines = [dim(`import { ${imports.join(", ")} } from "@lm15/lm15/browser";`), "", ...jsClient(connection), `const model = ${qv(connection.model, "model")};`];
   lines.push("", comment(`// ${SHAPE_NOTE[spec.shape]}.`), `const state = ${group(jsState(value, 0, jev), STATE_SOURCE)};`, "");
   lines.push(comment("// Declared keys in, a distribution out (MAP-14)."), `const questions = ${api("judgments")}({`, ...questionLines, "});", "");
   const messages = jev

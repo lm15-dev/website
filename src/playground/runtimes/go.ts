@@ -1,5 +1,5 @@
 /** The actual lm15-go SDK and its net/http transport, compiled with GOOS=js GOARCH=wasm. */
-import { Request as RequestNs, Response, parseJson, stringifyJson } from "lm15/browser";
+import { Request as RequestNs, Response, parseJson, stringifyJson } from "@lm15/lm15/browser";
 import { isJudgeRequest } from "../judge.ts";
 import { connectionOf, RustCodecError, wireOf, type RustFailure, type WireRequest, type CanonicalEvent } from "./rust.ts";
 import type { Runtime } from "./index.ts";

@@ -832,7 +832,7 @@ console.log((await ${api('router.complete')}(followup)).text);`,
   program: (body, uses) => {
     const names = ['LMRouter', 'Message', ...(uses.stream ? ['ResponseStream'] : []), ...(uses.tool ? ['type FunctionTool'] : []), ...(uses.serde ? ['Request'] : uses.schema || uses.typed || uses.errors === 'retry' ? ['type Request'] : []), ...(uses.errors === 'catch' ? ['UnsupportedModelError'] : uses.errors === 'retry' ? ['LM15Error'] : []), ...(uses.generation ? ['UnsupportedFeatureError'] : []), ...(uses.media === 'photo' ? ['image'] : uses.media === 'log' ? ['document'] : [])];
     const fs = uses.serde ? `${dim('import { readFileSync, writeFileSync } from "node:fs";')}\n` : '';
-    return `${fs}${dim(`import { ${names.join(', ')} } from "lm15";`)}\n\n${body}`;
+    return `${fs}${dim(`import { ${names.join(', ')} } from "@lm15/lm15";`)}\n\n${body}`;
   },
 };
 

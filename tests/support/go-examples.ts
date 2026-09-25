@@ -1,4 +1,4 @@
-import { Message, Request as RequestNs, continuationState, thinking } from "lm15/browser";
+import { Message, Request as RequestNs, continuationState, thinking } from "@lm15/lm15/browser";
 import { CONNECTIONS } from "../../src/playground/connections.ts";
 import { DEFAULT_SETTINGS, exampleGo, buildRequest, type Connection } from "../../src/playground/experience.ts";
 import { EXAMPLE_SPEC, judgeGo, judgeRequest, judgeRust, type StateValue } from "../../src/playground/judge.ts";

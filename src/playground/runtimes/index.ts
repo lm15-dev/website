@@ -8,7 +8,7 @@
  * contract's whole point.
  */
 
-import type { Message, Request, Response } from "lm15/browser";
+import type { Message, Request, Response } from "@lm15/lm15/browser";
 import type { Connection, Wire } from "../experience.ts";
 import type { JudgeSource } from "../judge.ts";
 import type { Report } from "./progress.ts";

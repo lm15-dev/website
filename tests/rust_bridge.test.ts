@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { Request as RequestNs, Message, parseJson, stringifyJson } from "lm15/browser";
+import { Request as RequestNs, Message, parseJson, stringifyJson } from "@lm15/lm15/browser";
 import { rustRuntime, RustCodec } from "../src/playground/runtimes/rust.ts";
 import { ensureRustWasm } from "./support/runtimes.ts";
 

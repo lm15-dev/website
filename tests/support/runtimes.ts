@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
-const runtime = resolve(root, 'node_modules/lm15/runtime');
+const runtime = resolve(root, 'node_modules/@lm15/lm15/runtime');
 // Tests never compile SDKs or silently skip a missing installed runtime.
 export function ensureWheel(): { path: string } {
   const wheels = readdirSync(runtime).filter(name => /^lm15-.*-py3-none-any\.whl$/.test(name));

@@ -15,14 +15,14 @@ import { test } from "node:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
-import { choice, score, utf8Decode, yesNo } from "lm15/browser";
+import { choice, score, utf8Decode, yesNo } from "@lm15/lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
 import { EXAMPLE_API_KEY, createClient, keyless, type Connection } from "../src/playground/experience.ts";
 import { EXAMPLE_NOTE, EXAMPLE_SPEC, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, verdictOf, type JudgeSpec, type StateValue } from "../src/playground/judge.ts";
 import { judgeProgram, withKey } from "../src/playground/runtimes/python.ts";
 import { RustCodec } from "../src/playground/runtimes/rust.ts";
 import { readFileSync } from "node:fs";
-import { Request as RequestNs, Response as CanonicalResponse } from "lm15/browser";
+import { Request as RequestNs, Response as CanonicalResponse } from "@lm15/lm15/browser";
 // Browser examples must use FetchTransport: lm15/node installs a native transport
 // that bypasses mocked global fetch. Fail closed before constructing any clients.
 globalThis.fetch = async () => { throw new Error("Unintercepted network in Judge example test"); };
@@ -71,10 +71,10 @@ test(`JavaScript: all ${cases.length} judge variants type-check, execute one cal
     return judgeReplyFor(url, Object.keys(THREE.properties));
   });
   t.mock.method(console, "log", () => {});
-  const entry = import.meta.resolve("lm15/browser");
+  const entry = import.meta.resolve("@lm15/lm15/browser");
   for (const [i, c] of cases.entries()) {
     calls = [];
-    const url = `data:text/javascript,${encodeURIComponent(`// variant ${i}\n` + sources[i]!.replace('"lm15/browser"', JSON.stringify(entry)))}`;
+    const url = `data:text/javascript,${encodeURIComponent(`// variant ${i}\n` + sources[i]!.replace('"@lm15/lm15/browser"', JSON.stringify(entry)))}`;
     await import(url);
     assert.equal(calls.length, 1, `${c.connection.provider} ${c.spec.shape}: one request`);
     const want = await expected(c, c.value);
@@ -108,7 +108,7 @@ test(`Python under Pyodide: all ${cases.length} judge variants execute the progr
     const out = String(await py.runPythonAsync(withKey(judgeProgram(c.connection, want.request, { spec: c.spec, value: c.value }), c.key, c.connection)));
     assert.equal(calls.length, 1);
     assert.equal(calls[0]!.body, want.body, `${c.connection.provider} ${c.spec.shape}: the executed program builds the page's bytes`);
-    const { Response } = await import("lm15/browser");
+    const { Response } = await import("@lm15/lm15/browser");
     const verdict = verdictOf(Response.fromJSON(JSON.parse(out)), { ms: 0, provider: c.connection.provider, model: c.connection.model, runtime: "Python" });
     assert.deepEqual(verdict.data, JSON.parse(JUDGED_TEXT), `${c.connection.provider}: the pick comes back through Python`);
     if (c.connection.provider === "typesafe") assert.equal(verdict.method, "provider_classification");

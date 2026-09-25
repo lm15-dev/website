@@ -21,8 +21,8 @@
   },
   "dependencies": {
     "@astrojs/starlight": "0.42.0",
-    "astro": "7.3.2",
-    "lm15": "https://github.com/lm15-dev/website/releases/download/runtimes-2026-09-24-1/runtime-package.tgz"
+    "@lm15/lm15": "https://github.com/lm15-dev/website/releases/download/runtimes-2026-09-24-1/runtime-package.tgz",
+    "astro": "7.3.2"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.9",

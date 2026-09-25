@@ -28,7 +28,7 @@ import {
   splitLines,
   stringifyJson,
   type JsonObject,
-} from "lm15/browser";
+} from "@lm15/lm15/browser";
 
 function hostOptions(c: JsonObject): { settings?: Record<string, string>; clock?: () => Date; baseUrl?: string } {
   const out: { settings?: Record<string, string>; clock?: () => Date; baseUrl?: string } = {};
@@ -91,4 +91,4 @@ export function parseBodyJson(caseJson: string, bodyBase64: string): string {
 }
 
 /** The platform the driver's realm runs on: the name proves which host answered. */
-export { getDefaultPlatform } from "lm15/browser";
+export { getDefaultPlatform } from "@lm15/lm15/browser";

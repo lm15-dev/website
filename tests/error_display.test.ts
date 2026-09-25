@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { RateLimitError } from "lm15/browser";
+import { RateLimitError } from "@lm15/lm15/browser";
 import { displayError, translatePythonError } from "../src/playground/error-display.ts";
 
 test("JavaScript display uses the SDK formatter without mutating the provider message", () => {

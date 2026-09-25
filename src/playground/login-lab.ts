@@ -23,13 +23,13 @@
 import {
   AuthOperationError, Message, TlsEngine, loginAdapter, loginMethods, loginProviders, loginWay, pathRelay, renewalDue, runLogin, runRenewal, tunnelRelay,
   type AuthUI, type ExchangeRecord, type LoginMethod, type LoginOutcome, type ManualCodePrompt, type Notice, type Prompt, type RelayConfig, type RelayStage,
-} from "lm15/browser";
+} from "@lm15/lm15/browser";
 import { privatePageHost, relayUrl, tunnelUrl } from "./relay.ts";
 
 /** The rustls module ships beside the SDK (dist/tls); loaded only when the tunnel is chosen. */
 let tlsEngine: Promise<TlsEngine> | undefined;
 function tls(): Promise<TlsEngine> {
-  tlsEngine ??= TlsEngine.load(new URL("./tls/lm15-tls.wasm", import.meta.resolve("lm15/browser")));
+  tlsEngine ??= TlsEngine.load(new URL("./tls/lm15-tls.wasm", import.meta.resolve("@lm15/lm15/browser")));
   return tlsEngine;
 }
 

@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { HttpResponse, Response, choice, judgmentsInSchema, score, stringifyJson, utf8Decode, yesNo } from "lm15/browser";
+import { HttpResponse, Response, choice, judgmentsInSchema, score, stringifyJson, utf8Decode, yesNo } from "@lm15/lm15/browser";
 import { createClient, type Connection } from "../src/playground/experience.ts";
 import { EXAMPLE_NOTE, EXAMPLE_SPEC, distribution, expectedLevel, freeName, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, parseProperties, parseStateObject, pickLabel, questionOf, readQuestions, specOfRequest, verdictOf, withQuestion, withoutQuestion, writeQuestion, type JudgeSpec, type Question } from "../src/playground/judge.ts";
 import { judgeProgram } from "../src/playground/runtimes/python.ts";
@@ -95,7 +95,7 @@ test("the Python that executes is the Python shown, plus the JSON of its respons
 
 test("the code spells the questions with the SDK's sugar when the sugar reproduces them, and verbatim otherwise", () => {
   const js = judgeJavascript(typesafe, THREE, EXAMPLE_NOTE).text;
-  assert.match(js, /import \{ adapterFor, Message, Request, judgments, choice, score, yesNo \} from "lm15\/browser";/);
+  assert.match(js, /import \{ adapterFor, Message, Request, judgments, choice, score, yesNo \} from "@lm15\/lm15\/browser";/);
   // Long option lists go one per line; short ones stay inline.
   assert.match(js, /quality: score\("How good is this wine, according to the note\?", \{\n    faulty: "Faulty or unpleasant",\n    simple: "Simple and sound",/);
   assert.match(js, /style: choice\("What is the dominant style described\?", \{\n    fruit: "Fruit-forward",\n    oak: "Oak-driven",\n    mineral: "Mineral, savoury",\n  \}\)/);

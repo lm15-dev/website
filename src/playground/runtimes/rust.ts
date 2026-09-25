@@ -159,7 +159,7 @@ function base64(bytes: Uint8Array): string {
 
 // ─── The runtime ──────────────────────────────────────────────────────
 
-import { Request as RequestNs, Response as CanonicalResponse, parseJson, stringifyJson, type Request } from "lm15/browser";
+import { Request as RequestNs, Response as CanonicalResponse, parseJson, stringifyJson, type Request } from "@lm15/lm15/browser";
 import { ANTHROPIC_BROWSER_HEADER, baseUrlFor, keyless, type Connection, type Wire } from "../experience.ts";
 import { isJudgeRequest } from "../judge.ts";
 import type { Runtime } from "./index.ts";
