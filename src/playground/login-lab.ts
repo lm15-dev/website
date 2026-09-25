@@ -139,7 +139,7 @@ export class LoginLab {
   }
 
   #crosses(stage: RelayStage): string {
-    return this.#mode === "tunnel" && tunnelUrl() ? `The tunnel sees ${TUNNEL_SEES}` : `What crosses it: ${RELAY_CROSSES[stage]}`;
+    return this.#mode === "tunnel" && tunnelUrl() ? "Encrypted end to end; see above." : `What crosses it: ${RELAY_CROSSES[stage]}`;
   }
 
   // ─── Layout ──────────────────────────────────────────────────────
@@ -147,8 +147,18 @@ export class LoginLab {
   #render(): void {
     const close = el("button", { class: "quiet", "aria-label": "Close", type: "button", text: "✕" });
     close.addEventListener("click", () => this.#dialog.close());
-    const consent = el("fieldset", { class: "lab-consent" }, el("legend", { text: "The lm15 relay" }),
-      el("p", { class: "setting-help", text: `Some sign-in and model endpoints do not let a web page read their replies. For those, and only if you tick a box below, this page sends the request through the lm15 relay (${relayUrl() || "not deployed"}): a small server lm15 runs, which keeps no log. Anything else goes straight from this page to the provider.` }));
+    const intro = el("p", { class: "setting-help" });
+    const tunnelNote = el("p", { class: "setting-help lab-tunnel-note" });
+    const describeMode = (): void => {
+      const tunnel = this.#mode === "tunnel" && tunnelUrl();
+      intro.textContent = tunnel
+        ? `Some sign-in and model endpoints do not let a web page read their replies. For those, and only if you tick a box below, this page sends the request through the lm15 encrypted tunnel (${new URL(tunnelUrl()).host}). Anything else goes straight from this page to the provider.`
+        : `Some sign-in and model endpoints do not let a web page read their replies. For those, and only if you tick a box below, this page sends the request through the lm15 relay (${relayUrl() || "not deployed"}): a small server lm15 runs, which keeps no log. Anything else goes straight from this page to the provider.`;
+      // One statement of what the tunnel sees: it is the same for every kind of traffic.
+      tunnelNote.hidden = !tunnel;
+      tunnelNote.textContent = tunnel ? `What the tunnel sees, whatever you tick: ${TUNNEL_SEES}` : "";
+    };
+    const consent = el("fieldset", { class: "lab-consent" }, el("legend", { text: "The lm15 relay" }), intro);
     const stageTexts: Array<[RelayStage, HTMLElement]> = [];
     if (tunnelUrl()) {
       const choice = el("div", { class: "lab-mode", role: "radiogroup", "aria-label": "How the relay carries requests" });
@@ -158,11 +168,13 @@ export class LoginLab {
           if (!radio.checked) return;
           this.#mode = mode;
           for (const [stage, span] of stageTexts) span.textContent = this.#crosses(stage);
+          describeMode();
+          addressRow.hidden = this.#mode === "tunnel";
           this.#renderMethods();
         });
         choice.append(el("label", { class: "checkbox" }, radio, label));
       }
-      consent.append(choice);
+      consent.append(choice, tunnelNote);
     }
     for (const stage of ["auth", "catalog", "inference"] as const) {
       const box = el("input", { type: "checkbox" });
@@ -175,6 +187,7 @@ export class LoginLab {
       consent.append(el("label", { class: "checkbox lab-check" }, box, el("span", {}, el("b", { text: `Relay ${STAGE_LABEL[stage]}. ` }), text)));
     }
     consent.append(el("p", { class: "setting-help", text: "Your choice lasts until this tab closes." }));
+    const addressRow = el("label", { class: "lab-relay-address" });
     if (privatePageHost(location.hostname)) {
       // A playground on this person's own machines may use their own relay (relay.ts explains why only here).
       const address = el("input", { type: "url", value: relayUrl(), spellcheck: "false", "aria-label": "Relay address", class: "lab-relay-url" });
@@ -192,8 +205,11 @@ export class LoginLab {
         address.value = relayUrl();
         this.#renderMethods();
       });
-      consent.append(el("label", { class: "lab-relay-address" }, "Relay address (this page is on a private address, so you may use your own relay): ", address));
+      addressRow.append("Forwarding relay address (this page is on a private address, so you may use your own relay): ", address);
+      addressRow.hidden = this.#mode === "tunnel";
+      consent.append(addressRow);
     }
+    describeMode();
 
     this.#methods = el("div", { class: "lab-methods" });
     this.#steps = el("div", { class: "lab-steps", "aria-live": "polite" });
