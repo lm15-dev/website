@@ -11,10 +11,9 @@ const { step } = Astro.props;
   <div data-doc-install>
     <div data-doc-install-language="python">
       <p>You’ll need Python 3.10 or newer. Run this in your terminal:</p>
-      <Code code="python3 -m pip install --pre lm15" lang="bash" />
+      <Code code="python3 -m pip install lm15" lang="bash" />
       <p>The Python core has no required third-party dependencies: it uses Python’s
-        standard library. The <code>--pre</code> flag includes prereleases, so you
-        get the API used in this guide rather than the older stable release.</p>
+        standard library. This installs LM15 1.0.1, the version this guide uses.</p>
       <details>
         <summary>Using Windows, or keeping this project separate?</summary>
         <p>On Windows, use <code>py</code> instead of <code>python3</code>.</p>
@@ -26,7 +25,7 @@ const { step } = Astro.props;
         <p>Or in Windows PowerShell:</p>
         <Code code=".venv\\Scripts\\Activate.ps1" lang="powershell" />
         <p>Then install inside it:</p>
-        <Code code="python -m pip install --pre lm15" lang="bash" />
+        <Code code="python -m pip install lm15" lang="bash" />
       </details>
     </div>
     <div data-doc-install-language="typescript" hidden>

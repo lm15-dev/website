@@ -37,7 +37,7 @@ test('first-request setup follows the selected provider and language', { timeout
     for (const provider of CONNECTIONS.filter(item => item.env && !('judgmentsOnly' in item))) {
       await page.goto(`${origin}/docs/first-request/?language=python&provider=${provider.id}&model=test-model`);
       await page.locator('[data-doc-controls][data-ready]').waitFor();
-      assert.match(await page.locator('[data-doc-install]').innerText(), /python3 -m pip install --pre lm15/);
+      assert.match(await page.locator('[data-doc-install]').innerText(), /python3 -m pip install lm15/);
       assert.equal(await page.locator('[data-doc-setup]').count(), 0);
       assert.equal(await page.locator('[data-doc-key-provider]:visible').count(), 1);
       assert.ok((await page.locator('[data-doc-key-provider]:visible a').getAttribute('href'))?.startsWith('https://'));
@@ -67,7 +67,7 @@ test('first-request setup follows the selected provider and language', { timeout
 
     const staticPage = await browser.newPage({ javaScriptEnabled: false });
     await staticPage.goto(`${origin}/docs/first-request/`);
-    assert.match(await staticPage.locator('[data-doc-install]').innerText(), /python3 -m pip install --pre lm15/);
+    assert.match(await staticPage.locator('[data-doc-install]').innerText(), /python3 -m pip install lm15/);
     assert.equal(await staticPage.locator('[data-doc-key-provider]:visible').count(), 9);
     assert.deepEqual(await staticPage.locator('main h2').allTextContents(), ['Install', 'Set an API key', 'Ask a question', 'Read the whole response', 'Give it instructions', 'Ask a follow-up', 'Watch it arrive', 'Use another provider', 'When something goes wrong', 'Try it yourself', 'Next']);
     assert.deepEqual(errors, []);
