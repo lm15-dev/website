@@ -51,7 +51,8 @@ test('first-request setup follows the selected provider and language', { timeout
     await page.getByRole('option', { name: 'TypeScript', exact: true }).click();
     assert.equal(await page.locator('[data-doc-install-language="python"]').isVisible(), false);
     assert.equal(await page.locator('[data-doc-python-auth]').isVisible(), false);
-    assert.match(await page.locator('[data-doc-install]').innerText(), /TypeScript SDK guide/);
+    assert.match(await page.locator('[data-doc-install]').innerText(), /npm install @lm15\/lm15/);
+    assert.match(await page.locator('[data-doc-install]').innerText(), /node first\.ts/);
     assert.match(await page.locator('[data-doc-source]').first().textContent() ?? '', /import \{ LMRouter, Message \} from "@lm15\/lm15"/);
 
     await page.locator('[data-doc-provider]').click();

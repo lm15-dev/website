@@ -29,7 +29,52 @@ const { step } = Astro.props;
         <Code code="python -m pip install --pre lm15" lang="bash" />
       </details>
     </div>
-    {LANGUAGES.filter(language => language.id !== 'python').map(language => (
+    <div data-doc-install-language="typescript" hidden>
+      <p>You’ll need Node.js 22.18 or newer. In a new folder, run this in your terminal:</p>
+      <Code code={"npm init -y\nnpm pkg set type=module\nnpm install @lm15/lm15"} lang="bash" />
+      <p>LM15 for TypeScript has no runtime dependencies. This installs the current
+        release candidate, <code>1.0.0-rc.1</code>, the version this guide uses.
+        Save each example in a file ending in <code>.ts</code>, such as <code>first.ts</code>, and run it with <code>node first.ts</code>: Node runs
+        TypeScript files directly.</p>
+      <details>
+        <summary>Adding LM15 to a project you already have?</summary>
+        <p>Run only the last command, <code>npm install @lm15/lm15</code>. The
+          examples use <code>await</code> at the top level of the file, which needs <code>"type": "module"</code> in your <code>package.json</code> (that’s what
+          the second command sets) or a file ending in <code>.mts</code>.</p>
+        <p>In a web page, import <code>@lm15/lm15/browser</code> instead; see the <a href="https://github.com/lm15-dev/lm15-ts#readme">TypeScript SDK guide</a>.</p>
+      </details>
+    </div>
+    <div data-doc-install-language="rust" hidden>
+      <p>You’ll need a recent Rust toolchain. Run this in your terminal:</p>
+      <Code code={"cargo new first-request\ncd first-request\ncargo add lm15\ncargo add tokio --features macros,rt-multi-thread"} lang="bash" />
+      <p>Cargo picks the current release candidate, <code>1.0.0-rc.1</code>, because
+        there’s no stable 1.0 yet; it’s the version this guide uses. Tokio runs the
+        examples’ <code>async</code> code. Put each example in <code>src/main.rs</code> and run it with <code>cargo run</code>.</p>
+      <details>
+        <summary>An example needs another crate?</summary>
+        <p>A few later examples use more crates, or more Tokio features. Each
+          example’s first comment names them, for example <code>// Dependencies: lm15, tokio (macros, rt-multi-thread, time)</code>.
+          Add what’s missing the same way:</p>
+        <Code code="cargo add tokio --features time" lang="bash" />
+      </details>
+    </div>
+    <div data-doc-install-language="go" hidden>
+      <p>You’ll need Go 1.26 or newer. Run this in your terminal:</p>
+      <Code code={"mkdir first-request && cd first-request\ngo mod init example.com/first-request\ngo get github.com/lm15-dev/lm15-go"} lang="bash" />
+      <p>LM15 for Go uses only Go’s standard library. It has no tagged release yet,
+        so <code>go get</code> takes the current code and records its exact version
+        in <code>go.mod</code> (it looks like <code>v0.0.0-2026…</code>); your
+        build stays on that version until you run <code>go get</code> again. Put
+        each example in <code>main.go</code> and run it with <code>go run .</code></p>
+    </div>
+    <div data-doc-install-language="julia" hidden>
+      <p>You’ll need Julia 1.10 or newer. In a new folder, run this in your terminal:</p>
+      <Code code={"julia --project=. -e 'using Pkg; Pkg.add(url=\"https://github.com/lm15-dev/lm15-jl\")'"} lang="bash" />
+      <p>LM15 for Julia isn’t in Julia’s package registry yet, so this installs it
+        from GitHub into the folder’s own environment. Save each example as <code>first.jl</code> and run it with <code>julia --project=. first.jl</code>.
+        The first run compiles LM15, which takes a minute.</p>
+    </div>
+    {LANGUAGES.filter(language => !['python', 'typescript', 'rust', 'go', 'julia'].includes(language.id)).map(language => (
       <div data-doc-install-language={language.id} hidden>
         <p><a href={SETUP[language.id].href}>{SETUP[language.id].text}</a></p>
       </div>
