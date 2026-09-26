@@ -1,0 +1,275 @@
+---
+title: Use Google Cloud (Vertex AI)
+description: Reach Gemini through your own Google Cloud project. Sign in once on your laptop, run on Cloud Run or GKE with nothing to configure, or use a Vertex API key, and read what LM15 tells you when a sign-in or a project is missing.
+---
+
+import CloudExample from '../../../components/CloudExample.astro';
+import captures from '../../../data/google-cloud-captures.json';
+
+export const PROJECT = captures.project;
+
+Many teams can’t send their data straight to a model provider. The contract,
+the bill and the rules about where data may go already live in their cloud
+account, and a new vendor would mean starting all of that again. Google Cloud
+runs Gemini inside that account, as a service called Vertex AI, and it signs
+you in the same way as the rest of your Google Cloud work.
+
+LM15 reaches Vertex AI through the provider `vertex`. The request is the one
+you already know; only the model string changes. What’s new is who signs in,
+and which Google Cloud *project* (the unit that owns the bill, the
+permissions and the data rules) the request belongs to.
+
+On this page, we’ll start with the one-time setup in Google Cloud. Then we’ll
+send a question from a laptop and ask LM15 where it found the sign-in and the
+project. Next, we’ll run the same code on Google Cloud itself, where there’s
+nothing to configure, and use an API key instead of a sign-in. We’ll finish
+with what happens when a sign-in expires, and the mistakes that cost people
+the most time.
+
+:::note[Needs the next release]
+This page describes LM15 as its source stood on September 26, 2026, in
+Python, TypeScript, Rust and Go, ahead of their next release. With the
+versions released before then (Python 1.0.1, TypeScript and Rust 1.0.0-rc.1,
+Go v1.1.0-rc.1), set `GOOGLE_CLOUD_PROJECT` yourself, and use
+`vertex-express` for an API key. R and Julia have their own Google Cloud
+support, which this page doesn’t cover yet.
+:::
+
+You’ll need a Google account, and the `gcloud` command-line tool, which
+Google’s [install page](https://cloud.google.com/sdk/docs/install) explains.
+Every request on this page costs a fraction of a cent.
+
+## Set up your project once
+
+Everything on Vertex AI belongs to a project. You need one with billing
+turned on, the Vertex AI API enabled, and permission for whoever will call it.
+In the Cloud console, or with `gcloud`:
+
+```sh
+gcloud projects create station-assistant
+gcloud billing projects link station-assistant \
+    --billing-account=YOUR-BILLING-ID
+gcloud services enable aiplatform.googleapis.com \
+    --project=station-assistant
+```
+
+The person or program that sends requests needs the *Vertex AI User* role on
+the project. You get it automatically if you created the project; a service
+account is given it with `gcloud projects add-iam-policy-binding`.
+
+A new project, role or service account takes a few minutes to reach all of
+Google’s servers. In that time, requests fail with `403 PERMISSION_DENIED`,
+even though everything is right. If you set something up in the last few
+minutes, wait five more before you look for a mistake.
+
+## Sign in on your laptop
+
+Sign in once, and tell `gcloud` which project you work in:
+
+```sh
+gcloud auth application-default login
+gcloud config set project station-assistant
+```
+
+The first command opens your browser and saves the sign-in where Google’s
+libraries look for it. The second saves the project in `gcloud`’s settings.
+That’s all LM15 needs. The examples in these guides follow
+[one small program](/docs/#the-example-well-build): an assistant for a
+wildlife research station. Here’s its first question, sent to Gemini on
+Vertex AI:
+
+<CloudExample name="ask" output />
+
+The model string `vertex:gemini-2.5-flash` names the provider, `vertex`, and
+Google’s name for the model. Nothing in the program names a project or a
+key: LM15 found both on its own, and the answer came back through our test
+project.
+
+## Ask where the sign-in came from
+
+A program that finds its sign-in on its own should be able to say where. The
+*doctor* answers that question without sending anything:
+
+<CloudExample name="doctor" output />
+
+The report lists every place LM15 looks for a Google sign-in, in the order it
+looks. A `-` means nothing is there. A `?` means something is there, but using
+it needs the network, so the doctor, which never uses the network, can’t
+say whether it will work. Here, the first `?` is the saved sign-in from
+`gcloud auth application-default login`, and it’s the one the request above
+used. The metadata server, the line after it, only exists on Google Cloud’s
+own machines; we’ll come back to it.
+
+The lines that begin with `setting` say where the request would go, and where
+each answer came from. The project, <code>{PROJECT}</code>, came from
+`gcloud`’s settings, and the *location*,
+which picks the Google data centers that serve the request, is `global`,
+LM15’s default: Google sends the request wherever it has room. The next
+section shows how to choose a location instead.
+
+Run the doctor whenever a request seems to use an account or a project you
+didn’t expect. It follows the same steps as the real request, and prints no
+secret, so it’s safe to paste into a bug report.
+
+## Where the project comes from
+
+LM15 looks for the project in the same places, in the same order, as
+Google’s own libraries. The first place that names one wins:
+
+1. The router’s settings, if your program gives a project.
+2. The `GOOGLE_CLOUD_PROJECT` environment variable (or its older name,
+   `GCLOUD_PROJECT`).
+3. The service-account file named by `GOOGLE_APPLICATION_CREDENTIALS`.
+4. `gcloud`’s settings: the `CLOUDSDK_CORE_PROJECT` variable, then the
+   project saved by `gcloud config set project`.
+5. The *quota project* saved with your `gcloud` sign-in.
+6. The metadata server, on Google Cloud’s own machines.
+
+The location works the same way, with fewer places: the router’s settings,
+then `GOOGLE_CLOUD_LOCATION`, then `global`. Setting it matters when your data
+must stay in a region: `europe-west4`, for example, sends requests to Google’s
+data centers in the Netherlands.
+
+A good rule of thumb: on a laptop, let `gcloud` hold the project; in
+production, set `GOOGLE_CLOUD_PROJECT`, or let the metadata server answer,
+and never depend on a developer’s settings being there.
+
+## Run on Google Cloud
+
+On Cloud Run, GKE, a virtual machine or Cloud Functions, your program runs as
+a *service account*, an identity Google gives to programs instead of people.
+Give it the Vertex AI User role, attach it to the service, and set nothing
+else. Both the sign-in and the project come from the *metadata server*, a
+small server every Google Cloud machine can reach, which answers for the
+machine.
+
+The code from your laptop works there unchanged. It’s better, though, to say
+which sign-in you expect:
+
+<CloudExample name="platform" />
+
+`"platform"` tells LM15 to use the machine’s own identity and nothing else.
+Without it, LM15 tries every place in the doctor’s list, so a program that
+someone deployed with a leftover key file would quietly run as that key
+instead. With it, a missing identity stops the program at the first request,
+with an error that names what it looked for. We sent the same request this way
+from a Google Cloud virtual machine with no project set anywhere, in all four
+languages; each found the project and the identity, and answered. On a laptop, it stops at
+once, which is what you want: a laptop isn’t the machine it names.
+
+## Run somewhere else
+
+GitHub Actions, another cloud, or a server in your own building have no
+metadata server. The best choice there is *workload identity federation*:
+Google trusts the identity those systems already give your program, so no
+Google password ever sits on the machine. Google’s
+[federation guide](https://cloud.google.com/iam/docs/workload-identity-federation)
+walks through the setup; at the end, `gcloud iam workload-identity-pools
+create-cred-config` writes a small file. Point `GOOGLE_APPLICATION_CREDENTIALS`
+at that file, and name the sign-in `"workload"` instead of `"platform"`.
+
+A service-account key file works the same way, named `"environment"`. It’s a
+password that never expires: anyone who copies it can spend your money until
+someone notices. Use federation when you can.
+
+## Use an API key
+
+Some tools, and some people, would rather work with a key than with a
+sign-in. Vertex AI accepts API keys too. Create one in the Cloud console,
+under *APIs & Services*, then *Credentials*, and restrict it to the Vertex AI
+API.
+
+Give the key to the router, and choose a location while you’re at it:
+
+<CloudExample name="key" output />
+
+We ran this on a machine with no `gcloud` sign-in at all; the project came
+from `GOOGLE_CLOUD_PROJECT`. The request still belongs to the project, and
+it ran in `europe-west4`, the location in the settings.
+
+If you have a key and nothing else, not even a project, use the provider
+`vertex-express` instead. It reads the key from `GOOGLE_API_KEY`, and Google
+chooses where the request runs:
+
+<CloudExample name="express" output />
+
+Two details avoid surprises. First, `vertex` sends text you give it as a key,
+unless it looks like a sign-in token (Google’s begin with `ya29.`), which it
+sends as a token; either works. Second, `vertex` never reads `GOOGLE_API_KEY`
+from the environment. That variable usually holds a key for Google’s other
+Gemini service, and picking it up would quietly change which account pays.
+
+## When a sign-in expires
+
+A saved sign-in doesn’t last forever. Your organization may end sessions
+after a set time, Google may ask you to sign in again after a password
+change, and anyone can revoke one. To show what that looks like, we revoked
+the saved sign-in on a test machine, sent the question again, and printed the
+error:
+
+<CloudExample name="expired" output />
+
+The first line says which step failed: renewing the saved sign-in, from the
+file named in parentheses. `invalid_grant` is the standard word for a sign-in
+the server no longer accepts. The rest says what to do. Run the command, and
+the next request works.
+
+You won’t see Google’s full explanation in the error, only that standard
+word. A server’s explanation can repeat parts of the request, and this
+request carried your saved sign-in; LM15 never lets it into an error message
+that might end up in a log. To see why Google refused, run the `gcloud`
+command yourself.
+
+## Mistakes that cost the most time
+
+- **A 403 right after setup.** New projects, roles and service accounts take a
+  few minutes to apply. Wait before changing anything.
+- **Claude on Vertex AI.** The provider `vertex-anthropic` reaches Anthropic’s
+  models in your project, with the same sign-ins. A new project can’t use
+  them yet: in ours, the request signed in and then Google answered
+  `429 Quota exceeded`, because a new project has no quota for these models
+  until you request it. Claude on Vertex AI doesn’t accept API keys.
+- **A model that isn’t in your location.** Not every model runs everywhere.
+  In our tests, `gemini-2.5-flash` answered in `global`, `us-central1` and
+  `europe-west4`, and Google said “not found” in the `us` and `eu`
+  multi-region locations.
+- **Two projects in play.** If `GOOGLE_CLOUD_PROJECT` and `gcloud`’s settings
+  name different projects, the variable wins. The doctor shows which one.
+
+## Try it yourself
+
+Predict the answer before you run the doctor.
+
+1. You run `gcloud config set project station-dev`, and later, in the same
+   terminal, `export GOOGLE_CLOUD_PROJECT=station-prod`. Which project will
+   the request use?
+2. On Cloud Run, with the service account attached and nothing set, a
+   colleague adds `GOOGLE_APPLICATION_CREDENTIALS` pointing at a key file for
+   another project. Which identity signs the request, and which project does
+   it use?
+3. The same colleague now adds `"platform"`, as in
+   [Run on Google Cloud](#run-on-google-cloud). What changes?
+
+<details>
+<summary>What to expect</summary>
+
+1. `station-prod`. The environment variable comes before `gcloud`’s settings,
+   and the doctor says `from env $GOOGLE_CLOUD_PROJECT`.
+2. The key file’s service account, and the key file’s project. The file comes
+   before the metadata server in both lists, so the machine’s own identity is
+   never asked. This is the leftover-key problem from
+   [Run on Google Cloud](#run-on-google-cloud).
+3. LM15 uses the machine’s own identity and ignores the file as a sign-in.
+   The project still comes from the key file, because the project list doesn’t
+   depend on which sign-in is used; set `GOOGLE_CLOUD_PROJECT` if that matters.
+
+</details>
+
+## Next
+
+[Set up authentication](/docs/authentication/) explains the rule behind this
+page, that LM15 always says which credential it used, for every provider, and
+how to give it one from your own code. [Handle errors and
+retries](/docs/errors-and-retries/) shows how to catch a failed sign-in in a
+long-running program. [Choose a model](/docs/models/) lists the Gemini
+models you can ask for.

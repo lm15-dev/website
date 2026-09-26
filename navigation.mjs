@@ -11,6 +11,9 @@ export const sidebar = [
     { label: 'Set up authentication', slug: 'docs/authentication' },
     { label: 'Choose a model', slug: 'docs/models' },
   ] },
+  { label: 'Cloud providers', items: [
+    { label: 'Use Google Cloud (Vertex AI)', slug: 'docs/google-cloud' },
+  ] },
   { label: 'Use tools', items: [
     { label: 'Call your own functions', slug: 'docs/function-tools' },
     { label: 'Use provider tools', slug: 'docs/provider-tools' },

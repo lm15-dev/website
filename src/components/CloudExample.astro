@@ -1,0 +1,72 @@
+---
+// One example of "Use Google Cloud", in the reader's language: the file from
+// src/data/google-cloud/ as scripts/capture-google-cloud.py ran it, and what it
+// printed. The header's language choice shows one panel (the same switch as the
+// setup instructions, `data-doc-install-language`); Python is shown until a
+// script runs. R and Julia have no example on this page yet.
+import { Code } from '@astrojs/starlight/components';
+import captures from '../data/google-cloud-captures.json';
+
+const FILES = import.meta.glob('../data/google-cloud/*', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const WRITTEN = [
+  { id: 'python', ext: 'py', lang: 'python' },
+  { id: 'typescript', ext: 'ts', lang: 'ts' },
+  { id: 'rust', ext: 'rs', lang: 'rust' },
+  { id: 'go', ext: 'go', lang: 'go' },
+] as const;
+const NOT_YET = ['r', 'julia'] as const;
+const WHERE: Record<string, string> = { vertex: 'Vertex AI', 'vertex-express': 'Vertex AI express mode' };
+const MODEL: Record<string, string> = { 'gemini-2.5-flash': 'Gemini 2.5 Flash' };
+
+interface Props {
+  /** The file name in src/data/google-cloud/, without its extension. */
+  name: string;
+  /** Show what it printed (a recorded step of the same name, unless `step` says otherwise). */
+  output?: boolean;
+  step?: string;
+}
+const { name, output = false, step = name } = Astro.props;
+type Run = { code: string; output: string; error?: string; model?: string };
+const runs = (captures.steps as Record<string, Record<string, Run>>)[step];
+if (output && !runs) throw new Error(`CloudExample: no recorded step ${step}`);
+const date = new Date(`${captures.date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+function who(run: Run): string {
+  if (!run.model) return date;
+  const [provider, model] = run.model.split(':');
+  return `${MODEL[model!] ?? model} on ${WHERE[provider!] ?? provider}, ${date}`;
+}
+const panels = WRITTEN.map(({ id, ext, lang }) => {
+  const code = FILES[`../data/google-cloud/${name}.${ext}`];
+  if (code === undefined) throw new Error(`CloudExample: no ${name}.${ext}`);
+  const run = output ? runs![id] : undefined;
+  if (output && run?.code !== code) throw new Error(`CloudExample: ${step}/${id} was recorded from another version of ${name}.${ext}; re-run scripts/capture-google-cloud.py`);
+  return { id, lang, code: code.trimEnd(), run };
+});
+---
+<div class="cloud-example">
+  {panels.map(panel => (
+    <div data-doc-install-language={panel.id} hidden={panel.id !== 'python'}>
+      <Code code={panel.code} lang={panel.lang} />
+      {panel.run && (
+        <figure class="captured not-content">
+          <figcaption>What it printed <span>{who(panel.run)}</span></figcaption>
+          <pre class="captured-text">{(panel.run.output || panel.run.error || '').replace(/^\n+|\n+$/g, '')}</pre>
+        </figure>
+      )}
+    </div>
+  ))}
+  {NOT_YET.map(id => (
+    <p class="cloud-not-yet" data-doc-install-language={id} hidden>
+      This page has no {id === 'r' ? 'R' : 'Julia'} example yet: choose Python, TypeScript, Rust or Go above.
+    </p>
+  ))}
+</div>
+
+<style>
+  .cloud-example { margin-block: 1.25rem 1.5rem; }
+  .cloud-not-yet { padding: .7rem .9rem; border: 1px dashed var(--sl-color-gray-4); color: var(--sl-color-gray-2); font-size: .9rem; }
+  .captured { margin: 1rem 0 1.5rem; border: 1px solid var(--sl-color-gray-5); border-left: 3px solid var(--lm-accent); background: var(--sl-color-bg); }
+  figcaption { padding: .45rem .9rem; font-size: .8rem; font-weight: 600; color: var(--sl-color-gray-2); border-bottom: 1px solid var(--sl-color-gray-5); }
+  figcaption span { font-weight: 400; margin-left: .4rem; }
+  .captured-text { margin: 0; padding: .8rem .9rem; font-family: var(--lm-code-font); font-size: var(--sl-text-code, .875rem); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--sl-color-text); background: none; border: 0; }
+</style>

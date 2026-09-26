@@ -100,9 +100,11 @@ The function ran once for each request. When the file changes, the next
 request uses the new key, without a restart. Anything cleverer is up to your function: if fetching a
 key is slow, keep it in the function, and fetch a new one only when the old one
 is about to expire. The token helpers in the Azure, AWS and Google Cloud
-libraries are functions of exactly this kind, so they plug in directly. The
-Python guide to [cloud hosts](https://lm15-dev.github.io/lm15-python/cloud-hosts/)
-shows how, and how LM15 can also find a cloud identity on its own.
+libraries are functions of exactly this kind, so they plug in directly. LM15
+can also find a cloud identity on its own: [Use Google Cloud](/docs/google-cloud/)
+shows how for Vertex AI, and the Python guide to
+[cloud hosts](https://lm15-dev.github.io/lm15-python/cloud-hosts/) covers
+Azure and AWS.
 
 ## Use a subscription you already have
 
