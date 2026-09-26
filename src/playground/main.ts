@@ -7,7 +7,7 @@ import { comment, dim, finish, replaceAll, unmarked, type Code } from "./marks.t
 import type { Progress } from "./runtimes/progress.ts";
 import { DEFAULT_SETTINGS, EXAMPLE_API_KEY, EXAMPLE_DRAFT, LANGUAGES, buildRequest, createClient, exampleConversation, exampleGo, exampleJavascript, examplePython, exampleRust, fuzzyScore, judgmentsOnly, keyPage, keyless, slashCommand, turnSource, type Connection, type PickerKind, type Settings, type Wire } from "./experience.ts";
 import { JudgeView } from "./judge-ui.ts";
-import { storyGo, storyJavascript, storyPython, storyRust, type Origin, type Turn } from "./story.ts";
+import { storyGo, storyJavascript, storyPython, storyR, storyRust, type Origin, type Turn } from "./story.ts";
 import type { Ghost } from "./experience.ts";
 import type { JudgeSource } from "./judge.ts";
 import { disableAllRelays, enableRelay, looksBrowserBlocked, relayAvailable, relayed, relayedProviders } from "./relay.ts";
@@ -18,6 +18,7 @@ import type { Runtime, RuntimeId } from "./runtimes/index.ts";
 import { pythonRuntime } from "./runtimes/python.ts";
 import { rustRuntime } from "./runtimes/rust.ts";
 import { goRuntime } from "./runtimes/go.ts";
+import { rRuntime } from "./runtimes/r.ts";
 import { compareWires } from "./wire.ts";
 import { LoginLab, returnedHere } from "./login-lab.ts";
 
@@ -34,7 +35,7 @@ const maxTokensInput = $<HTMLInputElement>("max-tokens");
 const reasoningInput = $<HTMLSelectElement>("reasoning");
 const relayDialog = $<HTMLDialogElement>("relay-dialog");
 
-const RUNTIMES: Record<RuntimeId, Runtime> = { javascript: javascriptRuntime, python: pythonRuntime, rust: rustRuntime, go: goRuntime };
+const RUNTIMES: Record<RuntimeId, Runtime> = { javascript: javascriptRuntime, python: pythonRuntime, rust: rustRuntime, go: goRuntime, r: rRuntime };
 const connection: Connection = { provider: "openai", model: "gpt-4.1-mini", endpoint: "http://localhost:1234/v1" };
 const settings: Settings = { ...DEFAULT_SETTINGS };
 const credentials = new Credentials();
@@ -208,6 +209,7 @@ async function updateCode(): Promise<void> {
       if (runtime === "javascript") code = storyJavascript(connection, settings, turns(), text, ghost);
       else if (runtime === "python") code = storyPython(connection, settings, turns(), text, ghost);
       else if (runtime === "go") code = storyGo(connection, settings, turns(), text, ghost);
+      else if (runtime === "r") code = storyR(connection, settings, turns(), text, ghost);
       else code = storyRust(connection, settings, turns(), text, ghost);
     }
   } catch (error) {

@@ -6,9 +6,9 @@ import { goExamples } from "./support/go-examples.ts";
 import { wireOf, RustCodecError } from "../src/playground/runtimes/rust.ts";
 import { compareWires } from "../src/playground/wire.ts";
 
-test("four runtime names, lossless UTF-8 wire bytes, and honest sorted-key comparison", () => {
+test("five runtime names, lossless UTF-8 wire bytes, and honest sorted-key comparison", () => {
   assert.equal(rustString("\\back\b\u0000"), '"\\\\back\\u{8}\\u{0}"');
-  assert.deepEqual(LANGUAGES.map((x) => x.id), ["javascript", "python", "rust", "go"]);
+  assert.deepEqual(LANGUAGES.map((x) => x.id), ["javascript", "python", "rust", "go", "r"]);
   const body = stringifyJson(parseJson('{"text":"🍷 café","number":12345678901234567890,"float":1.0}'));
   const wire = wireOf({ method: "POST", url: "https://example.test/api", params: {}, headers: {}, body: null, body_b64: Buffer.from(body).toString("base64") });
   assert.equal(wire.body, body);

@@ -13,7 +13,7 @@ const siteDir = resolve(import.meta.dirname, '../dist');
 
 const MIME: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json", ".wasm": "application/wasm", ".whl": "application/zip", ".zip": "application/zip", ".txt": "text/plain" };
 
-test("the published static files boot, keep keys private, and run all four SDKs", { timeout: 240_000 }, async () => {
+test("the published static files boot, keep keys private, and run all five SDKs", { timeout: 240_000 }, async () => {
   const installed = findBrowsers().find((browser) => browser.name === "chromium");
   assert.ok(installed, "Chromium is required; a release must not silently skip browser tests");
   const server = createServer((req, res) => {
@@ -66,7 +66,7 @@ test("the published static files boot, keep keys private, and run all four SDKs"
     await waitKeyState(page, /remembered/);
     await page.getByLabel("System prompt").fill("Answer briefly.");
     assert.equal(await page.getByLabel("Max tokens").inputValue(), "");
-    for (const runtime of ["JavaScript", "Python", "Rust", "Go"]) {
+    for (const runtime of ["JavaScript", "Python", "Rust", "Go", "R"]) {
       await page.getByRole("button", { name: runtime, exact: true }).click();
       await waitRuntimeReady(page, runtime);
       await page.getByLabel("Message", { exact: true }).fill(`Hello from ${runtime}`);
@@ -74,9 +74,9 @@ test("the published static files boot, keep keys private, and run all four SDKs"
       await page.waitForFunction((name) => document.getElementById("usage")?.textContent?.endsWith(name), runtime, { timeout: 30_000 });
       assert.equal(await page.locator("#transcript article").last().locator("textarea").inputValue(), "Static site works.");
     }
-    // Every runtime keeps JSON key order (Go since v1.1.0-rc.1), so the four send the same bytes.
-    await page.waitForFunction(() => document.getElementById("fidelity")?.textContent?.includes("Same request body bytes from JavaScript, Python, Rust, Go"));
-    assert.equal(calls.length, 4);
+    // Every runtime keeps JSON key order (Go since v1.1.0-rc.1), so the five send the same bytes.
+    await page.waitForFunction(() => document.getElementById("fidelity")?.textContent?.includes("Same request body bytes from JavaScript, Python, Rust, Go, R"));
+    assert.equal(calls.length, 5);
     for (const call of calls) {
       assert.equal(call.auth, "Bearer dummy-static-site-key");
       const body = JSON.parse(call.body);
@@ -86,7 +86,7 @@ test("the published static files boot, keep keys private, and run all four SDKs"
       assert.ok(call.body.includes(EXAMPLE_ANSWER));
     }
     assert.deepEqual(JSON.parse(calls[2]!.body).input.map((message: { role: string }) => message.role), ["user", "assistant", "user", "assistant", "user", "assistant", "user"]);
-    for (const tab of ["JavaScript", "Python", "Rust", "Go"]) {
+    for (const tab of ["JavaScript", "Python", "Rust", "Go", "R"]) {
       await page.getByRole("button", { name: tab, exact: true }).click();
       await waitRuntimeReady(page, tab);
       await page.waitForFunction(() => (document.getElementById("code")?.textContent?.length ?? 0) > 30);
@@ -97,7 +97,7 @@ test("the published static files boot, keep keys private, and run all four SDKs"
     const manifest = await releaseResponse.json() as { release: string; files: Record<string, string> };
     assert.match(manifest.release, /^[a-f0-9]{20}$/);
     for (const path of assetRequests) assert.ok(path === "/playground/" || path.startsWith(`/assets/${manifest.release}/`), `Unexpected or unversioned asset ${path}`);
-    for (const name of ["vendor/rust/lm15.wasm", "vendor/go/lm15-go.wasm", "vendor/go/wasm_exec.js", "vendor/python/lm15.whl", "vendor/pyodide/pyodide.asm.wasm"]) {
+    for (const name of ["vendor/rust/lm15.wasm", "vendor/go/lm15-go.wasm", "vendor/go/wasm_exec.js", "vendor/python/lm15.whl", "vendor/pyodide/pyodide.asm.wasm", "vendor/r/runtime/R.wasm", "vendor/r/lm15.mjs"]) {
       const result = await page.request.get(new URL(`/assets/${manifest.release}/${name}`, url).href);
       assert.equal(result.status(), 200);
       assert.equal(createHash("sha256").update(await result.body()).digest("hex"), manifest.files[name], `Published ${name} matches the release manifest`);

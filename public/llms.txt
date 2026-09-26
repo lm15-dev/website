@@ -25,6 +25,7 @@ The contract defines shared behavior; the SDKs implement it using each languageâ
 - [TypeScript](https://github.com/lm15-dev/lm15-ts)
 - [Rust](https://github.com/lm15-dev/lm15-rs)
 - [Go](https://github.com/lm15-dev/lm15-go)
+- [R](https://github.com/lm15-dev/lm15-r)
 - [Julia](https://github.com/lm15-dev/lm15-jl)
 
 Check each repository for installation, release status, and supported features. Some website guides are still under construction; use the contract and the selected SDKâ€™s source for details.

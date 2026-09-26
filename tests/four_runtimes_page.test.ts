@@ -7,7 +7,7 @@ import { findBrowsers } from "./support/browser.ts";
 import { disableDiscovery, useKey, waitRuntimeReady } from "./support/playground.ts";
 import { declaredKeys, judgeReplyFor, streamFor } from "./support/replies.ts";
 
-for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, real wire preview, stream, TypeSafe Judge, diagnostic failure and cancellation`, { timeout: 180_000 }, async (t) => {
+for (const language of ["rust", "go", "r"] as const) test(`${language}: lazy boot, real wire preview, stream, TypeSafe Judge, diagnostic failure and cancellation`, { timeout: 180_000 }, async (t) => {
   const installed = findBrowsers().find((b) => b.name === "chromium"); assert.ok(installed);
   const demo = await startDemo();
   t.after(() => { demo.server.closeAllConnections(); return new Promise<void>((resolve) => demo.server.close(() => resolve())); });
@@ -26,7 +26,7 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
     const request = route.request(); const url = new URL(request.url());
     if (url.origin === origin) {
       assets.push(url.pathname);
-      if (firstWasm && url.pathname.endsWith(language === "go" ? "/vendor/go/lm15-go.wasm" : "/vendor/rust/lm15.wasm")) {
+      if (firstWasm && url.pathname.endsWith(language === "go" ? "/vendor/go/lm15-go.wasm" : language === "r" ? "/vendor/r/runtime/R.wasm" : "/vendor/rust/lm15.wasm")) {
         firstWasm = false;
         return route.fulfill({ status: 503, body: "offline boot failure" });
       }
@@ -46,8 +46,8 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
   await page.goto(target);
   if (process.env["SITE_URL"]) assert.equal(new URL(page.url()).protocol, "https:");
   await disableDiscovery(page);
-  assert.equal(await page.locator("[data-language]").count(), 4);
-  assert.equal(assets.some((path) => path.includes("/vendor/go/") || path.includes("/vendor/rust/")), false);
+  assert.equal(await page.locator("[data-language]").count(), 5);
+  assert.equal(assets.some((path) => path.includes("/vendor/go/") || path.includes("/vendor/rust/") || path.includes("/vendor/r/")), false);
   await useKey(page, "OpenAI", "offline-dummy-key");
   await page.locator(`[data-language="${language}"]`).click();
   await page.waitForFunction(() => document.getElementById("runtime-title")?.textContent?.includes("Could not load"));
@@ -98,8 +98,8 @@ for (const language of ["rust", "go"] as const) test(`${language}: lazy boot, re
   assert.deepEqual(errors, []);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('[data-view-target="code"]').click();
-  assert.equal(await page.locator('[data-language="go"]').isVisible(), true);
-  await page.locator(`[data-language="${language}"]`).press("End");
-  await waitRuntimeReady(page, "go");
-  assert.equal(await page.evaluate(() => localStorage.getItem("lm15.playground.runtime")), "go");
+  assert.equal(await page.locator('[data-language="r"]').isVisible(), true);
+  await page.locator(`[data-language="${language}"]`).press("Home");
+  await waitRuntimeReady(page, "javascript");
+  assert.equal(await page.evaluate(() => localStorage.getItem("lm15.playground.runtime")), "javascript");
 });

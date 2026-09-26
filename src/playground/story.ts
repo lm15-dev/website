@@ -15,7 +15,7 @@
  */
 import type { Message } from "@lm15/lm15/browser";
 import { api, comment, dim, finish, mark, type Code } from "./marks.ts";
-import { GO_ERR, GO_ERR_IN_LOOP, configLines, goConfig, goMessage, goProgram, indent, jsClient, jsMessage, judgmentsOnly, plainText, pyClient, pyImports, pyMessage, qv, replayNames, replayParts, rustClient, rustMessage, rustReplayImports, rv, streams, turnSource, type Connection, type Ghost, type Settings } from "./experience.ts";
+import { GO_ERR, GO_ERR_IN_LOOP, configLines, goConfig, goMessage, goProgram, indent, jsClient, jsMessage, judgmentsOnly, plainText, pyClient, pyImports, pyMessage, qv, rClient, rList, rMessage, rqv, replayNames, replayParts, rustClient, rustMessage, rustReplayImports, rv, streams, turnSource, type Connection, type Ghost, type Settings } from "./experience.ts";
 
 export type Origin = "written" | "asked" | "answered";
 export interface Turn { readonly message: Message; readonly origin: Origin }
@@ -157,6 +157,28 @@ export function storyGo(connection: Connection, settings: Settings, turns: reado
   }
   body.push(`    if err := ask(${qv(draft, "draft")}); err != nil { return err }`);
   return goProgram(connection, replays.length ? ["encoding/json", "fmt"] : ["fmt"], body);
+}
+
+export function storyR(connection: Connection, settings: Settings, turns: readonly Turn[], draft: string, ghost?: Ghost): Code {
+  if (judgmentsOnly(connection.provider) || !streams(connection)) return finish(comment("# TypeSafe is judgments-only. Open Judge to declare the questions."));
+  const messages = turns.map((t) => t.message);
+  const { opening, steps } = plan(turns);
+  const system = settings.system.trim();
+  const config = configLines(settings, "r", ghost);
+  const lines = [dim("library(lm15)"), "", ...rClient(connection), `model <- ${rqv(connection.model, "model")}`];
+  if (system) lines.push(`instructions <- ${rqv(system, "system")}`);
+  lines.push("", ...(opening.length ? ["messages <- list(", ...rList(opening.map((i) => rMessage(messages[i]!, i, "  "))), ")"] : ["messages <- list()"]));
+  const args = ["model", "messages", ...(system ? ["system = instructions"] : []), ...config];
+  lines.push("", comment(`# ${ONE_TURN}`), "ask <- function(text) {", `  messages <<- c(messages, list(${api("message_user")}(text)))`,
+    `  req <- ${api("request")}(${args.join(", ")})`,
+    `  response <- ${api("stream")}(lm, req, function(event) {`, '    if (event$type == "delta" && event$delta$type == "text") cat(event$delta$text)', "  })",
+    "  messages <<- c(messages, list(response$message))", "  invisible(response)", "}", "");
+  for (const step of steps) {
+    if (step.kind === "ask") lines.push(`ask(${rqv(step.text, turnSource(step.index))})`, ...echo(step.reply.text, "#", step.reply.index), "");
+    else lines.push(comment(`# ${REWRITTEN}`), "messages <- c(messages, list(", ...rList(step.indices.map((i) => rMessage(messages[i]!, i, "  "))), "))", "");
+  }
+  lines.push(`ask(${rqv(draft, "draft")})`);
+  return finish(lines.join("\n"));
 }
 
 /** The teaching example as turns: hand-written, so `written`. */

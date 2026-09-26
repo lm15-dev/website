@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const sources = resolve(process.argv[2] ?? '.runtime-build');
 const pins = JSON.parse(readFileSync(resolve(root, 'sources.json'), 'utf8'));
-for (const [key, repo] of Object.entries({ typescript: 'lm15-ts', python: 'lm15-python', rust: 'lm15-rs', go: 'lm15-go', contract: 'lm15-contract' })) {
+for (const [key, repo] of Object.entries({ typescript: 'lm15-ts', python: 'lm15-python', rust: 'lm15-rs', go: 'lm15-go', r: 'lm15-r', contract: 'lm15-contract' })) {
   const revision = execFileSync('git', ['-C', resolve(sources, repo), 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   if (revision !== pins[key]) throw new Error(`${repo} does not match sources.json`);
 }
@@ -31,6 +31,11 @@ mkdirSync(resolve(staging, 'runtime/go'), { recursive: true });
 for (const name of ['lm15-go.wasm', 'wasm_exec.js']) cpSync(resolve(sdk, 'vendor/go', name), resolve(staging, 'runtime/go', name));
 if (!readFileSync(resolve(staging, 'runtime/go/lm15-go.wasm')).subarray(0, 4).equals(Buffer.from([0, 97, 115, 109]))) throw new Error('Invalid Go wasm file');
 cpSync(resolve(sdk, 'vendor/go/LICENSE.txt'), resolve(staging, 'runtime/licenses/go-runtime.txt'));
+// R in webR (scripts/vendor-r.mjs): the runtime, the package repository, the bridge; its licenses beside the others.
+cpSync(resolve(sdk, 'vendor/r'), resolve(staging, 'runtime/r'), { recursive: true });
+if (!readFileSync(resolve(staging, 'runtime/r/runtime/R.wasm')).subarray(0, 4).equals(Buffer.from([0, 97, 115, 109]))) throw new Error('Invalid R wasm file');
+for (const name of readdirSync(resolve(staging, 'runtime/r/licenses'))) cpSync(resolve(staging, 'runtime/r/licenses', name), resolve(staging, 'runtime/licenses', name));
+rmSync(resolve(staging, 'runtime/r/licenses'), { recursive: true });
 for (const language of ['python', 'rs', 'go']) cpSync(resolve(sources, `lm15-${language}/LICENSE`), resolve(staging, `runtime/licenses/lm15-${language}.txt`));
 writeFileSync(resolve(staging, 'runtime/sources.json'), JSON.stringify(pins, null, 2) + '\n');
 execFileSync('npm', ['pack', '--ignore-scripts', '--pack-destination', resolve(root, '.build')], { cwd: staging, stdio: 'inherit' });

@@ -3,6 +3,7 @@
   "python": "6aea565d2bf3c38d83df5844bbc73c1b0bfd0989",
   "rust": "1733c0fb765912343e719ad51d785d46b1f45ec8",
   "go": "c805a9fc3a88344a54ccae0c6deafe4254b2e82f",
+  "r": "1ec1e7f599baf79e0b87a24429168f15785423db",
   "contract": "fe5cdf94b0494ebd9f968498e717dfeba8fb4df1",
   "rustToolchain": "1.97.1",
   "goToolchain": "1.26.7"

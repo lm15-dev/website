@@ -53,6 +53,8 @@ export function buildPlayground({ production = true } = {}) {
   copy(join(sdk, 'runtime/lm15.wasm'), 'vendor/rust/lm15.wasm');
   copy(join(sdk, 'runtime/go/lm15-go.wasm'), 'vendor/go/lm15-go.wasm');
   copy(join(sdk, 'runtime/go/wasm_exec.js'), 'vendor/go/wasm_exec.js');
+  // R: webR's runtime and R's filesystem, the package repository, the lm15 bridge (scripts/vendor-r.mjs).
+  for (const file of filesUnder(join(sdk, 'runtime/r'))) copy(file, `vendor/r/${relative(join(sdk, 'runtime/r'), file)}`);
   for (const name of ['pyodide.mjs', 'pyodide.asm.js', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json']) {
     copy(join(root, 'node_modules/pyodide', name), `vendor/pyodide/${name}`);
   }
@@ -80,7 +82,7 @@ export function buildPlayground({ production = true } = {}) {
   if (!html.includes(hash(oldMap))) throw new Error('Import map is not covered by the page CSP');
   const newMap = JSON.stringify({ imports: { '@lm15/lm15/browser': `${prefix}/dist/browser.js` } });
   const escapeAttribute = value => String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-  const shareTags = socialHead('LM15 Playground', 'Try LM15 in JavaScript, Python, Rust and Go, directly in your browser.', 'https://lm15.dev/playground/')
+  const shareTags = socialHead('LM15 Playground', 'Try LM15 in JavaScript, Python, Rust, Go and R, directly in your browser.', 'https://lm15.dev/playground/')
     .map(({ attrs }) => `<meta ${Object.entries(attrs).map(([key, value]) => `${key}="${escapeAttribute(value)}"`).join(' ')}>`).join('\n');
   // Development allows local model servers; production narrows to https. blob: is the prefetched Python stdlib handed to Pyodide.
   // wss: is the encrypted-tunnel prototype (relay/tunnel-local.mjs); production does not list it yet.
@@ -90,7 +92,7 @@ export function buildPlayground({ production = true } = {}) {
     .replace('href="./app.css"', `href="${prefix}/playground/app.css"`)
     .replace('src="./build/main.js"', `src="${prefix}/playground/main.js"`)
     .replace(DEV_CONNECT, production ? "connect-src 'self' blob: https:" : DEV_CONNECT)
-    .replace('</head>', '<meta name="description" content="Try LM15 in JavaScript, Python, Rust and Go, directly in your browser.">\n<link rel="canonical" href="https://lm15.dev/playground/">\n' + shareTags + '\n</head>');
+    .replace('</head>', '<meta name="description" content="Try LM15 in JavaScript, Python, Rust, Go and R, directly in your browser.">\n<link rel="canonical" href="https://lm15.dev/playground/">\n' + shareTags + '\n</head>');
   mkdirSync(join(generatedDir, 'playground/about'), { recursive: true });
   writeFileSync(join(generatedDir, 'playground/index.html'), html);
   writeFileSync(join(generatedDir, 'playground/about/index.html'), readFileSync(join(root, 'src/playground/about.html'), 'utf8').replaceAll('__ASSETS__', prefix));

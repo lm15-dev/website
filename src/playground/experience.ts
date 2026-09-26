@@ -22,12 +22,13 @@ export interface Settings {
   maxTokens: number | null;
   reasoning: ReasoningEffort | "";
 }
-export type Language = "javascript" | "python" | "rust" | "go";
+export type Language = "javascript" | "python" | "rust" | "go" | "r";
 export const LANGUAGES: ReadonlyArray<{ id: Language; label: string }> = [
   { id: "javascript", label: "JavaScript" },
   { id: "python", label: "Python" },
   { id: "rust", label: "Rust" },
   { id: "go", label: "Go" },
+  { id: "r", label: "R" },
 ];
 export const EXAMPLE_API_KEY = "sk-just-kidding";
 export const EXAMPLE_QUESTION = "What is LM15?";
@@ -240,6 +241,16 @@ const ghostEntry = (ghost: Ghost, none: string): string => dim(val(none, ghost))
 export function configLines(settings: Settings, lang: Language, ghost?: Ghost): string[] {
   const entries: Array<[string, string]> = [];
   const unset = (name: Ghost) => ghost === name && (name === "reasoning" ? !settings.reasoning : settings[name] === null);
+  if (lang === "r") {
+    // `100L`: an R integer, which is what max_tokens is (a bare 100 is a double).
+    if (settings.maxTokens !== null) entries.push(["max_tokens", `${nv(settings.maxTokens, "maxTokens")}L`]);
+    else if (unset("maxTokens")) entries.push(["max_tokens", ghostEntry("maxTokens", "NULL")]);
+    if (settings.temperature !== null) entries.push(["temperature", nv(settings.temperature, "temperature")]);
+    else if (unset("temperature")) entries.push(["temperature", ghostEntry("temperature", "NULL")]);
+    if (settings.reasoning) entries.push(["reasoning", `${api("reasoning")}(${rqv(settings.reasoning, "reasoning")})`]);
+    else if (unset("reasoning")) entries.push(["reasoning", ghostEntry("reasoning", "NULL")]);
+    return entries.length ? [`config = ${api("config")}(${entries.map(([k, v]) => `${k} = ${v}`).join(", ")})`] : [];
+  }
   if (lang === "javascript") {
     if (settings.maxTokens !== null) entries.push(["maxTokens", nv(settings.maxTokens, "maxTokens")]);
     else if (unset("maxTokens")) entries.push(["maxTokens", ghostEntry("maxTokens", "undefined")]);
@@ -492,4 +503,69 @@ export function slashCommand(text: string): { kind: PickerKind; query: string } 
   const command = /^\/(provider|model)(?:\s+(.*))?$/.exec(text);
   if (command) return { kind: command[1] as "provider" | "model", query: command[2] ?? "" };
   return { kind: "commands", query: text.slice(1) };
+}
+
+// ─── R ───────────────────────────────────────────────────────────────
+
+/** An R string literal. R strings cannot hold a NUL (U+0000): refused by name, as Rust refuses an unpaired surrogate. */
+export function rString(text: string): string {
+  if (text.includes("\u0000")) throw new Error("R text cannot contain a NUL character (U+0000); remove it to see the R program");
+  return q(text);
+}
+/** An R string literal whose contents are the person's. */
+export const rqv = (text: string, source?: string): string => quotedValue(rString(text), source);
+
+/** An R name for a JSON key: as written when it is syntactic, else in backticks. */
+export function rName(key: string): string {
+  return /^(?:[A-Za-z]|\.(?![0-9]))[A-Za-z0-9._]*$/.test(key) && !R_RESERVED.has(key) ? key : "`" + key.replace(/\\/g, "\\\\").replace(/`/g, "\\`") + "`";
+}
+const R_RESERVED = new Set(["if", "else", "repeat", "while", "function", "for", "next", "break", "TRUE", "FALSE", "NULL", "Inf", "NaN", "NA", "in"]);
+/** JSON text as an R string: a raw string when it can be one, so the JSON reads as JSON. */
+export function rJsonText(text: string): string {
+  // JSON text never holds a literal NUL (JSON writes it as \u0000), so a raw string always fits.
+  return text.includes(")-\"") ? rString(text) : `r"-(${text})-"`;
+}
+const rData = (state: ContinuationState): string => `${api("json_object")}(${dataEntries(state).map(([k, v]) => `${rName(k)} = ${quotedOpaque(rString(v))}`).join(", ")})`;
+
+/** The R client: `new_lm()` with the credential and, in a page, the relay. */
+export function rClient(connection: Connection): string[] {
+  const relay = baseUrlFor(connection);
+  if (connection.provider === "custom") return [`lm <- ${api("new_lm")}(`, `  "openai-chat", api_key = "unused", ${comment("# keyless custom server")}`, `  base_url = ${rqv(connection.endpoint, "provider")}`, ")"];
+  const lines = [`lm <- ${api("new_lm")}(`, `  ${rqv(connection.provider, "provider")},`];
+  if (relay !== undefined) lines.push(`  ${comment("# This API refuses browser origins; the page relays it (see the Relay note). Drop this line outside a browser.")}`, `  base_url = ${rqv(relay)},`);
+  lines.push(`  api_key = ${keyless(connection.provider) ? '"unused"' : rqv(EXAMPLE_API_KEY)}`, ")");
+  return lines;
+}
+
+/** One transcript message in R, at `pad`; the caller joins them with commas (R lists take no trailing comma). */
+export function rMessage(m: Message, i: number, pad: string): string[] {
+  const simple = plainText(m);
+  if (simple) return [`${pad}${api(`message_${simple.role}`)}(${rqv(simple.text, turnSource(i))})`];
+  const parts = replayParts(m);
+  if (!parts) return [`${pad}${api("from_json")}(${rJsonText(stringifyJson(Message.toJSON(m)))}, "message")`];
+  const state = (s: ContinuationState) => `${api("continuation_state")}(${rString(s.provider)}, ${rString(s.kind)}, data = ${rData(s)})`;
+  const states = (c: readonly ContinuationState[]) => `continuation = list(${c.map(state).join(", ")})`;
+  const inner = parts.map((p) => `${pad}  ${api(p.type === "thinking" ? "thinking_part" : "text_part")}(${rqv(p.text, p.type === "text" ? turnSource(i) : undefined)}${p.continuation.length ? `, ${states(p.continuation)}` : ""})`);
+  return [`${pad}${api("message_assistant")}(list(`, ...inner.map((line, k) => (k < inner.length - 1 ? `${line},` : line)), `${pad}))`];
+}
+/** Messages as the elements of an R `list(...)`: comma after each but the last. */
+export function rList(lines: readonly string[][]): string[] {
+  return lines.flatMap((message, k) => (k < lines.length - 1 ? [...message.slice(0, -1), `${message.at(-1)},`] : message));
+}
+
+/** The R of the chat turn: the snapshot every runtime executes, spelled with lm15 for R. */
+export function exampleR(connection: Connection, settings: Settings, messages: readonly Message[], prompt: string): Code {
+  if (judgmentsOnly(connection.provider)) return finish(comment("# TypeSafe is judgments-only. Open Judge to declare the questions."));
+  const streamed = streams(connection);
+  const all = [...messages.map((m, i) => rMessage(m, i, "    ")), [`    ${api("message_user")}(${rqv(prompt, "draft")})`]];
+  const lines = [dim("library(lm15)"), "", ...rClient(connection), "", `req <- ${api("request")}(`, `  ${rqv(connection.model, "model")},`, "  list(", ...rList(all), "  ),"];
+  if (settings.system.trim()) lines.push(`  system = ${rqv(settings.system.trim(), "system")},`);
+  const config = configLines(settings, "r");
+  if (config.length) lines.push(`  ${config[0]},`);
+  lines[lines.length - 1] = lines[lines.length - 1]!.replace(/,$/, "");
+  lines.push(")", "");
+  if (streamed) lines.push(`response <- ${api("stream")}(lm, req, function(event) {`, `  if (event$type == "delta" && event$delta$type == "text") cat(event$delta$text)`, `}) ${comment("# Esc or Ctrl-C stops it")}`);
+  else lines.push(`response <- ${api("complete")}(lm, req) ${comment("# one piece: this API has no stream")}`, `cat(${api("response_text")}(response))`);
+  lines.push("", comment("# Keep the reply for the next turn."), "messages <- c(req$messages, list(response$message))");
+  return finish(lines.join("\n"));
 }

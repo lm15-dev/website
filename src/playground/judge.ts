@@ -20,7 +20,7 @@
  */
 
 import { Message, RawNumber, Request as RequestNs, choice, isJsonObject, judgments, judgmentsInSchema, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "@lm15/lm15/browser";
-import { GO_ERR, goProgram, jsClient, judgmentsOnly, pyClient, pyImports, rustClient, rustString, rv, type Connection } from "./experience.ts";
+import { GO_ERR, goProgram, jsClient, judgmentsOnly, pyClient, pyImports, rClient, rName, rString, rqv, rustClient, rustString, rv, type Connection } from "./experience.ts";
 import { api, comment, dim, finish, group, mark, plain, quotedValue, val, type Code } from "./marks.ts";
 
 export type Shape = "text" | "fields" | "conversation";
@@ -378,8 +378,8 @@ function tidy(value: JsonValue): JsonValue {
   return value;
 }
 /** One echoed value in the language's own spelling of what `print` shows: a JS literal, a Python repr, JSON for Go and Rust. */
-function echoValue(value: JsonValue | undefined, lang: "javascript" | "python" | "go" | "rust"): string {
-  if (value === undefined) return lang === "python" ? "None" : lang === "go" ? "map[]" : lang === "rust" ? "None" : "undefined";
+function echoValue(value: JsonValue | undefined, lang: "javascript" | "python" | "go" | "rust" | "r"): string {
+  if (value === undefined) return lang === "python" ? "None" : lang === "go" ? "map[]" : lang === "rust" ? "None" : lang === "r" ? "NULL" : "undefined";
   const walk = (v: JsonValue): string => {
     if (v === null) return lang === "python" ? "None" : "null";
     if (typeof v === "boolean") return lang === "python" ? (v ? "True" : "False") : String(v);
@@ -393,7 +393,7 @@ function echoValue(value: JsonValue | undefined, lang: "javascript" | "python" |
   };
   return walk(tidy(value));
 }
-function echoLines(echo: Echo | undefined, lang: "javascript" | "python" | "go" | "rust", lead: string): [string[], string[], string[]] {
+function echoLines(echo: Echo | undefined, lang: "javascript" | "python" | "go" | "rust" | "r", lead: string): [string[], string[], string[]] {
   if (!echo) return [[], [], []];
   const line = (text: string) => mark("comment", `${lead} → ${text}`, RESULT_SOURCE);
   return [[line(echoValue(echo.data as JsonValue, lang))], [line(echoValue(echo.probabilities as JsonValue | undefined, lang))], [line(echoValue(echo.adaptations.map((a) => ({ field: a.field, action: a.action })), lang))]];
@@ -509,6 +509,65 @@ export function judgeGo(connection: Connection, spec: JudgeSpec, value: StateVal
     `    fmt.Println(${api("response.Probabilities")}()) ${comment(`// ${PROBABILITIES_NOTE.replace("%s", "nil")}`)}`, ...probabilities,
     `    fmt.Println(${api("response.Adaptations")})     ${comment(`// ${ADAPTATIONS_NOTE}`)}`, ...adaptations);
   return goProgram(connection, ["fmt"], body);
+}
+
+// ─── R ───────────────────────────────────────────────────────────────
+
+/** An R value of a JSON value: `json_object()` / `json_array()`, `NULL`, `TRUE`, and `3L` for an integer (a bare 3 is a double, which serializes as 3.0). `values`: the leaves are the person's. */
+function rJson(value: JsonValue, level: number, values = false): string {
+  const pad = "  ".repeat(level), inner = "  ".repeat(level + 1);
+  if (value === null) return "NULL";
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+  if (typeof value === "number") { const text = Number.isInteger(value) ? `${value}L` : String(value); return values ? val(text) : text; }
+  if (typeof value === "string") return values ? rqv(value) : rString(value);
+  if (value instanceof RawNumber) return value.raw;
+  if (Array.isArray(value)) return value.length ? `${api("json_array")}(\n${value.map((v) => inner + rJson(v, level + 1, values)).join(",\n")}\n${pad})` : `${api("json_array")}()`;
+  const entries = Object.entries(value as Record<string, JsonValue>);
+  return entries.length ? `${api("json_object")}(\n${entries.map(([k, v]) => `${inner}${rName(k)} = ${rJson(v, level + 1, values)}`).join(",\n")}\n${pad})` : `${api("json_object")}()`;
+}
+
+/** A question with lm15 for R's helpers when they reproduce it exactly; otherwise its schema verbatim. */
+function rQuestion(name: string, prop: JsonValue): string {
+  const question = sugarQuestion(name, prop);
+  if (!question) return rJson(prop, 1);
+  const text = rqv(question.question.trim() || name);
+  if (question.kind === "yesNo") return `${api("yes_no")}(${text})`;
+  const vector = (items: string[]) => {
+    const inline = `c(${items.join(", ")})`;
+    return plain(inline).length + plain(text).length < 72 ? inline : `c(\n${items.map((i) => `    ${i}`).join(",\n")}\n  )`;
+  };
+  if (question.kind === "choice") {
+    if (question.options.every((o) => !o.description)) return `${api("choice")}(${text}, ${vector(question.options.map((o) => rqv(o.key)))})`;
+    return `${api("choice")}(${text}, ${vector(question.options.map((o) => `${rName(o.key)} = ${o.description ? rqv(o.description) : "NA"}`))})`;
+  }
+  if (question.options.every((o) => !o.key)) return `${api("score")}(${text}, ${vector(question.options.map((o) => rqv(o.description)))})`;
+  return `${api("score")}(${text}, ${vector(question.options.map((o) => `${rName(o.key)} = ${rqv(o.description)}`))})`;
+}
+
+/** The R of the same call: lm15 for R's helpers, one request, `complete()` (never streamed). */
+export function judgeR(connection: Connection, spec: JudgeSpec, value: StateValue, echo?: Echo): Code {
+  const jev = judgmentsOnly(connection.provider);
+  const lines = [dim("library(lm15)"), "", ...rClient(connection), `model <- ${rqv(connection.model, "model")}`, "", comment(`# ${SHAPE_NOTE[spec.shape]}.`)];
+  const turns = value as readonly Turn[];
+  const state = spec.shape === "text" ? rqv(value as string)
+    : spec.shape === "fields" ? rJson(value as JsonValue, 0, true)
+    : jev ? `${api("json_array")}(\n${turns.map((t) => `  ${api("json_object")}(role = ${rString(t.role)}, content = ${rqv(t.content)})`).join(",\n")}\n)`
+    : `list(\n${turns.map((t) => `  ${api(`message_${t.role}`)}(${rqv(t.content)})`).join(",\n")}\n)`;
+  lines.push(`state <- ${group(state, STATE_SOURCE)}`, "", comment("# Declared keys in, a distribution out (MAP-14)."), `questions <- ${api("judgments")}(`);
+  const entries = Object.entries(spec.properties);
+  entries.forEach(([name, prop], i) => lines.push(`  ${group(`${val(rName(name))} = ${rQuestion(name, prop)}`, questionSource(name))}${i < entries.length - 1 ? "," : ""}`));
+  lines.push(")", "");
+  const messages = jev
+    ? (spec.shape === "text" ? `list(${api("message_user")}(state))` : spec.shape === "fields" ? `list(${api("message_user")}(${api("data_part")}(state)))` : `list(${api("message_user")}(${api("data_part")}(${api("json_object")}(messages = state))))`)
+    : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `list(${api("message_user")}(${api("data_part")}(state)))` : `list(${api("message_user")}(state))`);
+  const [data, probabilities] = echoLines(echo, "r", "#");
+  const adaptations = echo ? (echo.adaptations.length ? echo.adaptations.map((a) => mark("comment", `# → ${a.field} ${a.action}`, RESULT_SOURCE)) : [mark("comment", "# → (none)", RESULT_SOURCE)]) : [];
+  lines.push(`req <- ${api("request")}(model, ${messages},`, `  config = ${api("config")}(response_format = questions, probabilities = ${api('"if_available"')}))`,
+    `response <- ${api("complete")}(lm, req)`,
+    `cat(${api("as_json")}(${api("response_data")}(response)), "\\n") ${comment(`# ${DATA_NOTE}`)}`, ...data,
+    `cat(${api("as_json")}(${api("response_probabilities")}(response)), "\\n") ${comment(`# ${PROBABILITIES_NOTE.replace("%s", "NULL")}`)}`, ...probabilities,
+    `for (a in response$adaptations) cat(a$field, a$action, "\\n") ${comment(`# ${ADAPTATIONS_NOTE}`)}`, ...adaptations);
+  return finish(lines.join("\n"));
 }
 
 // ─── Rust ────────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@
 import { judgmentsInSchema, stringifyJson, type Judgment, type JsonObject, type JsonValue, type Request } from "@lm15/lm15/browser";
 import { keyless, type Connection } from "./experience.ts";
 import { comment, finish, type Code } from "./marks.ts";
-import { EXAMPLE_SPEC, distribution, emptyState, exampleState, expectedLevel, freeName, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, parseProperties, parseStateObject, pickLabel, questionSource, readQuestions, stateIsBlank, verdictOf, withQuestion, withoutQuestion, type Echo, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type StateValue, type Turn, type Verdict } from "./judge.ts";
+import { EXAMPLE_SPEC, distribution, emptyState, exampleState, expectedLevel, freeName, judgeGo, judgeJavascript, judgePython, judgeR, judgeRequest, judgeRust, parseProperties, parseStateObject, pickLabel, questionSource, readQuestions, stateIsBlank, verdictOf, withQuestion, withoutQuestion, type Echo, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type StateValue, type Turn, type Verdict } from "./judge.ts";
 import { looksBrowserBlocked, relayed } from "./relay.ts";
 import type { Runtime, RuntimeId } from "./runtimes/index.ts";
 
@@ -83,6 +83,7 @@ export class JudgeView {
     if (runtime === "javascript") return judgeJavascript(this.host.connection, this.spec, this.state, echo);
     if (runtime === "python") return judgePython(this.host.connection, this.spec, this.state, echo);
     if (runtime === "go") return judgeGo(this.host.connection, this.spec, this.state, echo);
+    if (runtime === "r") return judgeR(this.host.connection, this.spec, this.state, echo);
     return judgeRust(this.host.connection, this.spec, this.state, echo);
   }
 

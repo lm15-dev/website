@@ -470,7 +470,7 @@ test("minimal workspace: inline key errors, secondary menu, exact code copying a
     assert.deepEqual(await page.locator("#transcript article textarea").evaluateAll((areas) => areas.map((a) => (a as HTMLTextAreaElement).value)), [EXAMPLE_QUESTION, EXAMPLE_ANSWER]);
     assert.equal(await page.locator("#transcript button").count(), 0, "turns are edited in place; there is nothing to copy them with");
     assert.equal(await page.locator('#transcript article[data-example="true"]').count(), 2);
-    assert.deepEqual(await page.locator("[data-language]").allTextContents(), ["JavaScript", "Python", "Rust", "Go"]);
+    assert.deepEqual(await page.locator("[data-language]").allTextContents(), ["JavaScript", "Python", "Rust", "Go", "R"]);
     assert.equal(await page.locator('#composer .composer-actions #provider-button').count(), 1);
     assert.equal(await page.locator('#composer .composer-actions #model-button').count(), 1);
     for (const selector of ["#empty", "[data-starter]", "#reset-settings", "#temperature-reset", "#wrap-code", "#jump-request", "#code-file", "#code-note", "#turn-count", ".brand-mark", ".status-dot", ".composer-hint", ".picker-help", ".site-footer", "#settings-button", "#connection-button", "[data-line]", "#clear", "#runtime-controls", 'input[name="runtime"]', '[data-language="json"]', '[data-language="curl"]', "#preview-state", "#settings", "#key-card", "#key", "#key-state", "#credentials", ".fine-print", "#judge-key-slot", ".control-row"]) {
@@ -650,7 +650,7 @@ test("runtime loading can be retried, never silently switches language, and does
     assert.equal(await page.locator("#send").textContent(), "Send");
     assert.equal(attempts, 2, "Retry actually refetches, rather than reusing a rejected promise");
     await page.getByRole("button", { name: "Send", exact: true }).click();
-    for (const name of ["JavaScript", "Python", "Rust", "Go"]) assert.equal(await page.getByRole("button", { name, exact: true }).isDisabled(), true, "The executing language cannot change mid-turn");
+    for (const name of ["JavaScript", "Python", "Rust", "Go", "R"]) assert.equal(await page.getByRole("button", { name, exact: true }).isDisabled(), true, "The executing language cannot change mid-turn");
     releaseReply();
     await page.waitForFunction(() => document.getElementById("usage")?.textContent?.endsWith("Rust"));
     assert.equal(posts, 1);

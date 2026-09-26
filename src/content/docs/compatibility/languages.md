@@ -16,7 +16,7 @@ lists the versions.
 
 ## Released languages
 
-These four are published, graded against the current contract, and used in
+These five are published, graded against the current contract, and used in
 every example on this site.
 
 | Language | Version | Install | Runs on |
@@ -25,42 +25,46 @@ every example on this site.
 | **TypeScript** | 1.0.0-rc.2, release candidate | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
 | **Rust** | 1.0.0-rc.3, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
 | **Go** | v1.1.0-rc.2, release candidate | `go get github.com/lm15-dev/lm15-go@v1.1.0-rc.2` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
+| **R** | 1.0.0 | `remotes::install_github("lm15-dev/lm15-r")` (submitted to CRAN; `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
 
 **Stable** means the core won't change in a way that breaks your program
 until the next major version. A **release candidate** is the version that
 is expected to become stable, published so it can be tried first. For all
-four, the core is the same: requests and responses, streaming, tools,
+five, the core is the same: requests and responses, streaming, tools,
 structured output, media inputs, reasoning controls, errors, credentials
 and model listing. Files, batches, media generation, stored prompt caches,
 realtime sessions, reading OpenAI Chat Completions requests, and signing in
 with an account are **provisional** in every language: they may still
 change within 1.x, with a notice.
 
-None of the four has a required third-party dependency: each uses its
-language's standard library, including for HTTP. Python's realtime
+Python, TypeScript, Rust and Go have no required third-party dependency:
+each uses its language's standard library, including for HTTP. R's standard
+library has no HTTP client, JSON reader or cryptography, so the R package
+uses the standard R packages for them: curl, jsonlite and openssl. Python's realtime
 sessions use the optional `websockets` package (`pip install 'lm15[live]'`),
 and Rust's examples use Tokio to run `async` code.
 
 ### How they are checked
 
-Every change to any of the four is graded by the contract's harness, which
+Every change to any of the five is graded by the contract's harness, which
 compares the exact requests each language builds and the responses it reads
 with recorded provider traffic. Each passes every check of the contract
 version it pins (on 2026-09-26: 1,788 checks, the same contract version for
-all four). Each language also runs its own tests on Linux,
+all five). Each language also runs its own tests on Linux,
 macOS and Windows, and every example on this site is run in every
 language and must send the same request as Python does.
 
 Saved sign-ins are shared across languages: a login saved from Python is
 used and renewed from Go, and two programs in different languages renew one
-token exactly once. All four released versions have saved sign-ins (Python
-since 1.0.1, Go since v1.1.0-rc.1, TypeScript and Rust since 1.0.0-rc.2).
+token exactly once. All five released versions have saved sign-ins (Python
+since 1.0.1, Go since v1.1.0-rc.1, TypeScript and Rust since 1.0.0-rc.2, R
+since 1.0.0).
 
 ### In the browser
 
 TypeScript runs in the browser directly. Rust and Go compile to
 WebAssembly, and the [playground](/playground/) runs the real Rust and Go
-packages that way, as well as Python through Pyodide. In a browser, a
+packages that way, as well as Python through Pyodide and R through webR. In a browser, a
 provider must allow requests from web pages (Anthropic needs an explicit
 opt-in, which LM15 sends), and sign-in methods that open a local listener
 are not available.
@@ -70,7 +74,6 @@ are not available.
 | Language | Where it stands | Install |
 |---|---|---|
 | **Julia** | Complete against an earlier version of the contract (September 11); being brought up to date. Julia 1.10 or newer. | From GitHub: `Pkg.add(url="https://github.com/lm15-dev/lm15-jl")` |
-| **R** | The API is being designed; the examples on this site preview it. | Not yet available |
 
 ## Early ports
 

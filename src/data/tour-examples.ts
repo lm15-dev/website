@@ -1743,7 +1743,7 @@ for (call in ${api('tool_calls')}(response)) {
 })
 followup <- ${api('request')}(
   req$model,
-  c(req$messages, list(response$message, ${api('message')}("tool", results))),
+  c(req$messages, list(response$message, ${api('new_message')}("tool", results))),
   system = req$system,
   tools = req$tools
 )
@@ -1763,7 +1763,7 @@ for (turn in seq_len(${val(String(TOUR.maxTurns))})) {
     found <- jsonlite::toJSON(search_sightings(call$input$query))
     ${api('tool_result_part')}(call$id, list(${api('text_part')}(as.character(found))))
   })
-  messages <- c(messages, list(${api('message')}("tool", results)))
+  messages <- c(messages, list(${api('new_message')}("tool", results)))
 }
 if (response$finish_reason == "tool_call") {
   stop("still calling tools after ${TOUR.maxTurns} turns")

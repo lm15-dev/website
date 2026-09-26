@@ -40,7 +40,12 @@ https://lm15.dev/playground/ after the build and link checks pass.
 - `judge.ts`, `judge-ui.ts`: Judge mode — the question set, the inputs, one
   request per input, the four languages, the results table.
 - `credentials.ts`: temporary keys and optional encrypted browser storage.
-- `runtimes/`: JavaScript, Python, Rust, and Go execution in the browser.
+- `runtimes/`: JavaScript, Python, Rust, Go and R execution in the browser.
+  R is lm15 for R in webR: the runtime package carries webR, R's
+  filesystem, the WebAssembly packages (lm15 and its imports, built by
+  lm15-r's own `tools/build-webr.sh`, collected by
+  `../../scripts/vendor-r.mjs`) and the package's browser bridge; R builds
+  each request and reads each reply, and the page's fetch sends it.
 - `../../scripts/build-playground.mjs`: packages only public assets.
 - `../../tests/`: interface, example, runtime, and published-file checks.
 
@@ -63,7 +68,7 @@ temperature, max tokens and reasoning effort sit in the composer under the
 message; provider and model buttons sit beside Send. Both textareas grow with
 their text (no drag handle). **Hide** in the code panel's corner folds it to a
 strip so the conversation takes the width; the choice is remembered
-(`lm15.playground.code`). JavaScript / Python / Rust / Go
+(`lm15.playground.code`). JavaScript / Python / Rust / Go / R
 select both the displayed code and the SDK that executes the next message;
 there is no separate execution selector or New chat button. **Code | Request**
 in the panel's corner switches between the program and the request that program
@@ -71,7 +76,8 @@ puts on the wire — method, URL, headers and body, built by the selected
 runtime's own SDK (`Runtime.wire`) for the current turn or the selected Judge
 input, never sent, the key blanked. Python builds it from the shown program's
 head (a judge loop unrolled once); Rust and Go use canonical requests with their own SDKs.
-Selecting Python, Rust, or Go loads that runtime on demand. While it loads, a card
+Selecting Python, Rust, Go or R loads that runtime on demand (R is the
+largest: about 50 MB, webR and R's own library). While it loads, a card
 over the dimmed code says the phase (downloading, starting, installing) with a
 progress bar measured against `vendor/sizes.json`, the real byte sizes the build
 writes (the wire is gzipped, so Content-Length would overshoot); Send and Run all

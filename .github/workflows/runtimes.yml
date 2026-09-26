@@ -25,7 +25,7 @@ jobs:
           node --input-type=module <<'JS'
           import { readFileSync, appendFileSync } from 'node:fs';
           const pins = JSON.parse(readFileSync('sources.json', 'utf8'));
-          for (const key of ['typescript', 'python', 'rust', 'go', 'contract']) {
+          for (const key of ['typescript', 'python', 'rust', 'go', 'r', 'contract']) {
             if (!/^[a-f0-9]{40}$/.test(pins[key])) throw new Error(`Invalid ${key} pin`);
           }
           for (const key of ['rustToolchain', 'goToolchain']) {
@@ -56,6 +56,12 @@ jobs:
           repository: lm15-dev/lm15-go
           ref: ${{ steps.pins.outputs.go }}
           path: .runtime-build/lm15-go
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: lm15-dev/lm15-r
+          ref: ${{ steps.pins.outputs.r }}
+          path: .runtime-build/lm15-r
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -101,6 +107,16 @@ jobs:
           GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o ../lm15-ts/vendor/go/lm15-go.wasm ./cmd/lm15-wasm
           cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" ../lm15-ts/vendor/go/wasm_exec.js
           cp "$(go env GOROOT)/LICENSE" ../lm15-ts/vendor/go/LICENSE.txt
+      - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
+        with:
+          use-public-rspm: true
+      - name: Build the R browser runtime (webR)
+        # lm15-r's own script: the official webR image pinned by digest in
+        # WEBR_IMAGE, offline, with every dependency source pinned by SHA-256.
+        run: |
+          cd .runtime-build/lm15-r
+          CONTAINER_ENGINE=docker bash tools/build-webr.sh "$RUNNER_TEMP/webr"
+          node ../../scripts/vendor-r.mjs "$RUNNER_TEMP/webr" . ../lm15-ts/vendor/r
       - name: Package pinned runtimes
         run: |
           node scripts/package-runtime.mjs

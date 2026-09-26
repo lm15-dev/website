@@ -45,8 +45,11 @@ is not a security boundary between the documentation and playground.
 
 `package.json` and `package-lock.json` select a runtime package from this
 repository's GitHub Releases. It contains the built TypeScript SDK, Python
-wheel, Rust browser module, and Go browser module with its matching Go support
-script. `sources.json` records all four source revisions and compiler versions.
+wheel, Rust browser module, Go browser module with its matching Go support
+script, and R for the browser (webR, R's filesystem, and lm15 for R with its
+imports as WebAssembly packages). `sources.json` records every SDK's source
+revision and the compiler versions; R's webR image is pinned by digest in
+lm15-r itself (`WEBR_IMAGE`).
 The build refuses a runtime package that does not match those revisions.
 
 To update SDKs, push the SDK source revisions, edit `sources.json`, run the
