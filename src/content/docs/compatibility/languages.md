@@ -51,9 +51,10 @@ version it pins (on 2026-09-26: 1,583 checks for TypeScript, Rust and Go,
 macOS and Windows, and every example on this site is run in every
 language and must send the same request as Python does.
 
-The same saved sign-ins work across languages: a login saved from Python is
-used and renewed from Go or Rust, and two programs in different languages
-renew one token exactly once.
+Saved sign-ins are shared across languages: a login saved from Python is
+used and renewed from Go, and two programs in different languages renew one
+token exactly once. Python 1.0.1 and Go v1.1.0-rc.1 have saved sign-ins;
+TypeScript and Rust have them in their source, for their next release.
 
 ### In the browser
 
