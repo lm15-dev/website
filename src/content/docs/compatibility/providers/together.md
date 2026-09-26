@@ -1,6 +1,6 @@
 ---
 title: "Together AI"
-description: Use open models hosted by Together AI through LM15, with the together provider: the key, the model names, and what LM15 does differently for gpt-oss and GLM.
+description: "Use open models hosted by Together AI through LM15, with the together provider: the key, the model names, and what LM15 does differently for gpt-oss and GLM."
 ---
 
 Together AI runs open models from many vendors behind one API. In LM15 its

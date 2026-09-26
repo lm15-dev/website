@@ -1,6 +1,6 @@
 ---
 title: "Parasail"
-description: Use open models hosted by Parasail through LM15, with the parasail provider: the key, the model names, and what to expect.
+description: "Use open models hosted by Parasail through LM15, with the parasail provider: the key, the model names, and what to expect."
 ---
 
 Parasail runs open models from many vendors behind one API. In LM15 its

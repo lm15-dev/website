@@ -1,6 +1,6 @@
 ---
 title: "Fireworks AI"
-description: Use open models hosted by Fireworks AI through LM15, with the fireworks provider: the key, the model names, and what to expect from reasoning models.
+description: "Use open models hosted by Fireworks AI through LM15, with the fireworks provider: the key, the model names, and what to expect from reasoning models."
 ---
 
 Fireworks AI runs open models from many vendors behind one API. In LM15 its

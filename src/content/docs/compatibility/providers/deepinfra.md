@@ -1,6 +1,6 @@
 ---
 title: "DeepInfra"
-description: Use open models hosted by DeepInfra through LM15, with the deepinfra provider: the key, the model names, and what LM15 does differently for some models.
+description: "Use open models hosted by DeepInfra through LM15, with the deepinfra provider: the key, the model names, and what LM15 does differently for some models."
 ---
 
 DeepInfra runs open models from many vendors (DeepSeek, Qwen, GLM, Kimi,
