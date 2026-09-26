@@ -8,6 +8,7 @@ The contract defines shared behavior; the SDKs implement it using each languageâ
 
 - [Overview](https://lm15.dev/docs/): The contract, request fields, and capabilities.
 - [First request](https://lm15.dev/docs/first-request/): Setup links and a selectable code example.
+- [Use a cloud provider](https://lm15.dev/docs/cloud/): Amazon Bedrock, Microsoft Foundry and Google Vertex AI, with a page for each cloud.
 - [LM15 skill](https://lm15.dev/skill.md): Instructions for coding agents using LM15.
 - [Playground](https://lm15.dev/playground/): Try provider calls in the browser and copy code. Calls require credentials and may cost money.
 

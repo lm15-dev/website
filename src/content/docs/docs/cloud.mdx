@@ -28,7 +28,7 @@ server. We’ll finish with a map of the models each cloud offers through LM15.
 
 :::note[Which versions]
 The examples on this page ran with Python 1.1.0, TypeScript 1.0.0-rc.2,
-Rust 1.0.0-rc.2 and Go v1.1.0-rc.2. R and Julia reach the same clouds, but
+Rust 1.0.0-rc.3 and Go v1.1.0-rc.2. R and Julia reach the same clouds, but
 this section doesn’t have examples for them yet.
 :::
 
@@ -53,8 +53,8 @@ rest of this page is about.
 
 ## What changes from cloud to cloud
 
-Every cloud request needs three things that a request to OpenAI or Anthropic
-doesn’t.
+Three things work differently on a cloud than they do when you call OpenAI or
+Anthropic directly.
 
 1. **A sign-in.** The clouds don’t hand you one key for everything. A person
    signs in with the cloud’s command-line tool, and a program runs as an
@@ -90,17 +90,17 @@ shows how to choose one.
 ## How LM15 finds a sign-in
 
 On a laptop, you’ve usually signed in already, with `aws sso login`,
-`az login` or `gcloud auth application-default login`. LM15 looks for a
-sign-in in the same places, and in the same order, as each cloud’s own
-libraries do. That order is called a *chain*, and the first place in it that
-has a sign-in wins. Before anything else, it checks whether your program gave the router a
-credential itself.
+`az login` or `gcloud auth application-default login`. LM15 first checks
+whether your program gave the router a credential itself. If it didn’t, LM15
+looks for a sign-in in the same places, and in the same order, as each
+cloud’s own libraries do. That order is called a *chain*, and the first place
+in it that has a sign-in wins.
 
 A chain is convenient on a laptop, and risky on a server. A server can hold
 leftovers, such as a key file someone copied for a test, or an environment
-variable from another program. A chain would find them and use them, and your program would
-run as an identity nobody chose. So on a server, name the sign-in you expect.
-LM15 uses the same four names on every cloud:
+variable from another program. A chain would find them and use them, and
+your program would run as an identity nobody chose. So on a server, name the
+sign-in you expect. LM15 uses the same four names on every cloud:
 
 | Name | Where it runs | AWS | Azure | Google Cloud |
 |---|---|---|---|---|
@@ -157,8 +157,9 @@ LM15 has for each cloud, and what we’ve checked with real requests.
 | `vertex-express` | Gemini, with only an API key | Yes |
 | `vertex-anthropic` | Claude on Vertex AI | Only up to the quota check |
 
-“Only up to” means LM15 signed in and the cloud accepted the request, but our
-test accounts weren’t allowed to use the model, so we have no answer to show.
+“Only up to” means the cloud accepted LM15’s sign-in and read the request,
+but our test accounts weren’t allowed to use the model, so we have no answer
+to show.
 Each cloud’s page shows exactly what the cloud said.
 
 Two gaps are worth knowing before you choose a cloud. On AWS, Amazon’s own
@@ -172,7 +173,7 @@ raises an error rather than dropping part of your request.
 
 Pick your cloud: [AWS](/docs/aws/), [Microsoft Azure](/docs/azure/) or
 [Google Cloud](/docs/google-cloud/). Each page starts from an empty account
-and ends with a program running on that cloud.
+and ends with a program ready to run on that cloud.
 [Set up authentication](/docs/authentication/) explains the same rule for
 providers that use API keys: LM15 uses the credential you gave it, and can
 always tell you which one that is.

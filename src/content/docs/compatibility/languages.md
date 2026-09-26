@@ -23,7 +23,7 @@ every example on this site.
 |---|---|---|---|
 | **Python** | 1.1.0, stable | `pip install lm15` | Python 3.10 or newer; Linux, macOS, Windows |
 | **TypeScript** | 1.0.0-rc.2, release candidate | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
-| **Rust** | 1.0.0-rc.2, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
+| **Rust** | 1.0.0-rc.3, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
 | **Go** | v1.1.0-rc.2, release candidate | `go get github.com/lm15-dev/lm15-go@v1.1.0-rc.2` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
 
 **Stable** means the core won't change in a way that breaks your program

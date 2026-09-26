@@ -9,7 +9,7 @@ description: The current version of LM15 in each language, what each release con
 |---|---|---|---|
 | Python | **1.1.0** (stable) | 2026-09-26 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
 | TypeScript | **1.0.0-rc.2** (release candidate) | 2026-09-26 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
-| Rust | **1.0.0-rc.2** (release candidate) | 2026-09-26 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
+| Rust | **1.0.0-rc.3** (release candidate) | 2026-09-26 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
 | Go | **v1.1.0-rc.2** (release candidate) | 2026-09-26 | [`github.com/lm15-dev/lm15-go`](https://pkg.go.dev/github.com/lm15-dev/lm15-go) |
 
 The examples on this site use these versions. Julia and R are in
@@ -37,6 +37,16 @@ version forever, so that tag is retracted (Go warns anyone who uses it and
 never selects it on its own) and the first real release is numbered 1.1.
 
 ## Release notes
+
+### Rust 1.0.0-rc.3 — 2026-09-26
+
+A fix for Amazon Bedrock. In 1.0.0-rc.2 and earlier, AWS refused the
+signature of every request through `bedrock-mantle-chat` and
+`bedrock-anthropic`: the Rust client sent the address of the server twice,
+and AWS then checked the signature against the wrong address. Nothing else
+changed. See [Use AWS](/docs/aws/).
+
+- [Full notes](https://github.com/lm15-dev/lm15-rs/releases/tag/v1.0.0-rc.3)
 
 ### Python 1.1.0, TypeScript and Rust 1.0.0-rc.2, Go v1.1.0-rc.2 — 2026-09-26
 

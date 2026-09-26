@@ -9,7 +9,7 @@ Plenty of organizations already have an agreement with Microsoft, with their
 rules about data, spending and access written into it. Microsoft Foundry,
 which includes the service long known as Azure OpenAI, runs OpenAI’s models
 inside that agreement, along with models from DeepSeek, Moonshot, Anthropic
-and others. Your first request will take a little longer than elsewhere,
+and others. Getting to a first answer takes a little longer than elsewhere,
 though, because Azure has its own words for things, and you meet three of
 them before any answer arrives: a *resource*, a *deployment*, and an
 *endpoint*.
@@ -27,7 +27,7 @@ and plug in a credential from Microsoft’s own library. We’ll finish with the
 other models Foundry offers, and the mistakes that cost people the most time.
 
 :::note[Which versions]
-The examples ran with Python 1.1.0, TypeScript 1.0.0-rc.2, Rust 1.0.0-rc.2
+The examples ran with Python 1.1.0, TypeScript 1.0.0-rc.2, Rust 1.0.0-rc.3
 and Go v1.1.0-rc.2. R and Julia reach Azure too, but this page doesn’t have
 examples for them yet.
 :::
@@ -143,16 +143,17 @@ only has a deployment called `gpt-4.1-mini`:
 
 <CloudExample page="azure" name="wrong_deployment" step="wrong_deployment" code={false} />
 
-Azure looks for a *deployment* called `gpt-4.1`, finds none, and says so;
-LM15 raises the error it raises for an unknown model. The second sentence of
+Azure looks for a *deployment* called `gpt-4.1`, finds none, and says so, and
+LM15 raises the same error as for any unknown model. The second sentence of
 Azure’s message is worth taking seriously, because a deployment you created a
-moment ago really does take a few minutes to answer. If it’s older than that, open
-the resource in the Foundry portal and copy the deployment’s name exactly.
+moment ago really does take a few minutes to answer. If yours is older than
+that, open the resource in the Foundry portal and copy the deployment’s name
+exactly.
 
 ## Run on Azure
 
-On Azure Container Apps, App Service, Functions or a virtual machine,
-your program can run as a *managed identity*, an identity Azure gives to a
+On Azure Container Apps, App Service, Functions or a virtual machine, your
+program can run as a *managed identity*, an identity Azure gives to a
 program instead of a person. Turn one on for your app, give it the Cognitive
 Services OpenAI User role on the resource, and store no key anywhere.
 
