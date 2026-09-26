@@ -1,7 +1,7 @@
 {
   "typescript": "2908e4545a5ae7b63308a5cb01136e27a8e9b8bd",
   "python": "6aea565d2bf3c38d83df5844bbc73c1b0bfd0989",
-  "rust": "12e5ebb8132fa85a04152fa93b74800dc31a198d",
+  "rust": "1733c0fb765912343e719ad51d785d46b1f45ec8",
   "go": "c805a9fc3a88344a54ccae0c6deafe4254b2e82f",
   "contract": "fe5cdf94b0494ebd9f968498e717dfeba8fb4df1",
   "rustToolchain": "1.97.1",
