@@ -45,8 +45,7 @@ The first release of LM15 for Go.
 - JSON objects keep their key order (`lm15.JSONObject`, built with
   `lm15.KV`). A structured-output schema reaches the model with its fields
   in the order you wrote them, which is the order the model fills them in.
-- Passes all 1,583 checks of the current contract, like the other three
-  languages.
+- Passes all 1,583 checks of the contract it pins (2026-09-26).
 - [Full notes](https://github.com/lm15-dev/lm15-go/releases/tag/v1.1.0-rc.1)
 
 ### Contract — 2026-09-26

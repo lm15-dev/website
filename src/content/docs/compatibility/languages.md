@@ -45,8 +45,9 @@ and Rust's examples use Tokio to run `async` code.
 
 Every change to any of the four is graded by the contract's harness, which
 compares the exact requests each language builds and the responses it reads
-with recorded provider traffic. At the current contract, all four pass
-**1,583 of 1,583** checks. Each language also runs its own tests on Linux,
+with recorded provider traffic. Each passes every check of the contract
+version it pins (on 2026-09-26: 1,583 checks for TypeScript, Rust and Go,
+1,786 for Python, whose pin already includes the next providers). Each language also runs its own tests on Linux,
 macOS and Windows, and every example on this site is run in every
 language and must send the same request as Python does.
 
