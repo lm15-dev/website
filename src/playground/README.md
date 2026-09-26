@@ -174,8 +174,8 @@ the live deployment for the same test without sending real inference requests.
 Node-hosted Pyodide leaves interpreter handles alive after assertions finish.
 The unit/integration commands use Node's `--test-force-exit` after test completion;
 it does not skip test failures. Browser tests exit normally. Runtime comparisons
-use parsed JSON equality as well as body-byte equality: Go serializes maps with
-sorted keys, which can produce equivalent requests with different bytes.
+use parsed JSON equality as well as body-byte equality, so a difference in
+serialization alone (whitespace, number spelling) is reported as such.
 
 ## Teaching example
 

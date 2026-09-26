@@ -10,7 +10,7 @@ function parsed(body: string): unknown { try { return parseJson(body); } catch {
 function normalized(wire: Wire): string {
   return stringifyJson(sorted({ method: wire.method, url: wire.url, headers: Object.fromEntries(wire.headers.map(([key, value]) => [key.toLowerCase(), value]).filter(([key]) => key !== "user-agent" && key !== "anthropic-dangerous-direct-browser-access")), body: parsed(wire.body) }));
 }
-/** Parsed JSON equality is not byte equality: Go's maps sort keys. */
+/** Parsed JSON equality first, then bytes: runtimes may differ in whitespace or number spelling. */
 export function compareWires(wires: ReadonlyArray<readonly [string, Wire]>): string {
   if (!wires.length) return "";
   const first = wires[0]![1];
@@ -19,6 +19,6 @@ export function compareWires(wires: ReadonlyArray<readonly [string, Wire]>): str
   const bytes = wires.filter(([, wire]) => wire.body !== first.body).map(([name]) => name);
   const names = wires.map(([name]) => name).join(", ");
   return bytes.length
-    ? `Same parsed request from ${names} ✓. Body bytes differ in ${bytes.join(", ")} (serialization, including Go's sorted object keys).`
+    ? `Same parsed request from ${names} ✓. Body bytes differ in ${bytes.join(", ")} (serialization only).`
     : `Same request body bytes from ${names} ✓ (transport-only headers excluded).`;
 }

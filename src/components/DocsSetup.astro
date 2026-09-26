@@ -59,11 +59,10 @@ const { step } = Astro.props;
     </div>
     <div data-doc-install-language="go" hidden>
       <p>You’ll need Go 1.26 or newer. Run this in your terminal:</p>
-      <Code code={"mkdir first-request && cd first-request\ngo mod init example.com/first-request\ngo get github.com/lm15-dev/lm15-go"} lang="bash" />
-      <p>LM15 for Go uses only Go’s standard library. It has no tagged release yet,
-        so <code>go get</code> takes the current code and records its exact version
-        in <code>go.mod</code> (it looks like <code>v0.0.0-2026…</code>); your
-        build stays on that version until you run <code>go get</code> again. Put
+      <Code code={"mkdir first-request && cd first-request\ngo mod init example.com/first-request\ngo get github.com/lm15-dev/lm15-go@v1.1.0-rc.1"} lang="bash" />
+      <p>LM15 for Go uses only Go’s standard library. This installs the current
+        release candidate, <code>v1.1.0-rc.1</code>, the version this guide uses
+        (Go’s first release is numbered 1.1: an early prototype took 1.0). Put
         each example in <code>main.go</code> and run it with <code>go run .</code></p>
     </div>
     <div data-doc-install-language="julia" hidden>

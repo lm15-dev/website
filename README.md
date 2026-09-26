@@ -62,8 +62,8 @@ exact pinned Go toolchain. All heavy runtimes load only when selected.
 Prepare runtime upgrades on a branch: dispatch the runtime workflow on that
 branch, install the immutable release, and check the actual built playground
 before merging to `main`. This keeps the current public deployment intact while
-the new package is being built. Go may use different JSON key order; the page
-compares request content without claiming that differently ordered bytes match.
+the new package is being built. The page compares request content first and
+body bytes second, and says which differ.
 
 ## Local provider keys
 
