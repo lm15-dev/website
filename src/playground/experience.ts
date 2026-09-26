@@ -149,7 +149,7 @@ const jsIdentifier = /^[A-Za-z_$][\w$]*$/;
 // The data is the provider's, not the person's: quoted, and folded in the panel when it is a blob.
 const jsData = (state: ContinuationState): string => `{ ${dataEntries(state).map(([k, v]) => `${jsIdentifier.test(k) ? k : q(k)}: ${quotedOpaque(q(v))}`).join(", ")} }`;
 const pyData = (state: ContinuationState): string => `{${dataEntries(state).map(([k, v]) => `${q(k)}: ${quotedOpaque(q(v))}`).join(", ")}}`;
-const goData = (state: ContinuationState): string => `lm15.JSONObject{${dataEntries(state).map(([k, v]) => `${q(k)}: ${quotedOpaque(q(v))}`).join(", ")}}`;
+const goData = (state: ContinuationState): string => `lm15.JSONObject{${dataEntries(state).map(([k, v]) => `lm15.KV(${q(k)}, ${quotedOpaque(q(v))})`).join(", ")}}`;
 const rustData = (state: ContinuationState): string => `json!({ ${dataEntries(state).map(([k, v]) => `${rustString(k)}: ${quotedOpaque(rustString(v))}`).join(", ")} })`;
 
 /** JavaScript: `Message.assistant([thinking("", { continuation: continuationState(...) }), "the answer"])`, one part per line. */

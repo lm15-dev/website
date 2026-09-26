@@ -1232,15 +1232,15 @@ const go: Writer = {
   tool: (vague = false) => `sightingsTool := ${api('lm15.FunctionTool')}{
     Name:        ${q(TOUR.tool)},
     Description: ${q(TOUR.toolDescription)},
-    Parameters: lm15.JSONObject{
-        "type": "object",
-        "properties": lm15.JSONObject{
-            "query": lm15.JSONObject{${vague ? '"type": "string"}' : `
-                "type":        "string",
-                "description": ${q(TOUR.queryDescription)},
-            }`},
-        },
-        "required": []any{"query"},
+    Parameters: ${api('lm15.JSONObject')}{
+        ${api('lm15.KV')}("type", "object"),
+        ${api('lm15.KV')}("properties", lm15.JSONObject{
+            lm15.KV("query", lm15.JSONObject{
+                lm15.KV("type", "string"),${vague ? '' : `
+                lm15.KV("description", ${q(TOUR.queryDescription)}),`}
+            }),
+        }),
+        lm15.KV("required", []any{"query"}),
     },
 }`,
   request: (model, p) => [
@@ -1326,7 +1326,7 @@ for _, call := range response.${api('ToolCalls')}() {
 }`,
   answerTool: () => `var results []${api('lm15.ToolResultPart')}
 for _, call := range response.${api('ToolCalls')}() {
-    query, _ := call.Input["query"].(string)
+    query, _ := call.Input.${api('Get')}("query").(string)
     found, err := json.Marshal(searchSightings(query))
 ${dim('    if err != nil {\n        panic(err)\n    }')}
     result := ${api('lm15.ToolResult')}(call.ID, string(found))
@@ -1361,7 +1361,7 @@ ${dim('    if err != nil {\n        panic(err)\n    }')}
     }
     var results []${api('lm15.ToolResultPart')}
     for _, call := range response.${api('ToolCalls')}() {
-        query, _ := call.Input["query"].(string)
+        query, _ := call.Input.${api('Get')}("query").(string)
         found, err := json.Marshal(searchSightings(query))
 ${dim('        if err != nil {\n            panic(err)\n        }')}
         result := ${api('lm15.ToolResult')}(call.ID, string(found))
@@ -1380,31 +1380,36 @@ response, err := ${api('router.Complete')}(context.Background(), request)
 ${dim('if err != nil {\n    panic(err)\n}')}
 fmt.Println(response.${api('TextOr')}(""))`,
   soSchema: other => `places := []any{${placeList(other)}}
-sightingSchema := lm15.JSONObject{
-    "type": "object",
-    "properties": lm15.JSONObject{
-        "sightings": lm15.JSONObject{
-            "type": "array",
-            "items": lm15.JSONObject{
-                "type": "object",
-                "properties": lm15.JSONObject{
-                    "species": lm15.JSONObject{
-                        "type":        "string",
-                        "description": ${q(X.speciesDescription)},
-                    },
-                    "count": lm15.JSONObject{"type": "integer"},
-                    "place": lm15.JSONObject{
-                        "type": "string",
-                        "enum": places,
-                    },
-                },
-                "required": []any{"species", "count", "place"},
-                "additionalProperties": false,
-            },
-        },
-    },
-    "required":             []any{"sightings"},
-    "additionalProperties": false,
+${comment('// Keys keep their order: the model fills them in that order.')}
+sightingSchema := ${api('lm15.JSONObject')}{
+    ${api('lm15.KV')}("type", "object"),
+    lm15.KV("properties", lm15.JSONObject{
+        lm15.KV("sightings", lm15.JSONObject{
+            lm15.KV("type", "array"),
+            lm15.KV("items", lm15.JSONObject{
+                lm15.KV("type", "object"),
+                lm15.KV("properties", lm15.JSONObject{
+                    lm15.KV("species", lm15.JSONObject{
+                        lm15.KV("type", "string"),
+                        lm15.KV("description", ${q(X.speciesDescription)}),
+                    }),
+                    lm15.KV("count", lm15.JSONObject{
+                        lm15.KV("type", "integer"),
+                    }),
+                    lm15.KV("place", lm15.JSONObject{
+                        lm15.KV("type", "string"),
+                        lm15.KV("enum", places),
+                    }),
+                }),
+                lm15.KV("required", []any{
+                    "species", "count", "place",
+                }),
+                lm15.KV("additionalProperties", false),
+            }),
+        }),
+    }),
+    lm15.KV("required", []any{"sightings"}),
+    lm15.KV("additionalProperties", false),
 }`,
   soAsk: model => `request := &${api('lm15.Request')}{
     Model:    ${q(model)},
@@ -1412,10 +1417,10 @@ sightingSchema := lm15.JSONObject{
     Messages: []${api('lm15.Message')}{${api('lm15.UserMessage')}(note)},
     Config: ${api('lm15.Config')}{
         ResponseFormat: lm15.JSONObject{
-            "type":   "json_schema",
-            "name":   "sightings",
-            "schema": sightingSchema,
-            "strict": true,
+            lm15.KV("type", "json_schema"),
+            lm15.KV("name", "sightings"),
+            lm15.KV("schema", sightingSchema),
+            lm15.KV("strict", true),
         },
     },
 }

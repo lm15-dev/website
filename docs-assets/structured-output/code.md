@@ -259,31 +259,37 @@ let sighting_schema = serde_json::json!({
 
 ```go
 places := []any{"oak grove", "stream", "meadow"}
+// Keys keep their order: the model fills them in that order.
 sightingSchema := lm15.JSONObject{
-    "type": "object",
-    "properties": lm15.JSONObject{
-        "sightings": lm15.JSONObject{
-            "type": "array",
-            "items": lm15.JSONObject{
-                "type": "object",
-                "properties": lm15.JSONObject{
-                    "species": lm15.JSONObject{
-                        "type":        "string",
-                        "description": "Common name, singular.",
-                    },
-                    "count": lm15.JSONObject{"type": "integer"},
-                    "place": lm15.JSONObject{
-                        "type": "string",
-                        "enum": places,
-                    },
-                },
-                "required": []any{"species", "count", "place"},
-                "additionalProperties": false,
-            },
-        },
-    },
-    "required":             []any{"sightings"},
-    "additionalProperties": false,
+    lm15.KV("type", "object"),
+    lm15.KV("properties", lm15.JSONObject{
+        lm15.KV("sightings", lm15.JSONObject{
+            lm15.KV("type", "array"),
+            lm15.KV("items", lm15.JSONObject{
+                lm15.KV("type", "object"),
+                lm15.KV("properties", lm15.JSONObject{
+                    lm15.KV("species", lm15.JSONObject{
+                        lm15.KV("type", "string"),
+                        lm15.KV("description",
+                            "Common name, singular."),
+                    }),
+                    lm15.KV("count", lm15.JSONObject{
+                        lm15.KV("type", "integer"),
+                    }),
+                    lm15.KV("place", lm15.JSONObject{
+                        lm15.KV("type", "string"),
+                        lm15.KV("enum", places),
+                    }),
+                }),
+                lm15.KV("required", []any{
+                    "species", "count", "place",
+                }),
+                lm15.KV("additionalProperties", false),
+            }),
+        }),
+    }),
+    lm15.KV("required", []any{"sightings"}),
+    lm15.KV("additionalProperties", false),
 }
 ```
 
@@ -438,10 +444,10 @@ request := &lm15.Request{
     Messages: []lm15.Message{lm15.UserMessage(note)},
     Config: lm15.Config{
         ResponseFormat: lm15.JSONObject{
-            "type":   "json_schema",
-            "name":   "sightings",
-            "schema": sightingSchema,
-            "strict": true,
+            lm15.KV("type", "json_schema"),
+            lm15.KV("name", "sightings"),
+            lm15.KV("schema", sightingSchema),
+            lm15.KV("strict", true),
         },
     },
 }
@@ -713,31 +719,37 @@ let sighting_schema = serde_json::json!({
 
 ```go
 places := []any{"oak grove", "stream", "meadow", "other"}
+// Keys keep their order: the model fills them in that order.
 sightingSchema := lm15.JSONObject{
-    "type": "object",
-    "properties": lm15.JSONObject{
-        "sightings": lm15.JSONObject{
-            "type": "array",
-            "items": lm15.JSONObject{
-                "type": "object",
-                "properties": lm15.JSONObject{
-                    "species": lm15.JSONObject{
-                        "type":        "string",
-                        "description": "Common name, singular.",
-                    },
-                    "count": lm15.JSONObject{"type": "integer"},
-                    "place": lm15.JSONObject{
-                        "type": "string",
-                        "enum": places,
-                    },
-                },
-                "required": []any{"species", "count", "place"},
-                "additionalProperties": false,
-            },
-        },
-    },
-    "required":             []any{"sightings"},
-    "additionalProperties": false,
+    lm15.KV("type", "object"),
+    lm15.KV("properties", lm15.JSONObject{
+        lm15.KV("sightings", lm15.JSONObject{
+            lm15.KV("type", "array"),
+            lm15.KV("items", lm15.JSONObject{
+                lm15.KV("type", "object"),
+                lm15.KV("properties", lm15.JSONObject{
+                    lm15.KV("species", lm15.JSONObject{
+                        lm15.KV("type", "string"),
+                        lm15.KV("description",
+                            "Common name, singular."),
+                    }),
+                    lm15.KV("count", lm15.JSONObject{
+                        lm15.KV("type", "integer"),
+                    }),
+                    lm15.KV("place", lm15.JSONObject{
+                        lm15.KV("type", "string"),
+                        lm15.KV("enum", places),
+                    }),
+                }),
+                lm15.KV("required", []any{
+                    "species", "count", "place",
+                }),
+                lm15.KV("additionalProperties", false),
+            }),
+        }),
+    }),
+    lm15.KV("required", []any{"sightings"}),
+    lm15.KV("additionalProperties", false),
 }
 ```
 
@@ -869,7 +881,7 @@ for s in response.data["sightings"]:
 ### typescript
 
 ```ts
-import { LMRouter, Message, type Request } from "lm15";
+import { LMRouter, Message, type Request } from "@lm15/lm15";
 
 const places = ["oak grove", "stream", "meadow", "other"];
 const sightingSchema = {
@@ -1015,31 +1027,37 @@ import (
 
 func main() {
     places := []any{"oak grove", "stream", "meadow", "other"}
+    // Keys keep their order: the model fills them in that order.
     sightingSchema := lm15.JSONObject{
-        "type": "object",
-        "properties": lm15.JSONObject{
-            "sightings": lm15.JSONObject{
-                "type": "array",
-                "items": lm15.JSONObject{
-                    "type": "object",
-                    "properties": lm15.JSONObject{
-                        "species": lm15.JSONObject{
-                            "type":        "string",
-                            "description": "Common name, singular.",
-                        },
-                        "count": lm15.JSONObject{"type": "integer"},
-                        "place": lm15.JSONObject{
-                            "type": "string",
-                            "enum": places,
-                        },
-                    },
-                    "required": []any{"species", "count", "place"},
-                    "additionalProperties": false,
-                },
-            },
-        },
-        "required":             []any{"sightings"},
-        "additionalProperties": false,
+        lm15.KV("type", "object"),
+        lm15.KV("properties", lm15.JSONObject{
+            lm15.KV("sightings", lm15.JSONObject{
+                lm15.KV("type", "array"),
+                lm15.KV("items", lm15.JSONObject{
+                    lm15.KV("type", "object"),
+                    lm15.KV("properties", lm15.JSONObject{
+                        lm15.KV("species", lm15.JSONObject{
+                            lm15.KV("type", "string"),
+                            lm15.KV("description",
+                                "Common name, singular."),
+                        }),
+                        lm15.KV("count", lm15.JSONObject{
+                            lm15.KV("type", "integer"),
+                        }),
+                        lm15.KV("place", lm15.JSONObject{
+                            lm15.KV("type", "string"),
+                            lm15.KV("enum", places),
+                        }),
+                    }),
+                    lm15.KV("required", []any{
+                        "species", "count", "place",
+                    }),
+                    lm15.KV("additionalProperties", false),
+                }),
+            }),
+        }),
+        lm15.KV("required", []any{"sightings"}),
+        lm15.KV("additionalProperties", false),
     }
 
     note := `Checked the stream camera this morning. Three
@@ -1055,10 +1073,10 @@ A fox passed later, just before dawn.`
         Messages: []lm15.Message{lm15.UserMessage(note)},
         Config: lm15.Config{
             ResponseFormat: lm15.JSONObject{
-                "type":   "json_schema",
-                "name":   "sightings",
-                "schema": sightingSchema,
-                "strict": true,
+                lm15.KV("type", "json_schema"),
+                lm15.KV("name", "sightings"),
+                lm15.KV("schema", sightingSchema),
+                lm15.KV("strict", true),
             },
         },
     }

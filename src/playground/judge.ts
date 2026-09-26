@@ -442,7 +442,7 @@ export function judgePython(connection: Connection, spec: JudgeSpec, value: Stat
 
 // ─── Go ──────────────────────────────────────────────────────────────
 
-/** A Go literal of a JSON value: `lm15.JSONObject` for objects, `[]any` for arrays, `nil` for null. `values`: the leaves are the person's. */
+/** A Go literal of a JSON value: `lm15.JSONObject` (ordered `lm15.KV` members) for objects, `[]any` for arrays, `nil` for null. `values`: the leaves are the person's. */
 function goJson(value: JsonValue, level: number, values = false): string {
   const pad = "    ".repeat(level), inner = "    ".repeat(level + 1);
   if (value === null) return "nil";
@@ -452,7 +452,7 @@ function goJson(value: JsonValue, level: number, values = false): string {
   if (value instanceof RawNumber) return value.raw;
   if (Array.isArray(value)) return value.length ? `[]any{\n${value.map((v) => `${inner}${goJson(v, level + 1, values)},`).join("\n")}\n${pad}}` : "[]any{}";
   const entries = Object.entries(value as Record<string, JsonValue>);
-  return entries.length ? `lm15.JSONObject{\n${entries.map(([k, v]) => `${inner}${q(k)}: ${goJson(v, level + 1, values)},`).join("\n")}\n${pad}}` : "lm15.JSONObject{}";
+  return entries.length ? `lm15.JSONObject{\n${entries.map(([k, v]) => `${inner}lm15.KV(${q(k)}, ${goJson(v, level + 1, values)}),`).join("\n")}\n${pad}}` : "lm15.JSONObject{}";
 }
 
 const GO_RESERVED = new Set(["break", "case", "chan", "const", "continue", "default", "defer", "else", "fallthrough", "for", "func", "go", "goto", "if", "import", "interface", "map", "package", "range", "return", "select", "struct", "switch", "type", "var", "lm", "lm15", "ctx", "cancel", "err", "questions", "state", "request", "response", "main", "run"]);
@@ -476,7 +476,7 @@ export function judgeGo(connection: Connection, spec: JudgeSpec, value: StateVal
   const body: string[] = [`    ${comment(`// ${SHAPE_NOTE[spec.shape]}.`)}`];
   if (spec.shape === "text") body.push(`    state := ${group(qv(value as string), STATE_SOURCE)}`);
   else if (spec.shape === "fields") body.push(`    state := ${group(goJson(value as JsonValue, 1, true), STATE_SOURCE)}`);
-  else if (jev) body.push(`    state := ${group(`[]lm15.JSONObject{\n${(value as readonly Turn[]).map((t) => `        {"role": ${q(t.role)}, "content": ${qv(t.content)}},`).join("\n")}\n    }`, STATE_SOURCE)}`);
+  else if (jev) body.push(`    state := ${group(`[]lm15.JSONObject{\n${(value as readonly Turn[]).map((t) => `        {lm15.KV("role", ${q(t.role)}), lm15.KV("content", ${qv(t.content)})},`).join("\n")}\n    }`, STATE_SOURCE)}`);
   else body.push(`    state := ${group(`[]lm15.Message{\n${(value as readonly Turn[]).map((t) => `        ${api(t.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(t.content)}),`).join("\n")}\n    }`, STATE_SOURCE)}`);
   body.push("", `    ${comment("// Declared keys in, a distribution out (MAP-14).")}`);
   const entries = Object.entries(spec.properties);
@@ -500,7 +500,7 @@ export function judgeGo(connection: Connection, spec: JudgeSpec, value: StateVal
   });
   body.push(`    questions, err := ${api("lm15.Judgments")}("judgments", true,`, ...properties.map((p) => `        ${p},`), "    )", GO_ERR);
   const messages = jev
-    ? (spec.shape === "text" ? `[]lm15.Message{${api("lm15.UserMessage")}(state)}` : spec.shape === "fields" ? `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(state))}` : `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(lm15.JSONObject{"messages": state}))}`)
+    ? (spec.shape === "text" ? `[]lm15.Message{${api("lm15.UserMessage")}(state)}` : spec.shape === "fields" ? `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(state))}` : `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(lm15.JSONObject{lm15.KV("messages", state)}))}`)
     : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(state))}` : `[]lm15.Message{${api("lm15.UserMessage")}(state)}`);
   const [data, probabilities, adaptations] = echoLines(echo, "go", "    //");
   body.push("", `    request, err := ${api("lm15.NewRequest")}(`, `        ${qv(connection.model, "model")},`, `        ${messages},`, `        ${api("lm15.WithConfig")}(${api("lm15.Config")}{ResponseFormat: questions, Probabilities: ${api("lm15.ProbabilitiesIfAvailable")}}),`, "    )", GO_ERR,
