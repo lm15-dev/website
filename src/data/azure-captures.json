@@ -1,0 +1,186 @@
+{
+  "date": "2026-09-26",
+  "dates": {
+    "ask": "2026-09-26",
+    "doctor": "2026-09-26",
+    "doctor_key": "2026-09-26",
+    "key": "2026-09-26",
+    "wrong_deployment": "2026-09-26",
+    "platform": "2026-09-26",
+    "environment": "2026-09-26",
+    "identity": "2026-09-26"
+  },
+  "steps": {
+    "ask": {
+      "file": "ask",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request\n\nrouter = LMRouter()\nrequest = Request(\n    model=\"azure:gpt-4.1-mini\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "Likely nocturnal animals eating acorns could include squirrels, raccoons, or deer, as they are known to forage at night. Additionally, small rodents like mice or even wild boars might also be responsible.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter();\nconst request = {\n  model: \"azure:gpt-4.1-mini\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "Animals such as squirrels, mice, and raccoons commonly forage for acorns under oak trees at night. Some species of deer and opossums may also feed on acorns during nighttime hours.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let router = LMRouter::new();\n    let request = Request {\n        model: \"azure:gpt-4.1-mini\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "At night, animals like raccoons, deer, and nocturnal rodents such as mice or squirrels are likely eating the acorns under your oak trees. Additionally, some wild pigs or opossums might also be foraging for acorns after dark.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router := lm15.NewRouter()\n    request := &lm15.Request{\n        Model:  \"azure:gpt-4.1-mini\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "Nocturnal animals like raccoons, opossums, and rodents such as mice or squirrels commonly eat acorns at night. Additionally, some species of deer and wild boars may also forage for acorns during nighttime hours.\n",
+        "model": "azure:gpt-4.1-mini"
+      }
+    },
+    "doctor": {
+      "file": "doctor",
+      "python": {
+        "code": "from lm15.doctor import explain_auth\n\nprint(explain_auth(\"azure\"))\n",
+        "output": "auth for provider 'azure':\n   - explicit api_keys entry: not provided\n   - env $AZURE_OPENAI_API_KEY: not set\n   - Entra service principal from AZURE_* env: AZURE_TENANT_ID/AZURE_CLIENT_ID + secret or certificate not set\n   - Entra workload identity: AZURE_FEDERATED_TOKEN_FILE not set\n   ? Azure managed identity: managed identity (imds) probed at request time\n   ? az account get-access-token: `az` run at request time\n   - Azure PowerShell Get-AzAccessToken: pwsh is not on PATH\n   - azd auth token: azd is not on PATH\n  configured: probably — Azure managed identity, az account get-access-token (unprobed offline)\n  setting authority_host: https://login.microsoftonline.com (from default)\n  setting scope: https://ai.azure.com/.default (from default)\n  base url: https://lm15-oai-29d280ed6f8e.openai.azure.com/openai/v1 (from env $AZURE_OPENAI_ENDPOINT)\n"
+      },
+      "typescript": {
+        "code": "import { describeReport, explainAuth } from \"@lm15/lm15\";\n\nconsole.log(describeReport(explainAuth(\"azure\")));\n",
+        "output": "auth for provider \"azure\":\n   - explicit api_keys entry: not provided\n   - env $AZURE_OPENAI_API_KEY: not set\n   - Entra service principal from AZURE_* env: AZURE_TENANT_ID/AZURE_CLIENT_ID + secret or certificate not set\n   - Entra workload identity: AZURE_FEDERATED_TOKEN_FILE not set\n   ? Azure managed identity: managed identity (imds) probed at request time\n   ? az account get-access-token: `az` run at request time\n   - Azure PowerShell Get-AzAccessToken: pwsh is not on PATH\n   - azd auth token: azd is not on PATH\n  base URL: https://lm15-oai-29d280ed6f8e.openai.azure.com/openai/v1 (env $AZURE_OPENAI_ENDPOINT)\n  configured: probably — Azure managed identity, az account get-access-token (unprobed offline)\n  setting authority_host: https://login.microsoftonline.com (from default)\n  setting scope: https://ai.azure.com/.default (from default)\n"
+      },
+      "rust": {
+        "code": "use lm15::auth::explain_auth;\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {\n    let report = explain_auth(\"azure\", &Default::default())?;\n    println!(\"{}\", report.describe());\n    Ok(())\n}\n",
+        "output": "auth for provider \"azure\":\n   - explicit api_keys entry: not provided\n   - env $AZURE_OPENAI_API_KEY: not set\n   - Entra service principal from AZURE_* env: AZURE_TENANT_ID/AZURE_CLIENT_ID + secret or certificate not set\n   - Entra workload identity: AZURE_FEDERATED_TOKEN_FILE not set\n   ? Azure managed identity: managed identity (imds) probed at request time\n   ? az account get-access-token: `az` run at request time\n   - Azure PowerShell Get-AzAccessToken: pwsh is not on PATH\n   - azd auth token: azd is not on PATH\n  configured: probably — Azure managed identity, az account get-access-token (unprobed offline)\n  setting authority_host: https://login.microsoftonline.com (from default)\n  setting scope: https://ai.azure.com/.default (from default)\n  base url: https://lm15-oai-29d280ed6f8e.openai.azure.com/openai/v1 (from env $AZURE_OPENAI_ENDPOINT)\n"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    report, err := lm15.ExplainAuth(\"azure\", lm15.ExplainOptions{})\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(report.Describe())\n}\n",
+        "output": "auth for provider \"azure\":\n   - explicit api_keys entry: not provided\n   - env $AZURE_OPENAI_API_KEY: not set\n   - Entra service principal from AZURE_* env: AZURE_TENANT_ID/AZURE_CLIENT_ID + secret or certificate not set\n   - Entra workload identity: AZURE_FEDERATED_TOKEN_FILE not set\n   ? Azure managed identity: managed identity (imds) probed at request time\n   ? az account get-access-token: `az` run at request time\n   - Azure PowerShell Get-AzAccessToken: pwsh is not on PATH\n   - azd auth token: azd is not on PATH\n  configured: probably — Azure managed identity, az account get-access-token (unprobed offline)\n  setting authority_host: https://login.microsoftonline.com (from default)\n  setting scope: https://ai.azure.com/.default (from default)\n  base url: https://lm15-oai-29d280ed6f8e.openai.azure.com/openai/v1 (from env $AZURE_OPENAI_ENDPOINT)\n"
+      }
+    },
+    "doctor_key": {
+      "file": "doctor",
+      "python": {
+        "code": "from lm15.doctor import explain_auth\n\nprint(explain_auth(\"azure\"))\n",
+        "output": "auth for provider 'azure':\n   - explicit api_keys entry: not provided\n  => env $AZURE_OPENAI_API_KEY: set (value never shown)\n   - Entra service principal from AZURE_* env: AZURE_TENANT_ID/AZURE_CLIENT_ID + secret or certificate not set\n   - Entra workload identity: AZURE_FEDERATED_TOKEN_FILE not set\n   ~ Azure managed identity: managed identity (imds) probed at request time\n   ~ az account get-access-token: `az` run at request time\n   - Azure PowerShell Get-AzAccessToken: pwsh is not on PATH\n   - azd auth token: azd is not on PATH\n  configured: yes — env $AZURE_OPENAI_API_KEY\n  setting authority_host: https://login.microsoftonline.com (from default)\n  setting scope: https://ai.azure.com/.default (from default)\n  base url: https://lm15-oai-29d280ed6f8e.openai.azure.com/openai/v1 (from env $AZURE_OPENAI_ENDPOINT)\n"
+      },
+      "typescript": {
+        "code": "import { describeReport, explainAuth } from \"@lm15/lm15\";\n\nconsole.log(describeReport(explainAuth(\"azure\")));\n",
+        "output": "auth for provider \"azure\":\n   - explicit api_keys entry: not provided\n  => env $AZURE_OPENAI_API_KEY: set (value never shown)\n   - Entra service principal from AZURE_* env: AZURE_TENANT_ID/AZURE_CLIENT_ID + secret or certificate not set\n   - Entra workload identity: AZURE_FEDERATED_TOKEN_FILE not set\n   ~ Azure managed identity: managed identity (imds) probed at request time\n   ~ az account get-access-token: `az` run at request time\n   - Azure PowerShell Get-AzAccessToken: pwsh is not on PATH\n   - azd auth token: azd is not on PATH\n  base URL: https://lm15-oai-29d280ed6f8e.openai.azure.com/openai/v1 (env $AZURE_OPENAI_ENDPOINT)\n  configured: yes — env $AZURE_OPENAI_API_KEY\n  setting authority_host: https://login.microsoftonline.com (from default)\n  setting scope: https://ai.azure.com/.default (from default)\n"
+      },
+      "rust": {
+        "code": "use lm15::auth::explain_auth;\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {\n    let report = explain_auth(\"azure\", &Default::default())?;\n    println!(\"{}\", report.describe());\n    Ok(())\n}\n",
+        "output": "auth for provider \"azure\":\n   - explicit api_keys entry: not provided\n  => env $AZURE_OPENAI_API_KEY: set (value never shown)\n   - Entra service principal from AZURE_* env: AZURE_TENANT_ID/AZURE_CLIENT_ID + secret or certificate not set\n   - Entra workload identity: AZURE_FEDERATED_TOKEN_FILE not set\n   ~ Azure managed identity: managed identity (imds) probed at request time\n   ~ az account get-access-token: `az` run at request time\n   - Azure PowerShell Get-AzAccessToken: pwsh is not on PATH\n   - azd auth token: azd is not on PATH\n  configured: yes — env $AZURE_OPENAI_API_KEY\n  setting authority_host: https://login.microsoftonline.com (from default)\n  setting scope: https://ai.azure.com/.default (from default)\n  base url: https://lm15-oai-29d280ed6f8e.openai.azure.com/openai/v1 (from env $AZURE_OPENAI_ENDPOINT)\n"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    report, err := lm15.ExplainAuth(\"azure\", lm15.ExplainOptions{})\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(report.Describe())\n}\n",
+        "output": "auth for provider \"azure\":\n   - explicit api_keys entry: not provided\n  => env $AZURE_OPENAI_API_KEY: set (value never shown)\n   - Entra service principal from AZURE_* env: AZURE_TENANT_ID/AZURE_CLIENT_ID + secret or certificate not set\n   - Entra workload identity: AZURE_FEDERATED_TOKEN_FILE not set\n   ~ Azure managed identity: managed identity (imds) probed at request time\n   ~ az account get-access-token: `az` run at request time\n   - Azure PowerShell Get-AzAccessToken: pwsh is not on PATH\n   - azd auth token: azd is not on PATH\n  configured: yes — env $AZURE_OPENAI_API_KEY\n  setting authority_host: https://login.microsoftonline.com (from default)\n  setting scope: https://ai.azure.com/.default (from default)\n  base url: https://lm15-oai-29d280ed6f8e.openai.azure.com/openai/v1 (from env $AZURE_OPENAI_ENDPOINT)\n"
+      }
+    },
+    "key": {
+      "file": "ask",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request\n\nrouter = LMRouter()\nrequest = Request(\n    model=\"azure:gpt-4.1-mini\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "Nocturnal animals like raccoons, squirrels, and deer often eat acorns under oak trees at night. Additionally, some rodents like mice and certain species of owls might also forage for acorns or the insects attracted to them.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter();\nconst request = {\n  model: \"azure:gpt-4.1-mini\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "Likely animals eating the acorns at night include squirrels, deer mice, and possibly raccoons or opossums. These nocturnal or crepuscular feeders rely on acorns as a food source during fall and early winter.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let router = LMRouter::new();\n    let request = Request {\n        model: \"azure:gpt-4.1-mini\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "At night, animals like raccoons, squirrels, and deer commonly eat acorns under oak trees. Owls and some rodents such as mice may also forage for acorns during these hours.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router := lm15.NewRouter()\n    request := &lm15.Request{\n        Model:  \"azure:gpt-4.1-mini\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "Likely nighttime acorn eaters include animals such as deer mice, squirrels, and raccoons. These creatures are known to forage for acorns under oak trees after dark.\n",
+        "model": "azure:gpt-4.1-mini"
+      }
+    },
+    "wrong_deployment": {
+      "file": "wrong_deployment",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request\n\nrouter = LMRouter()\nrequest = Request(\n    model=\"azure:gpt-4.1\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "",
+        "error": "UnsupportedModelError: The API deployment for this resource does not exist. If you created the deployment within the last 5 minutes, please wait a moment and try again. (azure, HTTP 404, request 7fe8ab6f-79d9-4255-ba9a-5071da2aaae8)"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter();\nconst request = {\n  model: \"azure:gpt-4.1\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "",
+        "error": "UnsupportedModelError: The API deployment for this resource does not exist. If you created the deployment within the last 5 minutes, please wait a moment and try again."
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let router = LMRouter::new();\n    let request = Request {\n        model: \"azure:gpt-4.1\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "",
+        "error": "Error: UnsupportedModelError(ErrorMeta { message: \"The API deployment for this resource does not exist. If you created the deployment within the last 5 minutes, please wait a moment and try again.\", provider: Some(\"azure\"), provider_code: Some(\"DeploymentNotFound\"), status: Some(404), request_id: Some(\"3a539f2f-7891-46a8-8a3d-937de73f4d95\"), retry_after: None, rate_limit_headers: DiagnosticHeaders({}), content_type: None, body_excerpt: Some(\"{\\n  \\\"error\\\": {\\n    \\\"type\\\": \\\"invalid_request_error\\\",\\n    \\\"code\\\": \\\"DeploymentNotFound\\\",\\n    \\\"message\\\": \\\"The API deployment for this resource does not exist. If you created the deployment within the last\"), credential_source: None, feature: None })"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router := lm15.NewRouter()\n    request := &lm15.Request{\n        Model:  \"azure:gpt-4.1\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "",
+        "error": "panic: The API deployment for this resource does not exist. If you created the deployment within the last 5 minutes, please wait a moment and try again. (azure, HTTP 404, request 868a10b4-d783-4674-87db-09ec82e50877)"
+      }
+    },
+    "platform": {
+      "file": "platform",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request, RouterConfig\n\nrouter = LMRouter(RouterConfig(\n    credentials={\"azure\": \"platform\"},\n))\nrequest = Request(\n    model=\"azure:gpt-4.1-mini\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "",
+        "error": "NotConfiguredError: azure: named credential \"platform\" — Azure managed identity — answered nothing (Azure managed identity: managed identity (imds) probed at request time). This door was told to use that identity only; it will not try the rest of the azure-chain chain.\n\n  To fix:\n    - credentials={\"azure\": \"<platform|workload|environment|cli>\"} names one identity; omit it to walk the azure-chain chain"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter({\n  credentials: { azure: \"platform\" },\n});\nconst request = {\n  model: \"azure:gpt-4.1-mini\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "",
+        "error": "NotConfiguredError: azure: named credential \"platform\" — Azure managed identity — answered nothing (managed-identity: managed identity (imds) probed at request time). Only this identity was requested; the rest of the azure-chain chain is not tried.\n\n  To fix:\n    - Configure credentials for azure"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request, RouterConfig};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let config = RouterConfig::new().credential(\"azure\", \"platform\");\n    let router = LMRouter::with_config(config)?;\n    let request = Request {\n        model: \"azure:gpt-4.1-mini\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "",
+        "error": "Error: NotConfiguredError(ErrorMeta { message: \"azure: named credential \\\"platform\\\" — Azure managed identity — answered nothing (Azure managed identity: managed identity (imds) probed at request time); no other rung of the azure-chain chain will be tried\\n\\n  To fix:\\n    - configure this identity, or omit the named credential to walk the chain\\n\", provider: Some(\"azure\"), provider_code: None, status: None, request_id: None, retry_after: None, rate_limit_headers: DiagnosticHeaders({}), content_type: None, body_excerpt: None, credential_source: None, feature: None })"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router, err := lm15.NewRouterWithConfig(lm15.RouterConfig{\n        Credentials: map[string]string{\"azure\": \"platform\"},\n    })\n    if err != nil {\n        panic(err)\n    }\n    request := &lm15.Request{\n        Model:  \"azure:gpt-4.1-mini\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "",
+        "error": "panic: azure: named credential \"platform\" — Azure managed identity — answered nothing (Azure managed identity: managed identity (imds) probed at request time). This door was told to use that identity only; it will not try the rest of the azure-chain chain.\n\t\n\t  To fix:\n\t    - credentials={\"azure\": \"<platform|workload|environment|cli>\"} names one identity; omit it to walk the azure-chain chain"
+      }
+    },
+    "environment": {
+      "file": "environment",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request, RouterConfig\n\nrouter = LMRouter(RouterConfig(\n    credentials={\"azure\": \"environment\"},\n))\nrequest = Request(\n    model=\"azure:gpt-4.1-mini\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "At night, acorns are often eaten by nocturnal animals such as squirrels, deer mice, and raccoons. Additionally, some species of owls may prey on these rodents that feed on acorns.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter({\n  credentials: { azure: \"environment\" },\n});\nconst request = {\n  model: \"azure:gpt-4.1-mini\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "At night, common acorn eaters include squirrels, mice, and raccoons, which are nocturnal or crepuscular foragers. Additionally, some species of deer may also feed on acorns during dusk or dawn.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request, RouterConfig};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let config = RouterConfig::new().credential(\"azure\", \"environment\");\n    let router = LMRouter::with_config(config)?;\n    let request = Request {\n        model: \"azure:gpt-4.1-mini\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "Likely nocturnal animals such as squirrels, mice, or raccoons are eating the acorns under your oak trees at night. Owls or other nocturnal predators may also be nearby, attracted by these small mammals.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router, err := lm15.NewRouterWithConfig(lm15.RouterConfig{\n        Credentials: map[string]string{\"azure\": \"environment\"},\n    })\n    if err != nil {\n        panic(err)\n    }\n    request := &lm15.Request{\n        Model:  \"azure:gpt-4.1-mini\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "At night, acorns under oak trees are commonly eaten by animals such as squirrels, raccoons, and deer. Nocturnal rodents like mice and some species of wild boars might also forage for acorns during nighttime.\n",
+        "model": "azure:gpt-4.1-mini"
+      }
+    },
+    "identity": {
+      "file": "identity",
+      "python": {
+        "code": "from azure.identity import AzureCliCredential, get_bearer_token_provider\nfrom lm15 import LMRouter, Message, Request, RouterConfig\n\ntoken = get_bearer_token_provider(\n    AzureCliCredential(), \"https://ai.azure.com/.default\"\n)\nrouter = LMRouter(RouterConfig(\n    api_keys={\"azure\": token},\n))\nrequest = Request(\n    model=\"azure:gpt-4.1-mini\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "Nocturnal animals like squirrels, raccoons, and deer often forage for acorns under oak trees at night. Owls and other small mammals might also be attracted to the area as they hunt for insects or rodents feeding on the acorns.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "typescript": {
+        "code": "import {\n  AzureCliCredential,\n  getBearerTokenProvider,\n} from \"@azure/identity\";\nimport { LMRouter, Message } from \"@lm15/lm15\";\n\nconst token = getBearerTokenProvider(\n  new AzureCliCredential(),\n  \"https://ai.azure.com/.default\",\n);\nconst router = new LMRouter({\n  apiKeys: { azure: token },\n});\nconst request = {\n  model: \"azure:gpt-4.1-mini\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "At night, animals like squirrels, mice, raccoons, and deer are common acorn eaters. Owls and other nocturnal predators may also be nearby, attracted by these small mammals.\n",
+        "model": "azure:gpt-4.1-mini"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    \"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy\"\n    \"github.com/Azure/azure-sdk-for-go/sdk/azidentity\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    azure, err := azidentity.NewAzureCLICredential(nil)\n    if err != nil {\n        panic(err)\n    }\n    scope := policy.TokenRequestOptions{\n        Scopes: []string{\"https://ai.azure.com/.default\"},\n    }\n    token := func(ctx context.Context) (lm15.Credential, error) {\n        t, err := azure.GetToken(ctx, scope)\n        return lm15.BearerToken{Value: t.Token}, err\n    }\n    router, err := lm15.NewRouterWithConfig(lm15.RouterConfig{\n        APIKeys: map[string]lm15.CredentialLike{\"azure\": token},\n    })\n    if err != nil {\n        panic(err)\n    }\n    request := &lm15.Request{\n        Model:  \"azure:gpt-4.1-mini\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "At night, acorns are commonly eaten by nocturnal wildlife such as squirrels, mice, and raccoons. Additionally, some species of owls and other small mammals might forage for acorns as part of their diet.\n",
+        "model": "azure:gpt-4.1-mini"
+      }
+    }
+  }
+}

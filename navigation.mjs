@@ -12,6 +12,9 @@ export const sidebar = [
     { label: 'Choose a model', slug: 'docs/models' },
   ] },
   { label: 'Cloud providers', items: [
+    { label: 'Use a cloud provider', slug: 'docs/cloud' },
+    { label: 'Use AWS (Amazon Bedrock)', slug: 'docs/aws' },
+    { label: 'Use Microsoft Azure (Foundry)', slug: 'docs/azure' },
     { label: 'Use Google Cloud (Vertex AI)', slug: 'docs/google-cloud' },
   ] },
   { label: 'Use tools', items: [

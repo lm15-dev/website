@@ -1,0 +1,265 @@
+{
+  "date": "2026-09-26",
+  "dates": {
+    "ask": "2026-09-26",
+    "doctor": "2026-09-26",
+    "wrong_region": "2026-09-26",
+    "platform": "2026-09-26",
+    "gpt_oss": "2026-09-26",
+    "gpt_oss_mantle": "2026-09-26",
+    "claude": "2026-09-26",
+    "bearer": "2026-09-26",
+    "platform_ec2": "2026-09-26",
+    "platform_ec2_no_region": "2026-09-26",
+    "region": "2026-09-26"
+  },
+  "steps": {
+    "ask": {
+      "file": "ask",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request\n\nrouter = LMRouter()\nrequest = Request(\n    model=\"bedrock-chat:deepseek.v3.2\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "Several nocturnal animals could be responsible for eating the acorns under your oak trees. The most likely culprits are rodents like squirrels (which can be active at night), raccoons, opossums, and deer, which often forage after dark. To confirm, you could look for tracks, scat, or set up a motion-activated camera.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter();\nconst request = {\n  model: \"bedrock-chat:deepseek.v3.2\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "Several nocturnal animals could be responsible. Likely candidates include raccoons, opossums, deer, wild turkeys, and squirrels—some of which are active well after dark as they forage for food.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let router = LMRouter::new();\n    let request = Request {\n        model: \"bedrock-chat:deepseek.v3.2\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "Likely suspects include raccoons, deer, or wild turkeys, as they are all nocturnal or crepuscular feeders known to consume acorns. You could set up a wildlife camera to confirm which animal is visiting your oak trees.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router := lm15.NewRouter()\n    request := &lm15.Request{\n        Model:  \"bedrock-chat:deepseek.v3.2\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "Based on local wildlife, raccoons and opossums are the most common nocturnal acorn predators in our area. Squirrels may also be active at the tree base in the early evening or pre-dawn hours, and deer could be visiting overnight as well.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      }
+    },
+    "doctor": {
+      "file": "doctor",
+      "python": {
+        "code": "from lm15.doctor import explain_auth\n\nprint(explain_auth(\"bedrock-chat\"))\n",
+        "output": "auth for provider 'bedrock-chat':\n   - explicit api_keys entry: not provided\n   - env $AWS_BEARER_TOKEN_BEDROCK: not set\n   - env $AWS_ACCESS_KEY_ID (+SECRET, +SESSION_TOKEN): AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY not set\n   - profile assume-role via STS: profile 'default' has no role_arn with a source\n   - web identity via STS: AWS_WEB_IDENTITY_TOKEN_FILE / AWS_ROLE_ARN not set\n   - IAM Identity Center (~/.aws/sso/cache): no sso_session / sso_start_url in the profile\n  => ~/.aws/credentials: profile 'default' (values never shown)\n   - aws login session (~/.aws/login/cache): no login_session in the profile\n   - profile credential_process: no credential_process in the profile\n   - ~/.aws/config static keys: no static keys in config\n   - container credentials endpoint: no AWS_CONTAINER_CREDENTIALS_* URI\n   ~ EC2 instance metadata (IMDSv2): instance metadata probed at request time\n  configured: yes — ~/.aws/credentials\n  setting region: us-east-1 (from the active AWS profile)\n  base url: https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1 (from template)\n"
+      },
+      "typescript": {
+        "code": "import { describeReport, explainAuth } from \"@lm15/lm15\";\n\nconsole.log(describeReport(explainAuth(\"bedrock-chat\")));\n",
+        "output": "auth for provider \"bedrock-chat\":\n   - explicit api_keys entry: not provided\n   - env $AWS_BEARER_TOKEN_BEDROCK: not set\n   - env $AWS_ACCESS_KEY_ID (+SECRET, +SESSION_TOKEN): AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY not set\n   - profile assume-role via STS: profile 'default' has no role_arn with a source\n   - web identity via STS: AWS_WEB_IDENTITY_TOKEN_FILE / AWS_ROLE_ARN not set\n   - IAM Identity Center (~/.aws/sso/cache): no sso_session / sso_start_url in the profile\n  => ~/.aws/credentials: profile 'default' (values never shown)\n   - aws login session (~/.aws/login/cache): no login_session in the profile\n   - profile credential_process: no credential_process in the profile\n   - ~/.aws/config static keys: no static keys in config\n   - container credentials endpoint: no AWS_CONTAINER_CREDENTIALS_* URI\n   ~ EC2 instance metadata (IMDSv2): instance metadata probed at request time\n  base URL: https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1 (template)\n  configured: yes — ~/.aws/credentials\n  setting region: us-east-1 (from the active AWS profile)\n"
+      },
+      "rust": {
+        "code": "use lm15::auth::explain_auth;\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {\n    let report = explain_auth(\"bedrock-chat\", &Default::default())?;\n    println!(\"{}\", report.describe());\n    Ok(())\n}\n",
+        "output": "auth for provider \"bedrock-chat\":\n   - explicit api_keys entry: not provided\n   - env $AWS_BEARER_TOKEN_BEDROCK: not set\n   - env $AWS_ACCESS_KEY_ID (+SECRET, +SESSION_TOKEN): AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY not set\n   - profile assume-role via STS: profile \"default\" has no role_arn with a source\n   - web identity via STS: AWS_WEB_IDENTITY_TOKEN_FILE / AWS_ROLE_ARN not set\n   - IAM Identity Center (~/.aws/sso/cache): no sso_session / sso_start_url in the profile\n  => ~/.aws/credentials: profile \"default\" (values never shown)\n   - aws login session (~/.aws/login/cache): no login_session in the profile\n   - profile credential_process: no credential_process in the profile\n   - ~/.aws/config static keys: no static keys in config\n   - container credentials endpoint: no AWS_CONTAINER_CREDENTIALS_* URI\n   ~ EC2 instance metadata (IMDSv2): instance metadata probed at request time\n  configured: yes — ~/.aws/credentials\n  setting region: us-east-1 (from the active AWS profile)\n  base url: https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1 (from template)\n"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    report, err := lm15.ExplainAuth(\n        \"bedrock-chat\", lm15.ExplainOptions{},\n    )\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(report.Describe())\n}\n",
+        "output": "auth for provider \"bedrock-chat\":\n   - explicit api_keys entry: not provided\n   - env $AWS_BEARER_TOKEN_BEDROCK: not set\n   - env $AWS_ACCESS_KEY_ID (+SECRET, +SESSION_TOKEN): AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY not set\n   - profile assume-role via STS: profile \"default\" has no role_arn with a source\n   - web identity via STS: AWS_WEB_IDENTITY_TOKEN_FILE / AWS_ROLE_ARN not set\n   - IAM Identity Center (~/.aws/sso/cache): no sso_session / sso_start_url in the profile\n  => ~/.aws/credentials: profile \"default\" (values never shown)\n   - aws login session (~/.aws/login/cache): no login_session in the profile\n   - profile credential_process: no credential_process in the profile\n   - ~/.aws/config static keys: no static keys in config\n   - container credentials endpoint: no AWS_CONTAINER_CREDENTIALS_* URI\n   ~ EC2 instance metadata (IMDSv2): instance metadata probed at request time\n  configured: yes — ~/.aws/credentials\n  setting region: us-east-1 (from the active AWS profile)\n  base url: https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1 (from template)\n"
+      }
+    },
+    "wrong_region": {
+      "file": "ask",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request\n\nrouter = LMRouter()\nrequest = Request(\n    model=\"bedrock-chat:deepseek.v3.2\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "",
+        "error": "UnsupportedModelError: The provided model identifier is invalid. (bedrock-chat, HTTP 400, request df74e22e-84ed-417d-84e3-1971d76b1ecc)"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter();\nconst request = {\n  model: \"bedrock-chat:deepseek.v3.2\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "",
+        "error": "UnsupportedModelError: The provided model identifier is invalid."
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let router = LMRouter::new();\n    let request = Request {\n        model: \"bedrock-chat:deepseek.v3.2\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "",
+        "error": "Error: UnsupportedModelError(ErrorMeta { message: \"The provided model identifier is invalid.\", provider: Some(\"bedrock-chat\"), provider_code: Some(\"validation_error\"), status: Some(400), request_id: Some(\"a96c4c56-e305-4f83-83df-382fead84c32\"), retry_after: None, rate_limit_headers: DiagnosticHeaders({}), content_type: Some(\"application/json\"), body_excerpt: Some(\"{\\\"error\\\":{\\\"message\\\":\\\"The provided model identifier is invalid.\\\",\\\"type\\\":\\\"invalid_request_error\\\",\\\"param\\\":null,\\\"code\\\":\\\"validation_error\\\"}}\"), credential_source: None, feature: None })"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router := lm15.NewRouter()\n    request := &lm15.Request{\n        Model:  \"bedrock-chat:deepseek.v3.2\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "",
+        "error": "panic: The provided model identifier is invalid. (bedrock-chat, HTTP 400, request 4eb473b1-e338-43cf-a752-9acc2e56d5e2)"
+      }
+    },
+    "platform": {
+      "file": "platform",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request, RouterConfig\n\nrouter = LMRouter(RouterConfig(\n    credentials={\"bedrock-chat\": \"platform\"},\n))\nrequest = Request(\n    model=\"bedrock-chat:deepseek.v3.2\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "",
+        "error": "NotConfiguredError: bedrock-chat: named credential \"platform\" — the ECS/EKS container endpoint, else the EC2 instance role (IMDSv2) — answered nothing (container credentials endpoint: no AWS_CONTAINER_CREDENTIALS_* URI; EC2 instance metadata (IMDSv2): instance metadata probed at request time). This door was told to use that identity only; it will not try the rest of the aws-chain chain.\n\n  To fix:\n    - credentials={\"bedrock-chat\": \"<platform|workload|environment|cli>\"} names one identity; omit it to walk the aws-chain chain"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter({\n  credentials: { \"bedrock-chat\": \"platform\" },\n});\nconst request = {\n  model: \"bedrock-chat:deepseek.v3.2\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "",
+        "error": "NotConfiguredError: bedrock-chat: named credential \"platform\" — the ECS/EKS container endpoint, else the EC2 instance role (IMDSv2) — answered nothing (container: no AWS_CONTAINER_CREDENTIALS_* URI; imds: instance metadata probed at request time). Only this identity was requested; the rest of the aws-chain chain is not tried.\n\n  To fix:\n    - Configure credentials for bedrock-chat"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request, RouterConfig};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let config =\n        RouterConfig::new().credential(\"bedrock-chat\", \"platform\");\n    let router = LMRouter::with_config(config)?;\n    let request = Request {\n        model: \"bedrock-chat:deepseek.v3.2\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "",
+        "error": "Error: NotConfiguredError(ErrorMeta { message: \"bedrock-chat: named credential \\\"platform\\\" — the ECS/EKS container endpoint, then EC2 IMDSv2 — answered nothing (container credentials endpoint: no AWS_CONTAINER_CREDENTIALS_* URI; EC2 instance metadata (IMDSv2): instance metadata probed at request time); no other rung of the aws-chain chain will be tried\\n\\n  To fix:\\n    - configure this identity, or omit the named credential to walk the chain\\n\", provider: Some(\"bedrock-chat\"), provider_code: None, status: None, request_id: None, retry_after: None, rate_limit_headers: DiagnosticHeaders({}), content_type: None, body_excerpt: None, credential_source: None, feature: None })"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router, err := lm15.NewRouterWithConfig(lm15.RouterConfig{\n        Credentials: map[string]string{\"bedrock-chat\": \"platform\"},\n    })\n    if err != nil {\n        panic(err)\n    }\n    request := &lm15.Request{\n        Model:  \"bedrock-chat:deepseek.v3.2\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "",
+        "error": "panic: bedrock-chat: named credential \"platform\" — the ECS/EKS container endpoint, else the EC2 instance role (IMDSv2) — answered nothing (container credentials endpoint: no AWS_CONTAINER_CREDENTIALS_* URI; EC2 instance metadata (IMDSv2): instance metadata probed at request time). This door was told to use that identity only; it will not try the rest of the aws-chain chain.\n\t\n\t  To fix:\n\t    - credentials={\"bedrock-chat\": \"<platform|workload|environment|cli>\"} names one identity; omit it to walk the aws-chain chain"
+      }
+    },
+    "gpt_oss": {
+      "file": "gpt_oss",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request\n\nrouter = LMRouter()\nrequest = Request(\n    model=\"bedrock-chat:openai.gpt-oss-120b-1:0\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "<reasoning>We need to answer in two sentences. As a field assistant. Provide likely predators: squirrels, mice, chipmunks, raccoons, deer, birds like jays, etc. Mention nocturnal activity. Two sentences only.</reasoning>Common nighttime acorn pick‑pockets include gray squirrels and deer mice, as well as raccoons and striped skunks that forage after dark. You may also see nocturnal birds such as blue jays or even wintering woodpeckers scavenging the fallen nuts.\n",
+        "model": "bedrock-chat:openai.gpt-oss-120b-1:0"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter();\nconst request = {\n  model: \"bedrock-chat:openai.gpt-oss-120b-1:0\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "<reasoning>We need to answer in two sentences. As field assistant, suggest possible nocturnal acorn predators: squirrels, mice, chipmunks, deer (though not at night), raccoons, possums, insects like weevils, and maybe birds (nighthawks). Provide concise answer exactly two sentences.</reasoning>Likely candidates are nocturnal mammals such as eastern gray squirrels, mice, chipmunks, raccoons, or opossums, all of which forage on fallen acorns after dark. Insects like acorn weevils can also gnaw the nuts, but the rapid disappearance you’re seeing is most often caused by those small mammals visiting the ground at night.\n",
+        "model": "bedrock-chat:openai.gpt-oss-120b-1:0"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let router = LMRouter::new();\n    let request = Request {\n        model: \"bedrock-chat:openai.gpt-oss-120b-1:0\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "<reasoning>We need to answer in two sentences per instruction. Provide possible nocturnal acorn eaters: squirrels, rodents, raccoons, deer, birds like jays? At night, likely raccoons, opossums, mice, voles, chipmunks. Also insects? Provide concise answer.</reasoning>Likely candidates are nocturnal mammals such as raccoons, opossums, mice, voles, and chipmunks, all of which are active after dark and known to hoard or eat acorns. Larger nighttime foragers like deer may also nibble the fallen nuts, especially when food is scarce.\n",
+        "model": "bedrock-chat:openai.gpt-oss-120b-1:0"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router := lm15.NewRouter()\n    request := &lm15.Request{\n        Model:  \"bedrock-chat:openai.gpt-oss-120b-1:0\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "<reasoning>We need answer in two sentences. Provide possible predators: squirrels, deer, mice, raccoons, chipmunks, birds like jays, maybe squirrels. Mention nocturnal species like raccoons, opossums, deer may browse. Provide concise.</reasoning>Most likely nocturnal foragers such as raccoons, opossums, mice, and chipmunks are scooping up the fallen acorns under cover of darkness. Larger night‑active herbivores like deer can also browse them, especially when the supply is abundant.\n",
+        "model": "bedrock-chat:openai.gpt-oss-120b-1:0"
+      }
+    },
+    "gpt_oss_mantle": {
+      "file": "gpt_oss_mantle",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request\n\nrouter = LMRouter()\nrequest = Request(\n    model=\"bedrock-mantle-chat:openai.gpt-oss-120b\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "Squirrels, mice, chipmunks, raccoons, and even deer are the most common nocturnal visitors that will crack open and eat fallen acorns. Smaller culprits like weevil larvae or ant colonies can also damage them, especially if the nuts are left on the ground for several days.\n",
+        "model": "bedrock-mantle-chat:openai.gpt-oss-120b"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter();\nconst request = {\n  model: \"bedrock-mantle-chat:openai.gpt-oss-120b\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "Likely culprits include nocturnal foragers such as eastern gray squirrels, deer mice, voles, and raccoons, as well as night‑active birds like blue jays and woodpeckers that stash and retrieve acorns after dark. In some regions, insects (e.g., weevils) and small mammals such as chipmunks may also harvest fallen acorns during the night hours.\n",
+        "model": "bedrock-mantle-chat:openai.gpt-oss-120b"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let router = LMRouter::new();\n    let request = Request {\n        model: \"bedrock-mantle-chat:openai.gpt-oss-120b\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "Likely culprits are nocturnal mammals such as raccoons, opossums, mice, and chipmunks, all of which forage under trees after dark. Some night‑active birds (e.g., jays or nuthatches) and even deer may also snatch acorns in the twilight hours.\n",
+        "model": "bedrock-mantle-chat:openai.gpt-oss-120b"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router := lm15.NewRouter()\n    request := &lm15.Request{\n        Model:  \"bedrock-mantle-chat:openai.gpt-oss-120b\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "Most likely nocturnal foragers such as gray/fox squirrels, mice, chipmunks, raccoons, or opossums are scavenging the fallen acorns after dark. In addition, larger herbivores like deer may sample the acorns at night, especially when daylight predators are less active.\n",
+        "model": "bedrock-mantle-chat:openai.gpt-oss-120b"
+      }
+    },
+    "claude": {
+      "file": "claude",
+      "python": {
+        "code": "from lm15 import AuthError, LMRouter, Message, Request\n\nrouter = LMRouter()\nrequest = Request(\n    model=\"bedrock-anthropic:anthropic.claude-opus-4-7\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\ntry:\n    print(router.complete(request).text)\nexcept AuthError as error:\n    print(error)\n",
+        "output": "anthropic.claude-opus-4-7 is not available for this account. You can explore other available models on Amazon Bedrock. For additional access options, contact AWS Sales at https://aws.amazon.com/contact-us/sales-support/ (bedrock-anthropic, HTTP 403, request req_ctnt7d62b4eqeev6ezvk6i7ugnsswksfrq2236j3wr3c2u7t7hqq)\n\n  credential came from: ~/.aws/credentials\n\n  To fix:\n    - Check that your API key is correct and not expired\n    - Pass the key explicitly (api_key, or RouterConfig api_keys), or on a host with an environment set AWS_BEARER_TOKEN_BEDROCK=...\n    - Verify your bedrock-anthropic account/project has access\n\n"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter();\nconst request = {\n  model: \"bedrock-anthropic:anthropic.claude-opus-4-7\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\ntry {\n  console.log((await router.complete(request)).text);\n} catch (error) {\n  console.log(String(error));\n}\n",
+        "output": "AuthError: anthropic.claude-opus-4-7 is not available for this account. You can explore other available models on Amazon Bedrock. For additional access options, contact AWS Sales at https://aws.amazon.com/contact-us/sales-support/\nCredential came from: ~/.aws/credentials [shared-credentials-file] (bedrock-anthropic, HTTP 403, request req_edzj6kv37w7enl4dvfovkbo7rumyyljeseyrtndsxb2bvml3jdnq)\n\n  To fix:\n    - Check that your API key is correct and not expired\n    - Pass the key explicitly (apiKey, or RouterConfig apiKeys), or on a host with an environment set AWS_BEARER_TOKEN_BEDROCK=...\n    - Verify your bedrock-anthropic account/project has access\n\n"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let router = LMRouter::new();\n    let request = Request {\n        model: \"bedrock-anthropic:anthropic.claude-opus-4-7\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    match router.complete(&request).await {\n        Ok(response) => {\n            println!(\"{}\", response.text().unwrap_or_default())\n        }\n        Err(error) => println!(\"{error}\"),\n    }\n    Ok(())\n}\n",
+        "output": "AuthError: anthropic.claude-opus-4-7 is not available for this account. You can explore other available models on Amazon Bedrock. For additional access options, contact AWS Sales at https://aws.amazon.com/contact-us/sales-support/ (bedrock-anthropic, HTTP 403, request req_cdaggiqse47rx7g5orfwn26uegnis3gfg2xjnwa2oxnyb4tx5xha)\nCredential came from: ~/.aws/credentials (shared-credentials-file)\n"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router := lm15.NewRouter()\n    request := &lm15.Request{\n        Model:  \"bedrock-anthropic:anthropic.claude-opus-4-7\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        fmt.Println(err)\n        return\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "anthropic.claude-opus-4-7 is not available for this account. You can explore other available models on Amazon Bedrock. For additional access options, contact AWS Sales at https://aws.amazon.com/contact-us/sales-support/ (bedrock-anthropic, HTTP 403, request req_xsq4jgtkrlogfexvj7x5nstxa5apnooo56peud3bwg2mmjjwo2kq)\n\n  credential came from: ~/.aws/credentials\n\n  To fix:\n    - Check that your API key is correct and not expired\n    - Pass the key explicitly (api_key, or RouterConfig api_keys), or on a host with an environment set AWS_BEARER_TOKEN_BEDROCK=...\n    - Verify your bedrock-anthropic account/project has access\n\n"
+      }
+    },
+    "bearer": {
+      "file": "ask",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request\n\nrouter = LMRouter()\nrequest = Request(\n    model=\"bedrock-chat:deepseek.v3.2\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "Several nocturnal animals are likely candidates for eating acorns under your oak trees. Common culprits include **raccoons, opossums, deer, squirrels** (who are active at dawn/dusk), and **rodents like mice and voles**, which can leave distinctive gnaw marks on smaller shell fragments.\n\n**To confirm which animal it is**, you can look for tracks in soft soil, set up a motion-activated trail camera, or examine the feeding site for specific clues like scattered shell pieces (indicative of squirrels) or a messy, dug-up area (typical of raccoons).\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter();\nconst request = {\n  model: \"bedrock-chat:deepseek.v3.2\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "In many regions, nocturnal animals like raccoons, squirrels, and deer are known to forage for acorns after dark. You could set up a motion-activated camera to identify the specific visitors in your area.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let router = LMRouter::new();\n    let request = Request {\n        model: \"bedrock-chat:deepseek.v3.2\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "Several nocturnal animals could be responsible. The most likely culprits include squirrels (who often forage after dark), raccoons, opossums, wild turkeys, and deer.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router := lm15.NewRouter()\n    request := &lm15.Request{\n        Model:  \"bedrock-chat:deepseek.v3.2\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "Several nocturnal animals could be responsible for eating acorns under your oak trees. The most likely suspects are raccoons, deer, possums, or rodents like squirrels (which are also active at night) and mice.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      }
+    },
+    "platform_ec2": {
+      "file": "platform",
+      "where": "an EC2 instance (Ubuntu 24.04, us-east-1) whose only identity is an instance role allowed bedrock:InvokeModel",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request, RouterConfig\n\nrouter = LMRouter(RouterConfig(\n    credentials={\"bedrock-chat\": \"platform\"},\n))\nrequest = Request(\n    model=\"bedrock-chat:deepseek.v3.2\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "Several animals could be responsible. Common nighttime acorn predators include squirrels (which are active day and night), raccoons, opossums, deer, and mice or voles. To confirm, you might look for tracks, scat, or set up a wildlife camera.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter({\n  credentials: { \"bedrock-chat\": \"platform\" },\n});\nconst request = {\n  model: \"bedrock-chat:deepseek.v3.2\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "Common nighttime acorn predators include small mammals such as squirrels, raccoons, opossums, and deer mice. It would be helpful to set up a motion-activated camera to confirm which species is visiting your trees.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request, RouterConfig};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let config =\n        RouterConfig::new().credential(\"bedrock-chat\", \"platform\");\n    let router = LMRouter::with_config(config)?;\n    let request = Request {\n        model: \"bedrock-chat:deepseek.v3.2\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "Several nocturnal animals could be responsible. Likely candidates include deer, raccoons, squirrels (which are active both day and night), wild turkeys, and even nocturnal rodents like mice or voles. You could set up a motion-activated camera to identify the specific animals visiting your oak trees.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router, err := lm15.NewRouterWithConfig(lm15.RouterConfig{\n        Credentials: map[string]string{\"bedrock-chat\": \"platform\"},\n    })\n    if err != nil {\n        panic(err)\n    }\n    request := &lm15.Request{\n        Model:  \"bedrock-chat:deepseek.v3.2\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "Several nocturnal animals are likely candidates for eating acorns under your oak trees. Common culprits include raccoons, opossums, deer, and mice or voles, all of which forage at night and consume acorns as a food source. To identify the specific animal, you could look for tracks, scat, or check for disturbed ground around the trees after dark.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      }
+    },
+    "platform_ec2_no_region": {
+      "file": "platform",
+      "where": "an EC2 instance (Ubuntu 24.04, us-east-1) whose only identity is an instance role allowed bedrock:InvokeModel",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request, RouterConfig\n\nrouter = LMRouter(RouterConfig(\n    credentials={\"bedrock-chat\": \"platform\"},\n))\nrequest = Request(\n    model=\"bedrock-chat:deepseek.v3.2\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "",
+        "error": "NotConfiguredError: bedrock-chat: setting 'region' is required and has no default; set AWS_REGION or AWS_DEFAULT_REGION\n\n  To fix:\n    - set AWS_REGION or AWS_DEFAULT_REGION"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter({\n  credentials: { \"bedrock-chat\": \"platform\" },\n});\nconst request = {\n  model: \"bedrock-chat:deepseek.v3.2\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "",
+        "error": "NotConfiguredError: bedrock-chat: setting 'region' is required and has no default; set AWS_REGION or AWS_DEFAULT_REGION\n\n  To fix:\n    - set AWS_REGION or AWS_DEFAULT_REGION"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request, RouterConfig};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let config =\n        RouterConfig::new().credential(\"bedrock-chat\", \"platform\");\n    let router = LMRouter::with_config(config)?;\n    let request = Request {\n        model: \"bedrock-chat:deepseek.v3.2\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "",
+        "error": "Error: NotConfiguredError(ErrorMeta { message: \"bedrock-chat: setting \\\"region\\\" is required and has no default; set AWS_REGION or AWS_DEFAULT_REGION\", provider: Some(\"bedrock-chat\"), provider_code: None, status: None, request_id: None, retry_after: None, rate_limit_headers: DiagnosticHeaders({}), content_type: None, body_excerpt: None, credential_source: None, feature: None })"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router, err := lm15.NewRouterWithConfig(lm15.RouterConfig{\n        Credentials: map[string]string{\"bedrock-chat\": \"platform\"},\n    })\n    if err != nil {\n        panic(err)\n    }\n    request := &lm15.Request{\n        Model:  \"bedrock-chat:deepseek.v3.2\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "",
+        "error": "panic: bedrock-chat: setting \"region\" is required and has no default; set AWS_REGION or AWS_DEFAULT_REGION\n\t\n\t  To fix:\n\t    - set AWS_REGION or AWS_DEFAULT_REGION"
+      }
+    },
+    "region": {
+      "file": "region",
+      "python": {
+        "code": "from lm15 import LMRouter, Message, Request, RouterConfig\n\nrouter = LMRouter(RouterConfig(\n    settings={\"bedrock-chat\": {\"region\": \"us-east-1\"}},\n))\nrequest = Request(\n    model=\"bedrock-chat:deepseek.v3.2\",\n    system=(\n        \"You are the field assistant for a wildlife research \"\n        \"station. Answer in two sentences.\"\n    ),\n    messages=[Message.user(\n        \"What might be eating the acorns under our oak trees at \"\n        \"night?\"\n    )],\n)\nprint(router.complete(request).text)\n",
+        "output": "Several nocturnal animals could be responsible. Likely candidates include raccoons, squirrels (which are active at night), deer, and possibly opossums or wild turkeys.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "typescript": {
+        "code": "import { LMRouter, Message } from \"@lm15/lm15\";\n\nconst router = new LMRouter({\n  settings: { \"bedrock-chat\": { region: \"us-east-1\" } },\n});\nconst request = {\n  model: \"bedrock-chat:deepseek.v3.2\",\n  system:\n      \"You are the field assistant for a wildlife research station. \" +\n      \"Answer in two sentences.\",\n  messages: [Message.user(\n      \"What might be eating the acorns under our oak trees at night?\",\n  )],\n};\nconst response = await router.complete(request);\nconsole.log(response.text);\n",
+        "output": "Acorns are commonly eaten at night by nocturnal mammals in many regions. In North America, potential culprits include squirrels (which are active at dawn and dusk), raccoons, opossums, deer, and wild turkeys (though turkeys are diurnal).\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "rust": {
+        "code": "use lm15::{LMRouter, Message, Request, RouterConfig};\n\n// Dependencies: lm15, tokio (macros, rt-multi-thread)\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    let config = RouterConfig::new()\n        .setting(\"bedrock-chat\", \"region\", \"us-east-1\");\n    let router = LMRouter::with_config(config)?;\n    let request = Request {\n        model: \"bedrock-chat:deepseek.v3.2\".into(),\n        system: Some(concat!(\n            \"You are the field assistant for a wildlife research \",\n            \"station. Answer in two sentences.\",\n        ).into()),\n        messages: vec![Message::user(concat!(\n            \"What might be eating the acorns under our oak trees at \",\n            \"night?\",\n        ))?],\n        ..Default::default()\n    };\n    let response = router.complete(&request).await?;\n    println!(\"{}\", response.text().unwrap_or_default());\n    Ok(())\n}\n",
+        "output": "Many animals could be foraging for acorns at night. Likely culprits include raccoons, squirrels (which are active at dawn and dusk), deer, possums, and rodents like mice or voles.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      },
+      "go": {
+        "code": "package main\n\nimport (\n    \"context\"\n    \"fmt\"\n    lm15 \"github.com/lm15-dev/lm15-go\"\n)\n\nfunc main() {\n    router, err := lm15.NewRouterWithConfig(lm15.RouterConfig{\n        Settings: map[string]map[string]string{\n            \"bedrock-chat\": {\"region\": \"us-east-1\"},\n        },\n    })\n    if err != nil {\n        panic(err)\n    }\n    request := &lm15.Request{\n        Model:  \"bedrock-chat:deepseek.v3.2\",\n        System: lm15.System(\n            \"You are the field assistant for a wildlife research \" +\n            \"station. Answer in two sentences.\",\n        ),\n        Messages: []lm15.Message{\n            lm15.UserMessage(\n                \"What might be eating the acorns under our oak trees \" +\n                \"at night?\",\n            ),\n        },\n    }\n    response, err := router.Complete(context.Background(), request)\n    if err != nil {\n        panic(err)\n    }\n    fmt.Println(response.TextOr(\"\"))\n}\n",
+        "output": "Two likely culprits are nocturnal rodents like squirrels or raccoons, which often carry acorns away, and deer, which may browse on them directly at night. You could look for telltale signs: scattered shell fragments and teeth marks from squirrels, or larger trampled areas and hoof prints indicating deer activity.\n",
+        "model": "bedrock-chat:deepseek.v3.2"
+      }
+    }
+  }
+}

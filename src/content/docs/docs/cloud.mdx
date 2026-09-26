@@ -1,0 +1,178 @@
+---
+title: Use a cloud provider
+description: Reach models through Amazon Bedrock, Microsoft Foundry or Google's Vertex AI with the request you already know. What changes from cloud to cloud, how LM15 finds a sign-in and tells you which one it used, and which models each cloud offers through LM15.
+---
+
+import CloudExample from '../../../components/CloudExample.astro';
+
+Many teams can’t send their data straight to OpenAI, Anthropic or Google. The
+contract, the bill and the rules about where data may go already live in a
+cloud account at Amazon, Microsoft or Google, and a new vendor would mean
+going through all of that again. So the three clouds run many of the same
+models themselves, inside your account: Amazon calls the service Bedrock,
+Microsoft calls it Foundry, and Google calls it Vertex AI. The models are
+familiar, but almost everything around them is new: how you sign in, where a
+request runs, and even what a model is called.
+
+LM15 treats each cloud as a provider like any other. The request is the one
+you already know; the model string names the cloud, and LM15 deals with the
+signing in. This page covers what the three clouds have in common. Each cloud
+then has its own page, from an empty account to a program in production:
+[AWS](/docs/aws/), [Microsoft Azure](/docs/azure/) and
+[Google Cloud](/docs/google-cloud/).
+
+We’ll start by sending one question to all three clouds. Then we’ll look at
+the three things that change from one cloud to the next. Next, we’ll see how
+LM15 finds a sign-in on your laptop, and how to tell it which one to use on a
+server. We’ll finish with a map of the models each cloud offers through LM15.
+
+:::note[Which versions]
+The examples on this page ran with Python 1.1.0, TypeScript 1.0.0-rc.2,
+Rust 1.0.0-rc.2 and Go v1.1.0-rc.2. R and Julia reach the same clouds, but
+this section doesn’t have examples for them yet.
+:::
+
+## One question, three clouds
+
+The examples in these guides follow
+[one small program](/docs/#the-example-well-build): an assistant for a
+wildlife research station. Here’s its first question, sent to a model on each
+of the three clouds, one after the other:
+
+<CloudExample page="clouds" name="three" output />
+
+We ran this on a machine signed in to all three clouds, the way a developer’s
+laptop often is. The program is a loop over three model strings, and nothing
+else in it mentions a cloud. There’s no key, no account and no region in the
+code: LM15 found each cloud’s sign-in where that cloud’s own tools keep it.
+
+The answers overlap a good deal, as you’d hope from three models, made by
+DeepSeek, OpenAI and Google, reading the same question. What differs between
+the clouds is everything the program didn’t have to say, and that’s what the
+rest of this page is about.
+
+## What changes from cloud to cloud
+
+Every cloud request needs three things that a request to OpenAI or Anthropic
+doesn’t.
+
+1. **A sign-in.** The clouds don’t hand you one key for everything. A person
+   signs in with the cloud’s command-line tool, and a program runs as an
+   identity the cloud gives it. We’ll come back to this in the next section.
+
+2. **A place.** Your requests belong to a container in your account, and they
+   run somewhere in the world. On AWS, the place is a *region*, such as
+   `us-east-1`. On Azure, it’s a *resource*, which you create in a region and
+   reach at its own address, its *endpoint*. On Google Cloud, it’s a
+   *project* and a *location*.
+
+3. **A model name.** Each cloud names models its own way. On AWS you use
+   Bedrock’s model ID, such as `deepseek.v3.2`. On Azure you use the name of a
+   *deployment*, a model you’ve set up in your resource under a name you chose.
+   On Google Cloud you use Google’s name, such as `gemini-2.5-flash`.
+
+The model string carries only the last of these: `bedrock-chat:deepseek.v3.2`,
+`azure:gpt-4.1-mini`, `vertex:gemini-2.5-flash`. The first part is the
+provider, which names both the cloud and the way LM15 talks to it; the second
+is the cloud’s own name for the model. The place comes from the same settings
+the cloud’s tools use, such as `AWS_REGION` or `GOOGLE_CLOUD_PROJECT`, or from
+your router’s settings.
+
+LM15 doesn’t guess a place. There’s no default region on AWS, no default
+resource on Azure and no default project on Google Cloud: if one is missing,
+LM15 stops before sending anything and says which variable to set. A guess
+would be worse, because a request sent to the wrong region can quietly break
+a rule about where your data may go. The one default is Google Cloud’s
+location, `global`, which lets Google choose where to run the request; the
+doctor says so, and [Use Google Cloud](/docs/google-cloud/#where-the-project-comes-from)
+shows how to choose one.
+
+## How LM15 finds a sign-in
+
+On a laptop, you’ve usually signed in already, with `aws sso login`,
+`az login` or `gcloud auth application-default login`. LM15 looks for a
+sign-in in the same places, and in the same order, as each cloud’s own
+libraries do. That order is called a *chain*, and the first place in it that
+has a sign-in wins. Before anything else, it checks whether your program gave the router a
+credential itself.
+
+A chain is convenient on a laptop, and risky on a server. A server can hold
+leftovers, such as a key file someone copied for a test, or an environment
+variable from another program. A chain would find them and use them, and your program would
+run as an identity nobody chose. So on a server, name the sign-in you expect.
+LM15 uses the same four names on every cloud:
+
+| Name | Where it runs | AWS | Azure | Google Cloud |
+|---|---|---|---|---|
+| `"platform"` | On the cloud itself | The instance or container role | Managed identity | The attached service account |
+| `"workload"` | A cluster, or another system the cloud trusts | EKS service-account roles | AKS workload identity | Workload identity federation |
+| `"environment"` | Anywhere, with a secret in the environment | `AWS_ACCESS_KEY_ID` and its secret | A service principal’s secret or certificate | A service-account key file |
+| `"cli"` | A developer’s machine | The `aws` CLI’s profile | `az`, `azd` or PowerShell | `gcloud`’s saved sign-in |
+
+With a name, LM15 tries only that kind of sign-in. If it isn’t there, the
+first request stops with an error that names what LM15 looked for, instead of
+quietly running as someone else. Each cloud’s page shows the name in use.
+
+When you want to know which sign-in a request will use, ask LM15’s *doctor*.
+It walks the same chain without sending anything, marks the place that will
+answer, and never prints a secret, so its report is safe to paste into a bug
+report. Each cloud’s page shows its report and reads it line by line. And when
+a cloud refuses a request, the error says where the credential came from, so
+you know whose sign-in was refused.
+
+Some teams go one step further, and require every program to use one
+particular credential from the cloud’s own library. LM15 accepts that too:
+give the router a function that returns a token, and it asks the function
+before each request. [Use Microsoft Azure](/docs/azure/#use-a-credential-from-the-azure-library)
+shows how, with Microsoft’s library.
+
+## Which models each cloud offers
+
+A cloud runs many models, but not all of them speak the same API, and LM15
+reaches a model only through an API it knows. These tables list the providers
+LM15 has for each cloud, and what we’ve checked with real requests.
+
+**AWS**
+
+| Provider | What it reaches | Checked with real requests |
+|---|---|---|
+| `bedrock-chat` | Open models on Bedrock: DeepSeek, Mistral, Qwen, Kimi, gpt-oss and more | Yes |
+| `bedrock-mantle-chat` | The same models, at Bedrock’s newer address | Yes |
+| `bedrock-anthropic` | Claude Opus 4.7 and later | Only up to the account check |
+| `aws-anthropic` | Claude Platform on AWS, run by Anthropic | Not yet |
+
+**Microsoft Azure**
+
+| Provider | What it reaches | Checked with real requests |
+|---|---|---|
+| `azure` | OpenAI models | Yes |
+| `azure-chat` | OpenAI models, and other Foundry models such as DeepSeek and Kimi | Yes, with OpenAI models |
+| `azure-anthropic` | Claude on Foundry | Only up to the deployment check |
+
+**Google Cloud**
+
+| Provider | What it reaches | Checked with real requests |
+|---|---|---|
+| `vertex` | Gemini | Yes |
+| `vertex-express` | Gemini, with only an API key | Yes |
+| `vertex-anthropic` | Claude on Vertex AI | Only up to the quota check |
+
+“Only up to” means LM15 signed in and the cloud accepted the request, but our
+test accounts weren’t allowed to use the model, so we have no answer to show.
+Each cloud’s page shows exactly what the cloud said.
+
+Two gaps are worth knowing before you choose a cloud. On AWS, Amazon’s own
+Nova models, Meta’s Llama, and Claude models older than Opus 4.7 answer only
+on Bedrock’s native API, which LM15 doesn’t speak yet. And some features stop
+at the cloud’s edge: Claude on Bedrock, for example, doesn’t offer Anthropic’s
+batches or file uploads. When you ask for something a provider can’t do, LM15
+raises an error rather than dropping part of your request.
+
+## Next
+
+Pick your cloud: [AWS](/docs/aws/), [Microsoft Azure](/docs/azure/) or
+[Google Cloud](/docs/google-cloud/). Each page starts from an empty account
+and ends with a program running on that cloud.
+[Set up authentication](/docs/authentication/) explains the same rule for
+providers that use API keys: LM15 uses the credential you gave it, and can
+always tell you which one that is.

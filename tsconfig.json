@@ -1,7 +1,9 @@
 {
   "extends": "astro/tsconfigs/strict",
   "include": [".astro/types.d.ts", "src/**/*", "tests/**/*.ts", "scripts/**/*.ts"],
-  "exclude": ["dist", ".build"],
+  // identity.ts imports @azure/identity, which the site doesn't install;
+  // scripts/capture-cloud.py installs it and runs the file for real
+  "exclude": ["dist", ".build", "src/data/azure/identity.ts"],
   "compilerOptions": {
     "types": ["node"],
     "allowImportingTsExtensions": true,

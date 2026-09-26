@@ -1,0 +1,305 @@
+---
+title: Use AWS (Amazon Bedrock)
+description: Reach models on Amazon Bedrock from your AWS account. Sign in on your laptop, choose a region and a model ID, run on EC2 with an instance role, use a Bedrock API key, and read what LM15 says when a region, a model or an account isn’t right.
+---
+
+import CloudExample from '../../../components/CloudExample.astro';
+
+If your company runs on AWS, the models that are easiest to get approved are
+often the ones already inside your AWS account. Amazon Bedrock runs models
+from DeepSeek, Mistral, OpenAI, Anthropic and others there. The bill arrives
+with the rest of AWS, the same permissions decide who may call them, and the
+requests stay in the region you choose. The catch is that Bedrock offers
+several APIs, and which one a model answers on decides how you reach it.
+
+LM15 reaches Bedrock through the provider `bedrock-chat`, and two neighbors
+we’ll meet later. The request is the one you already know. What’s new is who
+signs in, which *region* the request runs in, and how Bedrock names its
+models.
+
+On this page, we’ll start with the setup in your AWS account. Then we’ll send
+a question from a laptop, ask LM15 where it found the sign-in, and choose a
+region on purpose. Next, we’ll look at how Bedrock names models, and at Claude,
+which works differently. We’ll finish on an EC2 instance, with an API key, and
+with the mistakes that cost people the most time.
+
+:::note[Which versions]
+The examples ran with Python 1.1.0, TypeScript 1.0.0-rc.2, Rust 1.0.0-rc.2
+and Go v1.1.0-rc.2. Rust 1.0.0-rc.2 has a bug that breaks
+`bedrock-mantle-chat` and `bedrock-anthropic` (AWS refuses the request’s
+signature); the Rust recordings of those two ran with the fix, which ships in
+the next Rust release. `bedrock-chat`, the provider most of this page uses,
+works in every version above. R and Julia reach Bedrock too, but this page
+doesn’t have examples for them yet.
+:::
+
+You’ll need an AWS account and the `aws` command-line tool, which AWS’s
+[install guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+explains. Every request on this page costs a fraction of a cent.
+
+## Set up your account
+
+There’s less to set up on Bedrock than on the other clouds. Most models are
+ready to use as soon as your account can call Bedrock at all. Two things can
+still stand in the way.
+
+The first is permission. A person with administrator access can call every
+model. A program usually runs with less, and needs the
+`bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` actions.
+Those two were all the EC2 instance at the end of this page was allowed, and
+they were enough for `bedrock-chat`.
+
+The second is the model itself. Some model makers ask for more before their
+models answer. The first time someone in an account uses one of Anthropic’s
+models, for example, AWS asks for a short description of the use case in the
+Bedrock console. And AWS can refuse an account anyway, as it did ours for Claude.
+We’ll see that error [later on](#claude-on-bedrock).
+
+## Sign in on your laptop
+
+Sign in with the `aws` tool, the way your organization does it:
+`aws configure sso` and then `aws sso login` if you use IAM Identity Center,
+`aws login` if you sign in with your console password, or `aws configure`
+with an access key. LM15 reads what each of these saves, the way AWS’s own
+libraries do. Then choose a region:
+
+```sh
+aws configure set region us-east-1
+```
+
+That’s all LM15 needs. The examples in these guides follow
+[one small program](/docs/#the-example-well-build): an assistant for a
+wildlife research station. Here’s its first question, sent to DeepSeek V3.2
+on Bedrock:
+
+<CloudExample page="aws" name="ask" output />
+
+The model string `bedrock-chat:deepseek.v3.2` names the provider,
+`bedrock-chat`, and Bedrock’s ID for the model. Nothing in the program names
+an account, a key or a region. LM15 found the sign-in and the region where
+the `aws` tool saved them. (Our test machine signed in with an access key.)
+
+## Ask where the sign-in came from
+
+A program that finds its sign-in on its own should be able to say where. The
+*doctor* answers that question without sending anything:
+
+<CloudExample page="aws" name="doctor" output />
+
+The report lists every place LM15 looks for AWS credentials, in the order
+AWS’s own libraries look. A `-` means nothing is there, and `=>` marks the
+place LM15 will use, which here is the access key that `aws configure` saved
+in `~/.aws/credentials`. The last place, the EC2 instance metadata, only exists
+on AWS’s own machines. It’s marked `~` because it would be asked only if
+everything above it came up empty, and something above it didn’t.
+
+The two lines at the end say where the request would go. The region,
+`us-east-1`, came from the profile, and the address, `bedrock-runtime` in
+that region, is Bedrock’s. Run the doctor whenever a request seems to use an
+account or a region you didn’t expect. It prints no secret, so it’s safe to
+paste into a bug report.
+
+## Choose a region
+
+The region decides which data centers process your requests, which models
+you can use, and what you pay for them. LM15 has no default
+region, because a wrong guess could send your data to a country you never
+chose. It looks in these places, and the first one that names a region wins:
+
+1. The router’s settings, if your program gives a region.
+2. The `AWS_REGION` environment variable, then `AWS_DEFAULT_REGION`.
+3. The region in your `aws` profile.
+
+This matters more than it seems. Here’s the first program again, run with
+`AWS_REGION=ca-central-1`, Canada’s region:
+
+<CloudExample page="aws" name="ask" step="wrong_region" code={false} />
+
+Canada Central doesn’t offer DeepSeek V3.2 through this API, and Bedrock’s
+way of saying so is that the model ID is invalid, although there’s nothing
+wrong with the ID. So before you check a model ID for typos, check which
+region the request went to. The doctor’s `setting region` line says, and
+where the region came from.
+
+When the region is part of a rule your program must follow, put it in the
+program:
+
+<CloudExample page="aws" name="region" output />
+
+We ran this with `AWS_REGION=ca-central-1` still set, and it answered from
+`us-east-1`, because the router’s settings come first. On a laptop, let the
+`aws` profile hold the region. In production, set `AWS_REGION`, or put the
+region in the code when it must never change.
+
+## Choose a model
+
+Bedrock names models with IDs such as `deepseek.v3.2` or
+`mistral.mistral-large-3-675b-instruct`, which give the maker, a dot, and then
+the model. You
+can find them in the Bedrock console’s model catalog, or with
+`aws bedrock list-foundation-models`. Not every model in that list answers on
+the API `bedrock-chat` uses. When we sent a short request to every text model
+Bedrock listed in `us-east-1`, in September 2026, 34 answered; most of the
+others, including Amazon’s own Nova models, answer only on Bedrock’s native
+API, which LM15 doesn’t speak yet.
+
+Bedrock also serves the same open models at a second, newer address, which
+LM15 calls `bedrock-mantle-chat`. It uses shorter IDs, without the version at
+the end, and it can list the models it serves. Most of the time, the two give
+the same answers. Here’s a case where they don’t. This is OpenAI’s open model,
+gpt-oss-120b, through `bedrock-chat`:
+
+<CloudExample page="aws" name="gpt_oss" output />
+
+The answer begins with the model’s reasoning, wrapped in `<reasoning>` tags,
+inside the text. At this address, Bedrock returns gpt-oss’s reasoning as part
+of the answer, and LM15 passes the text on as it came. Here’s the same
+request through `bedrock-mantle-chat`, where the ID drops its `-1:0`:
+
+<CloudExample page="aws" name="gpt_oss_mantle" output />
+
+This time the text is the answer alone. The newer address returns the
+reasoning separately, and LM15 keeps it apart from the text, as it does for
+reasoning models everywhere (see
+[Work with reasoning models](/docs/reasoning/)). A good rule of thumb is to
+use `bedrock-chat` for most models, and `bedrock-mantle-chat` for gpt-oss.
+The newer address doesn’t exist in every region, though. In Canada Central, a
+request to it failed to connect at all when we tried.
+
+## Claude on Bedrock
+
+Claude answers on a different API from the open models: Anthropic’s own, which
+Bedrock offers for Claude Opus 4.7 and later. LM15 reaches it through the
+provider `bedrock-anthropic`, with IDs such as `anthropic.claude-opus-4-7`.
+Older Claude models answer only on Bedrock’s native API, and LM15 can’t reach
+them yet.
+
+We couldn’t record an answer, because AWS hasn’t opened Claude to our test
+account. Here’s what that looks like:
+
+<CloudExample page="aws" name="claude" output />
+
+The first sentence is AWS’s own message, and it’s the one to read. The
+account isn’t allowed to use this model. The status, 403, says the same thing
+in fewer words. LM15 signed the request correctly, and the error goes on to
+say which credential it used. In Python, TypeScript and Go, it then lists
+LM15’s general advice for a refused sign-in; only the last point, about the
+account’s access, applies here. The fix is on the AWS side, in the Bedrock
+console, or through AWS support as the message says.
+
+There’s one more way to use Claude through AWS: *Claude Platform on AWS*,
+which Anthropic runs and AWS bills. LM15 reaches it through the provider
+`aws-anthropic`, which also needs the `ANTHROPIC_AWS_WORKSPACE_ID` variable.
+We haven’t tested it against the real service yet.
+
+## Run on AWS
+
+On EC2, ECS, EKS or Lambda, your program runs as an *IAM role*, an identity
+AWS gives to programs instead of people. Give the role the two Bedrock
+permissions from [the setup](#set-up-your-account), attach it, and store no
+key on the machine. LM15 asks the machine for the role’s temporary
+credentials, and asks again before they expire.
+
+The code from your laptop works there unchanged, once the machine knows its
+region (more on that below). It’s better, though, to say which sign-in you
+expect:
+
+<CloudExample page="aws" name="platform" step="platform_ec2" output on="on an EC2 instance" />
+
+`"platform"` tells LM15 to use the machine’s own role and nothing else.
+Without it, LM15 walks the whole list from the doctor’s report, so a program
+deployed with someone’s leftover `AWS_ACCESS_KEY_ID` would quietly run as that
+key. With it, a missing role stops the program at the first request, with an
+error that names what LM15 looked for. We ran this on an EC2 instance whose
+only identity was a role with the two Bedrock permissions, and `AWS_REGION`
+set to `us-east-1`; it answered in all four languages. On a laptop, the same program stops at once, which is
+what you want: a laptop isn’t the machine it names.
+
+We ran it once more on the same instance without `AWS_REGION`:
+
+<CloudExample page="aws" name="platform" step="platform_ec2_no_region" code={false} on="on an EC2 instance" />
+
+The role is there, but nothing says where to send the request. EC2 doesn’t set
+`AWS_REGION` for you, so set it in the instance’s environment, or put the
+region in the router’s settings. (Lambda sets `AWS_REGION` on its own.)
+
+## Run somewhere else
+
+GitHub Actions, another cloud, or a server in your own building have no role
+to ask for. Two names cover them. On EKS with IAM roles for service accounts,
+and anywhere else that hands your program a web-identity token, name the
+sign-in `"workload"`: LM15 trades the token for the role’s credentials. When
+the credentials arrive as environment variables, as they do from AWS’s
+GitHub Action, name it `"environment"`: LM15 reads `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY` and, for temporary credentials,
+`AWS_SESSION_TOKEN`. LM15’s shared tests cover both; we didn’t record them
+for this page.
+
+## Use a Bedrock API key
+
+Some tools only know how to send a key, and Bedrock has keys too. Short-term
+keys last at most 12 hours and act for the identity that made them.
+Long-term keys last much longer, and AWS recommends them only for trying
+things out. Create one
+in the Bedrock console, under *API keys*, and put it in the environment:
+
+```sh
+export AWS_BEARER_TOKEN_BEDROCK=bedrock-api-key-...
+```
+
+LM15 checks this variable right after any key your program gives the router,
+before everything else in the doctor’s list, so the first program on this
+page works with it unchanged, as long as there’s a region. We ran that
+program with a short-term key and a region and nothing else, and it answered
+in all four languages. A program that runs for longer than a working day is
+better off with a role, because a key that expires overnight will stop it.
+
+## Mistakes that cost the most time
+
+- **“The provided model identifier is invalid.”** Check the region first
+  (the doctor’s `setting region` line), then the ID’s form: `bedrock-chat`
+  takes IDs with a version, such as `openai.gpt-oss-120b-1:0`, and
+  `bedrock-mantle-chat` takes them without, such as `openai.gpt-oss-120b`.
+- **Reasoning in the answer.** gpt-oss through `bedrock-chat` puts its
+  reasoning in the text. Use `bedrock-mantle-chat` for it.
+- **“Not available for this account.”** The model is closed to your account,
+  and no change to your code will open it. See [Claude on Bedrock](#claude-on-bedrock).
+- **No region on EC2.** A role is not a region. Set `AWS_REGION`.
+- **The wrong account.** A leftover `AWS_ACCESS_KEY_ID` or
+  `AWS_BEARER_TOKEN_BEDROCK` comes before your profile. The doctor shows which
+  one wins.
+
+## Try it yourself
+
+Predict the answer before you run the doctor.
+
+1. Your profile’s region is `eu-west-1`, and you run
+   `export AWS_REGION=us-east-1`. Which region does a request use?
+2. A program sets the region `us-east-1` in its router’s settings, and runs
+   on an EC2 instance where `AWS_REGION=eu-west-1`. Which region does it use?
+3. On the same instance, someone adds `AWS_ACCESS_KEY_ID` and
+   `AWS_SECRET_ACCESS_KEY` for a different account to the environment. Which
+   account pays, with and without `"platform"`?
+
+<details>
+<summary>What to expect</summary>
+
+1. `us-east-1`. The environment variable comes before the profile, and the
+   doctor says `from env $AWS_REGION`.
+2. `us-east-1`. The router’s settings come first, as in
+   [Choose a region](#choose-a-region).
+3. Without `"platform"`, the other account: environment variables come before
+   the instance’s role in the list. With it, the instance’s role, because LM15
+   looks nowhere else. This is the leftover-key problem from
+   [Run on AWS](#run-on-aws).
+
+</details>
+
+## Next
+
+[Use a cloud provider](/docs/cloud/) compares Bedrock with Azure and Google
+Cloud, and lists the providers LM15 has for each.
+[Handle errors and retries](/docs/errors-and-retries/) shows how to catch a
+refused request in a long-running program.
+[Set up authentication](/docs/authentication/) explains the rule behind this
+page: LM15 always says which credential it used.

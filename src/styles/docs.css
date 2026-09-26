@@ -7,3 +7,7 @@
   --sl-color-accent-high: var(--lm-accent-strong);
   --sl-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
+
+/* A provider or model name in a table's first column stays on one line:
+   `bedrock-mantle-chat` broken at a hyphen reads as two names. */
+.sl-markdown-content td:first-child > code:only-child { white-space: nowrap; }

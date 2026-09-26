@@ -1,52 +1,98 @@
 ---
-// One example of "Use Google Cloud", in the reader's language: the file from
-// src/data/google-cloud/ as scripts/capture-google-cloud.py ran it, and what it
-// printed. The header's language choice shows one panel (the same switch as the
-// setup instructions, `data-doc-install-language`); Python is shown until a
-// script runs. R and Julia have no example on this page yet.
+// One example of a cloud page, in the reader's language: the file from
+// src/data/<page>/ as the page's capture script ran it, and what it printed.
+// Pages and scripts:
+//   google-cloud  "Use Google Cloud"        scripts/capture-google-cloud.py
+//   aws           "Use AWS"                  scripts/capture-cloud.py aws (+ capture-aws-ec2.sh)
+//   azure         "Use Microsoft Azure"      scripts/capture-cloud.py azure
+//   clouds        "Use a cloud provider"     scripts/capture-cloud.py clouds
+// The header's language choice shows one panel (the same switch as the setup
+// instructions, `data-doc-install-language`); Python is shown until a script
+// runs. R and Julia have no cloud examples yet; a language with no file for
+// one example says so.
 import { Code } from '@astrojs/starlight/components';
-import captures from '../data/google-cloud-captures.json';
+import google from '../data/google-cloud-captures.json';
+import aws from '../data/aws-captures.json';
+import azure from '../data/azure-captures.json';
+import clouds from '../data/clouds-captures.json';
 
-const FILES = import.meta.glob('../data/google-cloud/*', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+type Run = { code: string; output: string; error?: string; model?: string };
+type Captures = { date: string; dates?: Record<string, string>; steps: Record<string, Record<string, unknown>> };
+const CAPTURES: Record<string, Captures> = { 'google-cloud': google, aws, azure, clouds } as Record<string, Captures>;
+const FILES = import.meta.glob('../data/{google-cloud,aws,azure,clouds}/*', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const WRITTEN = [
-  { id: 'python', ext: 'py', lang: 'python' },
-  { id: 'typescript', ext: 'ts', lang: 'ts' },
-  { id: 'rust', ext: 'rs', lang: 'rust' },
-  { id: 'go', ext: 'go', lang: 'go' },
+  { id: 'python', ext: 'py', lang: 'python', label: 'Python' },
+  { id: 'typescript', ext: 'ts', lang: 'ts', label: 'TypeScript' },
+  { id: 'rust', ext: 'rs', lang: 'rust', label: 'Rust' },
+  { id: 'go', ext: 'go', lang: 'go', label: 'Go' },
 ] as const;
-const NOT_YET = ['r', 'julia'] as const;
-const WHERE: Record<string, string> = { vertex: 'Vertex AI', 'vertex-express': 'Vertex AI express mode' };
-const MODEL: Record<string, string> = { 'gemini-2.5-flash': 'Gemini 2.5 Flash' };
+const NOT_YET = [{ id: 'r', label: 'R' }, { id: 'julia', label: 'Julia' }] as const;
+const WHERE: Record<string, string> = {
+  vertex: 'Vertex AI', 'vertex-express': 'Vertex AI express mode',
+  'bedrock-chat': 'Amazon Bedrock', 'bedrock-mantle-chat': 'Amazon Bedrock (mantle)',
+  azure: 'Azure OpenAI',
+};
+const MODEL: Record<string, string> = {
+  'gemini-2.5-flash': 'Gemini 2.5 Flash', 'deepseek.v3.2': 'DeepSeek V3.2',
+  'openai.gpt-oss-120b-1:0': 'gpt-oss-120b', 'openai.gpt-oss-120b': 'gpt-oss-120b',
+  'gpt-4.1-mini': 'GPT-4.1 mini',
+};
 
 interface Props {
-  /** The file name in src/data/google-cloud/, without its extension. */
+  /** The page's data folder: google-cloud, aws, azure or clouds. */
+  page?: string;
+  /** The file name in src/data/<page>/, without its extension. */
   name: string;
   /** Show what it printed (a recorded step of the same name, unless `step` says otherwise). */
   output?: boolean;
   step?: string;
+  /** false: show only what it printed (the code is on the page already). */
+  code?: boolean;
+  /** Where it ran, when not on a laptop: "on an EC2 instance". */
+  on?: string;
+  /** Said to a reader whose language has no file for this example. */
+  missing?: string;
 }
-const { name, output = false, step = name } = Astro.props;
-type Run = { code: string; output: string; error?: string; model?: string };
-const runs = (captures.steps as Record<string, Record<string, Run>>)[step];
-if (output && !runs) throw new Error(`CloudExample: no recorded step ${step}`);
-const date = new Date(`${captures.date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const { page = 'google-cloud', name, output = false, step = name, code: showCode = true, on, missing } = Astro.props;
+const captures = CAPTURES[page];
+if (!captures) throw new Error(`CloudExample: no page ${page}`);
+const runs = captures.steps[step] as Record<string, Run> | undefined;
+if ((output || !showCode) && !runs) throw new Error(`CloudExample: ${page} has no recorded step ${step}`);
+const day = captures.dates?.[step] ?? captures.date;
+const date = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 function who(run: Run): string {
-  if (!run.model) return date;
-  const [provider, model] = run.model.split(':');
-  return `${MODEL[model!] ?? model} on ${WHERE[provider!] ?? provider}, ${date}`;
+  const parts: string[] = [];
+  if (on) parts.push(on);
+  if (run.model) {
+    const cut = run.model.indexOf(':');
+    const [provider, model] = [run.model.slice(0, cut), run.model.slice(cut + 1)];
+    parts.push(`${MODEL[model] ?? model} on ${WHERE[provider] ?? provider}`);
+  }
+  parts.push(date);
+  return parts.join(', ');
 }
-const panels = WRITTEN.map(({ id, ext, lang }) => {
-  const code = FILES[`../data/google-cloud/${name}.${ext}`];
-  if (code === undefined) throw new Error(`CloudExample: no ${name}.${ext}`);
-  const run = output ? runs![id] : undefined;
-  if (output && run?.code !== code) throw new Error(`CloudExample: ${step}/${id} was recorded from another version of ${name}.${ext}; re-run scripts/capture-google-cloud.py`);
-  return { id, lang, code: code.trimEnd(), run };
+const panels = WRITTEN.map(({ id, ext, lang, label }) => {
+  const code = FILES[`../data/${page}/${name}.${ext}`];
+  const run = output || !showCode ? runs![id] : undefined;
+  if (code === undefined) {
+    if (run) throw new Error(`CloudExample: ${page}/${step}/${id} was recorded, but ${name}.${ext} is gone`);
+    return { id, lang, label, code: undefined, run };
+  }
+  if ((output || !showCode) && !run) throw new Error(`CloudExample: ${page}/${step} has no ${id} recording`);
+  if (run && run.code !== code) throw new Error(`CloudExample: ${page}/${step}/${id} was recorded from another version of ${name}.${ext}; re-run its capture script`);
+  return { id, lang, label, code: code.trimEnd(), run };
 });
+const available = panels.filter(panel => panel.code !== undefined).map(panel => panel.label);
+const choose = `choose ${available.slice(0, -1).join(', ')}${available.length > 2 ? ',' : ''} or ${available.at(-1)} above`;
 ---
 <div class="cloud-example">
-  {panels.map(panel => (
+  {panels.map(panel => panel.code === undefined ? (
+    <p class="cloud-not-yet" data-doc-install-language={panel.id} hidden={panel.id !== 'python'}>
+      {missing ?? `This example has no ${panel.label} version yet: ${choose}.`}
+    </p>
+  ) : (
     <div data-doc-install-language={panel.id} hidden={panel.id !== 'python'}>
-      <Code code={panel.code} lang={panel.lang} />
+      {showCode && <Code code={panel.code} lang={panel.lang} />}
       {panel.run && (
         <figure class="captured not-content">
           <figcaption>What it printed <span>{who(panel.run)}</span></figcaption>
@@ -55,9 +101,9 @@ const panels = WRITTEN.map(({ id, ext, lang }) => {
       )}
     </div>
   ))}
-  {NOT_YET.map(id => (
+  {NOT_YET.map(({ id, label }) => (
     <p class="cloud-not-yet" data-doc-install-language={id} hidden>
-      This page has no {id === 'r' ? 'R' : 'Julia'} example yet: choose Python, TypeScript, Rust or Go above.
+      This page has no {label} example yet: choose Python, TypeScript, Rust or Go above.
     </p>
   ))}
 </div>

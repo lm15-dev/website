@@ -1,0 +1,275 @@
+---
+title: Use Microsoft Azure (Foundry)
+description: Reach OpenAI’s models, and others, through Microsoft Foundry and Azure OpenAI. Create a resource and a deployment, sign in with az on your laptop, run with a managed identity or a service principal, plug in a credential from Microsoft’s own library, and read what LM15 says when a deployment or a sign-in is missing.
+---
+
+import CloudExample from '../../../components/CloudExample.astro';
+
+Plenty of organizations already have an agreement with Microsoft, with their
+rules about data, spending and access written into it. Microsoft Foundry,
+which includes the service long known as Azure OpenAI, runs OpenAI’s models
+inside that agreement, along with models from DeepSeek, Moonshot, Anthropic
+and others. Your first request will take a little longer than elsewhere,
+though, because Azure has its own words for things, and you meet three of
+them before any answer arrives: a *resource*, a *deployment*, and an
+*endpoint*.
+
+LM15 reaches OpenAI’s models on Azure through the provider `azure`. The
+request is the one you already know. What’s new is who signs in, which
+resource the request goes to, and the name you gave the model when you
+deployed it.
+
+On this page, we’ll start by creating a resource and a deployment. Then we’ll
+send a question from a laptop and ask LM15 where it found the sign-in. Next,
+we’ll look at keys, and at what happens when a deployment name is wrong.
+We’ll run the same code with a managed identity and with a service principal,
+and plug in a credential from Microsoft’s own library. We’ll finish with the
+other models Foundry offers, and the mistakes that cost people the most time.
+
+:::note[Which versions]
+The examples ran with Python 1.1.0, TypeScript 1.0.0-rc.2, Rust 1.0.0-rc.2
+and Go v1.1.0-rc.2. R and Julia reach Azure too, but this page doesn’t have
+examples for them yet.
+:::
+
+You’ll need an Azure subscription and the `az` command-line tool, which
+Microsoft’s [install guide](https://learn.microsoft.com/cli/azure/install-azure-cli)
+explains. Every request on this page costs a fraction of a cent.
+
+## Create a resource and a deployment
+
+Everything on Azure lives in a *resource*: a named container, in a region
+you choose, that holds your models and receives their bill. In the
+[Foundry portal](https://ai.azure.com), create a Foundry resource, then
+*deploy* a model into it. A *deployment* is a model you’ve set up in your
+resource, under a name you choose, with its own quota. That name, not the
+model’s, is what your requests will use. Name the deployment after the model,
+`gpt-4.1-mini` for example, and you’ll save yourself some confusion later.
+
+The resource’s page shows its *endpoint*, the address your requests go to,
+such as `https://station.services.ai.azure.com`, and two keys. You’ll need
+the endpoint. Put it in the variable that Microsoft’s own libraries read:
+
+```sh
+export AZURE_OPENAI_ENDPOINT=https://station.services.ai.azure.com
+```
+
+Older Azure OpenAI resources have an address ending in `openai.azure.com`
+instead. LM15 accepts either, and adds the rest of the path itself. Our test
+resource is one of those older ones, so its address appears in the
+recordings below.
+
+Last, give yourself permission to call the models without a key. In the
+Azure portal, open the resource’s *Access control (IAM)* page and give your
+account the role *Cognitive Services OpenAI User*. Owning the resource isn’t
+enough, because the Owner role lets you manage a resource but not call its
+models. Like
+every new permission on Azure, it can take a few minutes to apply.
+
+## Sign in on your laptop
+
+Sign in once with `az`:
+
+```sh
+az login
+```
+
+That’s all LM15 needs. The examples in these guides follow
+[one small program](/docs/#the-example-well-build): an assistant for a
+wildlife research station. Here’s its first question, sent to GPT-4.1 mini
+on Azure:
+
+<CloudExample page="azure" name="ask" output />
+
+The model string `azure:gpt-4.1-mini` names the provider, `azure`, and the
+*deployment*. Nothing in the program names a key or a resource: LM15 asked
+`az` for a sign-in token, and found the resource in `AZURE_OPENAI_ENDPOINT`.
+(Our test machine signed `az` in with a service principal; a person’s
+`az login` works the same way.)
+
+## Ask where the sign-in came from
+
+A program that finds its sign-in on its own should be able to say where. The
+*doctor* answers that question without sending anything:
+
+<CloudExample page="azure" name="doctor" output />
+
+The report lists every place LM15 looks for an Azure sign-in. After the
+resource’s key, the order is the same as in Microsoft’s own
+`DefaultAzureCredential`. A `-` means nothing is there. A `?` means something
+might be there, but finding out needs the network or a command, so the
+doctor, which uses neither, can’t say. Here
+there are two. The managed identity only exists on Azure’s own machines, so
+on a laptop it comes up empty, and `az` answers. Because LM15 asks for the
+managed identity first, the first request on a laptop takes a moment longer:
+about a second and a half in our Python test.
+
+The last lines say where the request would go. The *authority* is the
+Microsoft server that issues sign-in tokens, and the *scope* names the
+service the token is for; you’d change either only for a government cloud or
+a policy that names another. The base URL came from `AZURE_OPENAI_ENDPOINT`,
+with LM15’s path added.
+
+Run the doctor whenever a request seems to use an account or a resource you
+didn’t expect. It prints no secret, so it’s safe to paste into a bug report.
+
+## Keys, and the one you forgot
+
+Each resource also has two keys, and some people would rather use one than
+sign in. Put it in `AZURE_OPENAI_API_KEY`, and the program above works
+unchanged; we ran it with a key and the endpoint and nothing else, and it
+answered in all four languages.
+
+Be careful with a key on a machine where you also use `az`. Here’s the
+doctor on our laptop again, with the key set as well:
+
+<CloudExample page="azure" name="doctor" step="doctor_key" code={false} />
+
+The key wins. It comes second in the list, right after a key your program
+gives, and `=>` marks it. Both places marked `?` before are now marked `~`,
+which means they’re still there but LM15 won’t reach them. So a key you
+exported last week for a test quietly replaces your sign-in. If it belongs to
+the resource, requests keep working, but Azure no longer knows which person
+or program sent them; if it belongs to another resource, they fail, and the
+error says the credential came from `AZURE_OPENAI_API_KEY`. Microsoft
+recommends signing in rather than using keys, and many organizations turn
+keys off entirely. Use a key to try things; in a program, sign in.
+
+## The model string is a deployment
+
+Most mistakes on a first Azure request come from the model string. Here’s the
+first program with `azure:gpt-4.1`, the name of a model, where the resource
+only has a deployment called `gpt-4.1-mini`:
+
+<CloudExample page="azure" name="wrong_deployment" step="wrong_deployment" code={false} />
+
+Azure looks for a *deployment* called `gpt-4.1`, finds none, and says so;
+LM15 raises the error it raises for an unknown model. The second sentence of
+Azure’s message is worth taking seriously, because a deployment you created a
+moment ago really does take a few minutes to answer. If it’s older than that, open
+the resource in the Foundry portal and copy the deployment’s name exactly.
+
+## Run on Azure
+
+On Azure Container Apps, App Service, Functions or a virtual machine,
+your program can run as a *managed identity*, an identity Azure gives to a
+program instead of a person. Turn one on for your app, give it the Cognitive
+Services OpenAI User role on the resource, and store no key anywhere.
+
+The code from your laptop works there unchanged. It’s better, though, to say
+which sign-in you expect:
+
+<CloudExample page="azure" name="platform" output />
+
+`"platform"` tells LM15 to use the managed identity and nothing else. Without
+it, LM15 walks the whole list from the doctor’s report, so an app deployed
+with a leftover `AZURE_OPENAI_API_KEY` would quietly use that key. With it, a
+missing identity stops the program at the first request. The recording above
+is from our laptop, which has no managed identity, so it stopped at once,
+naming what it looked for. That’s what you want: a laptop isn’t the machine
+it names. (We haven’t recorded this on an Azure machine for this page.) If
+your app has more than one managed identity, set `AZURE_CLIENT_ID` to the one
+you want, as with Microsoft’s own libraries.
+
+## Run somewhere else
+
+GitHub Actions, another cloud, or a server in your own building have no
+managed identity. There, a program signs in as a *service principal*, an
+identity you register in Microsoft Entra ID for a program, with a secret or a
+certificate. Give it the same role on the resource, put its details in the
+variables Microsoft’s libraries read, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`
+and `AZURE_CLIENT_SECRET` (or `AZURE_CLIENT_CERTIFICATE_PATH`), and name the
+sign-in `"environment"`:
+
+<CloudExample page="azure" name="environment" />
+
+We ran this with the service principal’s variables and the endpoint, and
+nothing else; it answered in all four languages.
+
+A secret in the environment is a password that someone could copy. Where you
+can, avoid it. On AKS, workload identity gives your pods a token instead:
+name the sign-in `"workload"`. On GitHub Actions, Microsoft’s `azure/login`
+action signs `az` in with a token that GitHub issues for each run, and no
+secret is stored: name the sign-in `"cli"`.
+
+## Use a credential from the Azure library
+
+Some teams require every program to sign in through Microsoft’s own
+`azure-identity` library, with one credential class chosen on purpose, so
+that security reviews look at one piece of code. LM15 fits in with that. Give
+the router a function that returns a token, and LM15 asks it before each
+request. The Azure library makes that function for you:
+
+<CloudExample page="azure" name="identity" output missing="This example has no Rust version. LM15’s Rust credential functions return their value at once, while the Azure SDK for Rust fetches tokens asynchronously, so the two don’t fit together cleanly yet; in Rust, use one of the four names on this page. Choose Python, TypeScript or Go above to see the example." />
+
+The token is for the scope `https://ai.azure.com/.default`, the same one the
+doctor showed. `AzureCliCredential` uses your `az` sign-in, which suits a
+laptop. In production, swap in the class your team chose, such as
+`ManagedIdentityCredential`, and nothing else changes. The Azure library
+decides when to fetch a new token, and LM15 sends whatever it returns.
+
+## Other models on Foundry
+
+`azure` sends requests the way OpenAI’s current API does, and it’s the
+provider to use for OpenAI’s models; it also carries files, batches, speech
+and realtime sessions. Two more providers reach the rest of Foundry.
+
+- **`azure-chat`** speaks the older Chat Completions API, which Foundry also
+  offers for models from other makers, such as DeepSeek and Kimi. It reads
+  the same variables as `azure`. Use the `services.ai.azure.com` endpoint for
+  these models.
+- **`azure-anthropic`** reaches Claude, with the deployment name as the
+  model. It reads its own variable, `ANTHROPIC_FOUNDRY_BASE_URL`, and signs
+  in the same way as the others.
+
+We’ve checked `azure-chat` with OpenAI’s models, which answered, and
+`azure-anthropic` as far as our test subscription allows: Azure accepted our
+credentials, then reported that no Claude deployment exists, because the
+subscription has no quota for Claude. Claude and the other makers’ models
+have been confirmed independently, with real answers, on another Foundry
+account.
+
+## Mistakes that cost the most time
+
+- **“The API deployment for this resource does not exist.”** The model string
+  must be the deployment’s name. A new deployment takes a few minutes to
+  answer.
+- **401 or 403 with `az login`, even though you own the resource.** Owning a
+  resource doesn’t let you call its models. Give yourself the Cognitive
+  Services OpenAI User role, then wait a few minutes.
+- **The wrong resource or the wrong account.** A leftover
+  `AZURE_OPENAI_API_KEY` or service-principal variable comes before `az`. The
+  doctor shows which one wins.
+- **Keys that suddenly stop working.** Your organization may have turned keys
+  off for the resource. Sign in instead.
+
+## Try it yourself
+
+Predict the answer before you run the doctor.
+
+1. You’re signed in with `az`, and a colleague’s shell script exports
+   `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` for a test
+   service principal. Which identity does your next request use?
+2. The same program, now with `"cli"` as its named sign-in. Which identity?
+3. You change the model string from `azure:gpt-4.1-mini` to
+   `azure-chat:gpt-4.1-mini`. What happens?
+
+<details>
+<summary>What to expect</summary>
+
+1. The service principal. Its variables come before `az` in the doctor’s
+   list, just as the key did in [Keys, and the one you forgot](#keys-and-the-one-you-forgot).
+2. Your own `az` sign-in. With a name, LM15 looks nowhere else.
+3. It works, and answers from the same deployment. `azure-chat` reaches the
+   same resource through the Chat Completions API instead of the newer one.
+
+</details>
+
+## Next
+
+[Use a cloud provider](/docs/cloud/) compares Azure with AWS and Google
+Cloud, and lists the providers LM15 has for each.
+[Handle errors and retries](/docs/errors-and-retries/) shows how to catch a
+refused request in a long-running program.
+[Set up authentication](/docs/authentication/) explains the rule behind this
+page: LM15 always says which credential it used.
