@@ -25,7 +25,7 @@ every example on this site.
 | **TypeScript** | 1.0.0-rc.2, release candidate | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
 | **Rust** | 1.0.0-rc.3, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
 | **Go** | v1.1.0-rc.2, release candidate | `go get github.com/lm15-dev/lm15-go@v1.1.0-rc.2` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
-| **R** | 1.0.0 | `remotes::install_github("lm15-dev/lm15-r")` (submitted to CRAN; `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
+| **R** | 1.0.0 | `remotes::install_github("lm15-dev/lm15-r")` (on its way to CRAN: `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
 
 **Stable** means the core won't change in a way that breaks your program
 until the next major version. A **release candidate** is the version that

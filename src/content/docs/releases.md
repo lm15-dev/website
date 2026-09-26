@@ -11,7 +11,7 @@ description: The current version of LM15 in each language, what each release con
 | TypeScript | **1.0.0-rc.2** (release candidate) | 2026-09-26 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
 | Rust | **1.0.0-rc.3** (release candidate) | 2026-09-26 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
 | Go | **v1.1.0-rc.2** (release candidate) | 2026-09-26 | [`github.com/lm15-dev/lm15-go`](https://pkg.go.dev/github.com/lm15-dev/lm15-go) |
-| R | **1.0.0** | 2026-09-26 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (submitted to CRAN) |
+| R | **1.0.0** | 2026-09-26 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
 
 The examples on this site use these versions. Julia is in development; see
 [Language and runtime support](/compatibility/languages/).
@@ -48,8 +48,8 @@ other languages: a login saved in R is used and renewed from Python, and the
 other way round. It runs in the browser through webR, and the
 [playground](/playground/) runs it there.
 
-- Install from GitHub: `remotes::install_github("lm15-dev/lm15-r")`. It has
-  been submitted to CRAN; once accepted, `install.packages("lm15")`.
+- Install from GitHub: `remotes::install_github("lm15-dev/lm15-r")`. It is
+  on its way to CRAN; once accepted, `install.packages("lm15")`.
 - `complete()` and `stream()` take the client first, as R's functions do;
   a stream calls your function with each event.
 - [Full notes](https://github.com/lm15-dev/lm15-r/releases/tag/v1.0.0)
