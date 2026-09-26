@@ -74,7 +74,8 @@ test("the published static files boot, keep keys private, and run all four SDKs"
       await page.waitForFunction((name) => document.getElementById("usage")?.textContent?.endsWith(name), runtime, { timeout: 30_000 });
       assert.equal(await page.locator("#transcript article").last().locator("textarea").inputValue(), "Static site works.");
     }
-    await page.waitForFunction(() => document.getElementById("fidelity")?.textContent?.includes("Same parsed request from JavaScript, Python, Rust, Go"));
+    // Every runtime keeps JSON key order (Go since v1.1.0-rc.1), so the four send the same bytes.
+    await page.waitForFunction(() => document.getElementById("fidelity")?.textContent?.includes("Same request body bytes from JavaScript, Python, Rust, Go"));
     assert.equal(calls.length, 4);
     for (const call of calls) {
       assert.equal(call.auth, "Bearer dummy-static-site-key");
