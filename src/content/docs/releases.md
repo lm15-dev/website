@@ -7,10 +7,10 @@ description: The current version of LM15 in each language, what each release con
 
 | Language | Version | Released | Package |
 |---|---|---|---|
-| Python | **1.0.1** (stable) | 2026-09-25 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
-| TypeScript | **1.0.0-rc.1** (release candidate) | 2026-09-25 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
-| Rust | **1.0.0-rc.1** (release candidate) | 2026-09-25 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
-| Go | **v1.1.0-rc.1** (release candidate) | 2026-09-26 | [`github.com/lm15-dev/lm15-go`](https://pkg.go.dev/github.com/lm15-dev/lm15-go) |
+| Python | **1.1.0** (stable) | 2026-09-26 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
+| TypeScript | **1.0.0-rc.2** (release candidate) | 2026-09-26 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
+| Rust | **1.0.0-rc.2** (release candidate) | 2026-09-26 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
+| Go | **v1.1.0-rc.2** (release candidate) | 2026-09-26 | [`github.com/lm15-dev/lm15-go`](https://pkg.go.dev/github.com/lm15-dev/lm15-go) |
 
 The examples on this site use these versions. Julia and R are in
 development; see [Language and runtime support](/compatibility/languages/).
@@ -38,6 +38,31 @@ never selects it on its own) and the first real release is numbered 1.1.
 
 ## Release notes
 
+### Python 1.1.0, TypeScript and Rust 1.0.0-rc.2, Go v1.1.0-rc.2 — 2026-09-26
+
+Released together; each passes all 1,788 checks of the same contract
+version.
+
+- **Four new providers**: [DeepInfra](/compatibility/providers/deepinfra/),
+  [Together AI](/compatibility/providers/together/),
+  [Fireworks AI](/compatibility/providers/fireworks/) and
+  [Parasail](/compatibility/providers/parasail/), hosts that run open models
+  from many vendors. Each rule LM15 applies to them was measured against the
+  real service: for example, a model's reasoning is sent back where the
+  host reads it, and a request a host would silently ignore is refused
+  with an error instead.
+- **Google Cloud**: LM15 finds your project where Google's own tools do
+  (gcloud's configuration, the credential file, the machine it runs on), a
+  Vertex API key works on the regular `vertex` door, and every Google
+  sign-in failure says how to fix it. See
+  [Use Google Cloud](/docs/google-cloud/).
+- **TypeScript and Rust** also ship saved sign-ins and the Gemini schema
+  fields (below), which were in their source since 1.0.0-rc.1.
+- Notes: [Python](https://github.com/lm15-dev/lm15-python/releases/tag/v1.1.0),
+  [TypeScript](https://github.com/lm15-dev/lm15-ts/releases/tag/v1.0.0-rc.2),
+  [Rust](https://github.com/lm15-dev/lm15-rs/releases/tag/v1.0.0-rc.2),
+  [Go](https://github.com/lm15-dev/lm15-go/releases/tag/v1.1.0-rc.2).
+
 ### Go v1.1.0-rc.1 — 2026-09-26
 
 The first release of LM15 for Go.
@@ -51,8 +76,7 @@ The first release of LM15 for Go.
 ### Contract — 2026-09-26
 
 Two changes, made in all four languages the same day. They are in Go
-v1.1.0-rc.1; Python, TypeScript and Rust have them in their source and will
-ship them in their next release.
+v1.1.0-rc.1, and in Python 1.1.0 and TypeScript and Rust 1.0.0-rc.2.
 
 - **Gemini schema fields.** Gemini has two places for a JSON schema: one
   that reads only Google's own schema format, and one that reads full JSON

@@ -21,10 +21,10 @@ every example on this site.
 
 | Language | Version | Install | Runs on |
 |---|---|---|---|
-| **Python** | 1.0.1, stable | `pip install lm15` | Python 3.10 or newer; Linux, macOS, Windows |
-| **TypeScript** | 1.0.0-rc.1, release candidate | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
-| **Rust** | 1.0.0-rc.1, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
-| **Go** | v1.1.0-rc.1, release candidate | `go get github.com/lm15-dev/lm15-go@v1.1.0-rc.1` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
+| **Python** | 1.1.0, stable | `pip install lm15` | Python 3.10 or newer; Linux, macOS, Windows |
+| **TypeScript** | 1.0.0-rc.2, release candidate | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
+| **Rust** | 1.0.0-rc.2, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
+| **Go** | v1.1.0-rc.2, release candidate | `go get github.com/lm15-dev/lm15-go@v1.1.0-rc.2` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
 
 **Stable** means the core won't change in a way that breaks your program
 until the next major version. A **release candidate** is the version that
@@ -46,15 +46,15 @@ and Rust's examples use Tokio to run `async` code.
 Every change to any of the four is graded by the contract's harness, which
 compares the exact requests each language builds and the responses it reads
 with recorded provider traffic. Each passes every check of the contract
-version it pins (on 2026-09-26: 1,583 checks for TypeScript, Rust and Go,
-1,786 for Python, whose pin already includes the next providers). Each language also runs its own tests on Linux,
+version it pins (on 2026-09-26: 1,788 checks, the same contract version for
+all four). Each language also runs its own tests on Linux,
 macOS and Windows, and every example on this site is run in every
 language and must send the same request as Python does.
 
 Saved sign-ins are shared across languages: a login saved from Python is
 used and renewed from Go, and two programs in different languages renew one
-token exactly once. Python 1.0.1 and Go v1.1.0-rc.1 have saved sign-ins;
-TypeScript and Rust have them in their source, for their next release.
+token exactly once. All four released versions have saved sign-ins (Python
+since 1.0.1, Go since v1.1.0-rc.1, TypeScript and Rust since 1.0.0-rc.2).
 
 ### In the browser
 
