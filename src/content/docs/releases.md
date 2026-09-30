@@ -7,13 +7,16 @@ description: The current version of LM15 in each language, what each release con
 
 | Language | Version | Released | Package |
 |---|---|---|---|
-| Python | **1.1.0** (stable) | 2026-09-26 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
-| TypeScript | **1.0.0-rc.2** (release candidate) | 2026-09-26 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
-| Rust | **1.0.0-rc.3** (release candidate) | 2026-09-26 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
-| Go | **v1.1.0-rc.2** (release candidate) | 2026-09-26 | [`github.com/lm15-dev/lm15-go`](https://pkg.go.dev/github.com/lm15-dev/lm15-go) |
-| R | **1.0.0** | 2026-09-26 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
+| Python | **1.2.0** (stable) | 2026-09-30 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
+| TypeScript | **1.0.0-rc.4** (release candidate) | 2026-09-30 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
+| Rust | **1.0.0-rc.4** (release candidate) | 2026-09-30 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
+| Go | **v1.1.0-rc.3** (release candidate) | 2026-09-30 | [`github.com/lm15-dev/lm15-go`](https://pkg.go.dev/github.com/lm15-dev/lm15-go) |
+| R | **1.0.1** | 2026-09-30 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
 
-The examples on this site use these versions. Julia is in development; see
+The examples on this site are written for these versions; the
+[playground](/playground/) still runs the builds of 2026-09-26, which the
+2026-09-30 releases don't change for anything it can do in a browser.
+Julia 1.0.0 waits for approval in Julia's package registry; see
 [Language and runtime support](/compatibility/languages/).
 
 ## Version numbers
@@ -38,6 +41,36 @@ version forever, so that tag is retracted (Go warns anyone who uses it and
 never selects it on its own) and the first real release is numbered 1.1.
 
 ## Release notes
+
+### Python 1.2.0, TypeScript and Rust 1.0.0-rc.4, Go v1.1.0-rc.3, R 1.0.1 — 2026-09-30
+
+Released together; each passes all 1,838 checks of the same contract
+version (`57e33d1`).
+
+- **The Claude Code release is current and settable.** Signing in with
+  Claude Code, LM15 tells Anthropic which Claude Code release it is, and
+  newer models refuse old ones: Claude Opus 5.5 refused the release LM15
+  named before (2.1.170). LM15 now names 2.1.285. When a model needs a newer
+  release before LM15's next one, set `LM15_CLAUDE_CODE_VERSION` (read by the
+  router) or the `client_version` setting for `claude-code`; no code change
+  or new LM15 release is needed. The Codex sign-in takes the same setting
+  (`LM15_CODEX_CLIENT_VERSION`). The auth doctor shows the release in use and
+  where it came from.
+- **The refusal says what to change.** Updating the `claude` program does
+  not change what LM15 sends; the error now says so and names the setting.
+- **Claude's default `max_tokens` is the model's own limit**: 128,000 for
+  current models, 64,000 for the 4.5 generation (it was 16,384, which replies
+  with reasoning on often ran out of). Other models on Anthropic-style
+  servers keep 16,384. The response records it as `defaulted`, as before.
+- **A setting a provider doesn't read is an error** instead of being
+  ignored.
+- Reading OpenAI Chat Completions requests accepts `input_audio` in ogg,
+  opus, flac, aac, aiff, webm and mpeg.
+- Notes: [Python](https://github.com/lm15-dev/lm15-python/releases/tag/v1.2.0),
+  [TypeScript](https://github.com/lm15-dev/lm15-ts/releases/tag/v1.0.0-rc.4),
+  [Rust](https://github.com/lm15-dev/lm15-rs/releases/tag/v1.0.0-rc.4),
+  [Go](https://github.com/lm15-dev/lm15-go/releases/tag/v1.1.0-rc.3),
+  [R](https://github.com/lm15-dev/lm15-r/releases/tag/v1.0.1).
 
 ### R 1.0.0 — 2026-09-26
 
