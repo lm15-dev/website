@@ -1208,6 +1208,407 @@ mod gemini_zero_temperature {
     }
 }
 
+mod xai_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "xai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "grok-4.20".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod xai_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "xai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "grok-4.20".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod xai_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "xai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "grok-4.20".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod xai_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "grok-4.20".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "xai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod xai_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "grok-4.20".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "xai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod xai_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "xai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "grok-4.20".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod xai_with_history {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "xai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "grok-4.20".into(),
+            system: Some("Answer briefly.".into()),
+            messages: vec![
+                Message::user("Earlier question")?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod xai_teaching_example {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "xai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "grok-4.20".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod xai_teaching_with_settings {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "xai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "grok-4.20".into(),
+            system: Some("Answer briefly.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod xai_zero_temperature {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "xai", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "grok-4.20".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { temperature: Some(0.0), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
 mod groq_judge_text {
     use lm15::{auth::Credential, registry::adapter_for};
     use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
@@ -3591,6 +3992,1610 @@ mod moonshotai_zero_temperature {
 
         let request = Request {
             model: "kimi-k2.5".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { temperature: Some(0.0), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod deepinfra_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepinfra", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod deepinfra_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepinfra", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod deepinfra_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepinfra", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod deepinfra_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "deepinfra", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod deepinfra_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "deepinfra", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod deepinfra_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepinfra", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod deepinfra_with_history {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepinfra", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            system: Some("Answer briefly.".into()),
+            messages: vec![
+                Message::user("Earlier question")?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod deepinfra_teaching_example {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepinfra", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod deepinfra_teaching_with_settings {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepinfra", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            system: Some("Answer briefly.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod deepinfra_zero_temperature {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "deepinfra", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { temperature: Some(0.0), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod together_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "together", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod together_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "together", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod together_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "together", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod together_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "together", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod together_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "together", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod together_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "together", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod together_with_history {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "together", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            system: Some("Answer briefly.".into()),
+            messages: vec![
+                Message::user("Earlier question")?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod together_teaching_example {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "together", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod together_teaching_with_settings {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "together", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            system: Some("Answer briefly.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod together_zero_temperature {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "together", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { temperature: Some(0.0), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod fireworks_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "fireworks", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "accounts/fireworks/models/deepseek-v4p1-flash".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod fireworks_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "fireworks", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "accounts/fireworks/models/deepseek-v4p1-flash".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod fireworks_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "fireworks", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "accounts/fireworks/models/deepseek-v4p1-flash".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod fireworks_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "accounts/fireworks/models/deepseek-v4p1-flash".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "fireworks", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod fireworks_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "accounts/fireworks/models/deepseek-v4p1-flash".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "fireworks", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod fireworks_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "fireworks", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "accounts/fireworks/models/deepseek-v4p1-flash".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod fireworks_with_history {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "fireworks", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "accounts/fireworks/models/deepseek-v4p1-flash".into(),
+            system: Some("Answer briefly.".into()),
+            messages: vec![
+                Message::user("Earlier question")?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod fireworks_teaching_example {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "fireworks", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "accounts/fireworks/models/deepseek-v4p1-flash".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod fireworks_teaching_with_settings {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "fireworks", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "accounts/fireworks/models/deepseek-v4p1-flash".into(),
+            system: Some("Answer briefly.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod fireworks_zero_temperature {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "fireworks", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "accounts/fireworks/models/deepseek-v4p1-flash".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { temperature: Some(0.0), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod parasail_judge_text {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "parasail", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: a text.
+        let state = "Quotes \" and a newline\n</script> are text, not executable code.";
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct".into(),
+            messages: vec![Message::user(state)?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod parasail_judge_fields {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, Part, ProbabilityPolicy, Request};
+    use serde_json::json;
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "parasail", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text.
+        let state = json!({
+            "note": "Quotes \" and a newline\n</script> are text, not executable code.",
+            "price": 1,
+        });
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct".into(),
+            messages: vec![Message::user(Part::data(state))?],
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod parasail_judge_conversation {
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{judgments, score_named, yes_no, Config, JsonObject, Message, ProbabilityPolicy, Request};
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "parasail", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        // The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation.
+        let state = vec![
+            Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+        ];
+
+        // Declared keys in, a distribution out (MAP-14).
+        let mut questions = JsonObject::new();
+        questions.insert("id_certainty".into(), score_named("How sure is the species identification, according to the note?", [
+            (Some("unknown".into()), "Species not identified".into()),
+            (Some("guess".into()), "A guess".into()),
+            (Some("probable".into()), "Probable, some features described".into()),
+            (Some("confident".into()), "Confident, clear features described".into()),
+            (Some("certain".into()), "Certain, unmistakable or confirmed".into()),
+        ])?.into()); // levels, worst to best
+        questions.insert("juvenile_present".into(), yes_no("Does the note say a juvenile was present?").into());
+        let questions = judgments(questions)?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct".into(),
+            messages: state,
+            config: Config {
+                response_format: Some(questions),
+                probabilities: Some(ProbabilityPolicy::IfAvailable),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = lm.complete(&request).await?;
+        println!("{:?}", response.data()); // the picked key per judgment
+        println!("{:?}", response.probabilities()); // one distribution per judgment where the provider measures one; else None and recorded
+        println!("{:?}", response.adaptations); // MAP-13: what this wire could not take as asked
+        Ok(())
+    }
+}
+
+mod parasail_story {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, ProviderLM, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "meta-llama/Llama-3.3-70B-Instruct".into(),
+                system: Some("Answer briefly.".into()),
+                messages: messages.clone(),
+                config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "parasail", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages = vec![
+            Message::user("What is LM15?")?,
+            Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+        ];
+
+        ask(&lm, &mut messages, "Asked through the page").await?;
+        // → Earlier answer
+
+        // Rewritten by hand: no call produced these, so they are written out.
+        messages.extend([
+            Message::user("Asked again")?,
+            Message::assistant(vec![
+                Part::Thinking(ThinkingPart {
+                    text: "".into(),
+                    continuation: vec![ContinuationState::new("openai", "reasoning_item", serde_json::from_value(json!({ "id": "rs_1", "encrypted_content": "abc" }))?)?],
+                }),
+                Part::text("Rewritten by hand"),
+            ])?,
+        ]);
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod parasail_story_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, ProviderLM, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // Ask, print the stream, keep the reply: it carries the model's reasoning state.
+        async fn ask(lm: &ProviderLM, messages: &mut Vec<Message>, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+            messages.push(Message::user(text)?);
+            let request = Request {
+                model: "meta-llama/Llama-3.3-70B-Instruct".into(),
+                system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+                messages: messages.clone(),
+                ..Default::default()
+            };
+            let mut result = ResponseStream::new(lm.stream(&request), &request);
+            while let Some(piece) = result.text_chunks().next().await {
+                print!("{}", piece?);
+            }
+            messages.push(result.response().await?.message);
+            Ok(())
+        }
+
+        let lm = adapter_for(
+            "parasail", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+        let mut messages: Vec<Message> = Vec::new();
+
+        ask(&lm, &mut messages, "Quotes \" and a newline\n</script> are text, not executable code.").await?;
+        Ok(())
+    }
+}
+
+mod parasail_first_turn {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "parasail", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?],
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod parasail_with_history {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, ContinuationState, Message, Part, Reasoning, Request, ResponseStream, ThinkingPart};
+    use serde_json::json;
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "parasail", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct".into(),
+            system: Some("Answer briefly.".into()),
+            messages: vec![
+                Message::user("Earlier question")?,
+                Message::assistant(vec![
+                    Part::Thinking(ThinkingPart {
+                        text: "Earlier hidden reasoning".into(),
+                        continuation: vec![ContinuationState::new("anthropic", "thinking_signature", serde_json::from_value(json!({ "signature": "opaque-replay-signature" }))?)?],
+                    }),
+                    Part::text("Earlier answer"),
+                ])?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod parasail_teaching_example {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "parasail", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct".into(),
+            system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod parasail_teaching_with_settings {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Reasoning, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "parasail", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct".into(),
+            system: Some("Answer briefly.".into()),
+            messages: vec![
+                Message::user("What is LM15?")?,
+                Message::assistant("LM15 lets you use different model providers through one consistent interface.")?,
+                Message::user("Quotes \" and a newline\n</script> are text, not executable code.")?,
+            ],
+            config: Config { max_tokens: Some(64), temperature: Some(0.2), reasoning: Some(Reasoning::new("low".parse()?)), ..Default::default() },
+            ..Default::default()
+        };
+
+        let mut result = ResponseStream::new(lm.stream(&request), &request); // drop it to stop
+        while let Some(text) = result.text_chunks().next().await {
+            print!("{}", text?);
+        }
+
+        // Keep the reply for the next turn.
+        let response = result.response().await?;
+        let mut messages = request.messages.clone();
+        messages.push(response.message.clone());
+        Ok(())
+    }
+}
+
+mod parasail_zero_temperature {
+    use futures_util::StreamExt;
+    use lm15::{auth::Credential, registry::adapter_for};
+    use lm15::{Config, Message, Request, ResponseStream};
+
+    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let lm = adapter_for(
+            "parasail", Credential::api_key("sk-just-kidding")?,
+            None, None, None,
+        )?;
+
+        let request = Request {
+            model: "meta-llama/Llama-3.3-70B-Instruct".into(),
             system: Some("You are an LM15 teacher. Explain things simply and keep answers short.".into()),
             messages: vec![
                 Message::user("What is LM15?")?,

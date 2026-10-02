@@ -61,14 +61,14 @@ test('first-request setup follows the selected provider and language', { timeout
     assert.ok((await page.locator('[data-doc-source]').first().textContent())?.includes('openai:model'));
     await page.locator('[data-doc-provider]').click();
     await page.getByRole('option', { name: /Clear selection/ }).click();
-    assert.equal(await page.locator('[data-doc-key-provider]:visible').count(), 9);
+    assert.equal(await page.locator('[data-doc-key-provider]:visible').count(), CONNECTIONS.filter(item => item.env && !('judgmentsOnly' in item)).length);
     assert.equal(await page.locator('[data-doc-key-posix]').textContent(), 'export YOUR_PROVIDER_API_KEY="your-api-key"');
     assert.equal(await page.locator('[data-doc-key-prompt]').isVisible(), true);
 
     const staticPage = await browser.newPage({ javaScriptEnabled: false });
     await staticPage.goto(`${origin}/docs/first-request/`);
     assert.match(await staticPage.locator('[data-doc-install]').innerText(), /python3 -m pip install lm15/);
-    assert.equal(await staticPage.locator('[data-doc-key-provider]:visible').count(), 9);
+    assert.equal(await staticPage.locator('[data-doc-key-provider]:visible').count(), CONNECTIONS.filter(item => item.env && !('judgmentsOnly' in item)).length);
     assert.deepEqual(await staticPage.locator('main h2').allTextContents(), ['Install', 'Set an API key', 'Ask a question', 'Read the whole response', 'Give it instructions', 'Ask a follow-up', 'Watch it arrive', 'Use another provider', 'When something goes wrong', 'Try it yourself', 'Next']);
     assert.deepEqual(errors, []);
   } finally {

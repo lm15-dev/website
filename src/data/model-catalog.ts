@@ -1,8 +1,14 @@
 export const CATALOG_URL = 'https://models.dev/api.json';
+/** lm15 provider -> models.dev provider, for every key-based provider the site offers (tests/connections.test.ts). */
 export const CATALOG_PROVIDERS = {
-  openai: 'openai', anthropic: 'anthropic', gemini: 'google', groq: 'groq',
+  openai: 'openai', anthropic: 'anthropic', gemini: 'google', xai: 'xai', groq: 'groq',
   openrouter: 'openrouter', deepseek: 'deepseek', zai: 'zai', meta: 'meta', moonshotai: 'moonshotai',
+  deepinfra: 'deepinfra', together: 'togetherai', fireworks: 'fireworks-ai',
 } as const;
+/** Offered providers models.dev does not list (checked 2026-10-02): their pickers show the curated models. */
+export const NOT_ON_MODELS_DEV: Readonly<Record<string, string>> = {
+  parasail: 'not a models.dev provider',
+};
 export interface CatalogModel { id: string; releaseDate: string }
 export interface ModelCatalog {
   source: string;

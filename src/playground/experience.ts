@@ -40,13 +40,14 @@ export function exampleConversation(): Message[] { return [Message.user(EXAMPLE_
 /** The Anthropic API refuses a browser origin unless the caller says it means it. */
 export const ANTHROPIC_BROWSER_HEADER = ["anthropic-dangerous-direct-browser-access", "true"] as const;
 
+/** A keyless local server: the registry gives it a placeholder key (ollama), or it is the page's custom server. */
 export function keyless(provider: string): boolean {
-  return provider === "ollama" || provider === "custom";
+  return provider === "custom" || lookup(provider)?.placeholderKey !== undefined;
 }
 
 /** TypeSafe (Jev) answers declared judgments only (MAP-14): it has no chat; the page judges with it (judge.ts). */
 export function judgmentsOnly(provider: string): boolean {
-  return provider === "typesafe";
+  return lookup(provider)?.dialect === "typesafe";
 }
 
 /** A provider that answers in one piece (TypeSafe): `complete`, never `stream`. */
@@ -312,11 +313,19 @@ export function exampleJavascript(connection: Connection, settings: Settings, me
 }
 
 const PY_CLASS: Record<string, string> = { "openai-responses": "AsyncOpenAILM", "openai-chat": "AsyncOpenAIChatLM", anthropic: "AsyncAnthropicLM", gemini: "AsyncGeminiLM", typesafe: "AsyncTypeSafeLM" };
+/**
+ * An adapter-owned provider whose Python class is not its dialect's: the class
+ * carries the provider's own address and policy (lm15-python
+ * lm15/providers/xai.py). The dialect's class would send xAI's request to
+ * api.openai.com.
+ */
+const PY_OWNED_CLASS: Record<string, string> = { xai: "AsyncXaiLM" };
 
 /** The Python client's class for a connection, and the lines that make it (the transport line is the page's; CPython drops it). */
 export function pyClient(connection: Connection): { cls: string; lines: string[] } {
   const definition = lookup(connection.provider);
-  const cls = connection.provider === "custom" ? "AsyncOpenAIChatLM" : (PY_CLASS[definition?.dialect ?? "openai-chat"] ?? "AsyncOpenAIChatLM");
+  const cls = connection.provider === "custom" ? "AsyncOpenAIChatLM"
+    : (PY_OWNED_CLASS[connection.provider] ?? PY_CLASS[definition?.dialect ?? "openai-chat"] ?? "AsyncOpenAIChatLM");
   const lines = [`lm = ${api(cls)}(`, `    api_key=${keyless(connection.provider) ? '"unused"' : qv(EXAMPLE_API_KEY)},`];
   const relay = baseUrlFor(connection);
   if (connection.provider === "custom") lines.push(`    base_url=${qv(connection.endpoint, "provider")},`);

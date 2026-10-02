@@ -13,6 +13,8 @@ import { findBrowsers } from "./support/browser.ts";
 import { closePicker, disableDiscovery, focusSettings, forgetKey, keyState, openMore, openProviders, useKey, waitKeyState, waitRuntimeReady } from "./support/playground.ts";
 
 const choices = CONNECTIONS.filter((c) => c.env);
+/** One message per chatting provider with a key (TypeSafe judges only). */
+const chatSends = choices.filter((c) => c.id !== "typesafe").length;
 const key = (id: string) => `dummy-${id}-key`;
 async function fixture(run: (envFile: string) => Promise<void>) {
   const dir = mkdtempSync(join(tmpdir(), "lm15-provider-ui-"));
@@ -147,7 +149,7 @@ function sse(url: URL): string {
 /** TypeSafe answers the example's one judgment over the state. */
 const JEV_ANSWER = { model: "jev-test", answers: { id_certainty: { type: "score", probabilities: { "0": 0, "1": 0, "2": 0.1, "3": 0.8, "4": 0.1 } }, juvenile_present: { type: "noul", noul: 0.99 } }, usage: { input_tokens: 40, output_tokens: 9 } };
 
-test("ten local keys load privately; each provider receives only its key; manual keys, clearing, and reload work", { timeout: 120_000 }, async () => {
+test("every local key loads privately; each provider receives only its key; manual keys, clearing, and reload work", { timeout: 120_000 }, async () => {
   const installed = findBrowsers().find((b) => b.name === "chromium");
   assert.ok(installed, "Put Chromium on PATH to run browser tests");
   await fixture(async (envFile) => {
@@ -218,12 +220,12 @@ test("ten local keys load privately; each provider receives only its key; manual
         await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
         assert.equal(await page.locator("#transcript article").last().locator("textarea").inputValue(), "Hello");
       }
-      assert.equal(sent, 9);
+      assert.equal(sent, chatSends);
       const discoveries = modelLists;
       await page.getByLabel("Message", { exact: true }).fill("/model mdltw");
       await page.getByLabel("Message", { exact: true }).press("Enter");
       assert.equal(await page.locator("#model-name").textContent(), "model-two");
-      assert.equal(sent, 9, "A slash command is never sent as a message");
+      assert.equal(sent, chatSends, "A slash command is never sent as a message");
       assert.equal(modelLists, discoveries, "Searching models uses the cached list");
       assert.match(await page.locator("#code").textContent() ?? "", /model-two/);
       await page.getByRole("button", { name: "Choose model", exact: true }).click();
@@ -246,7 +248,7 @@ test("ten local keys load privately; each provider receives only its key; manual
       await page.getByLabel("Message", { exact: true }).fill("Hello");
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await page.waitForFunction(() => document.getElementById("usage")?.textContent?.startsWith("stop"));
-      assert.equal(sent, 10);
+      assert.equal(sent, chatSends + 1); // the manual key's message
       // TypeSafe judges only: choosing it from Chat opens Judge, and Chat is closed to it. Its key reaches only it, one call per input.
       selected = "typesafe"; expectedKey = key(selected);
       await page.getByRole("button", { name: "Choose provider", exact: true }).click();
@@ -258,7 +260,7 @@ test("ten local keys load privately; each provider receives only its key; manual
       await waitKeyState(page, "Key ready (this tab)");
       await page.locator("#judge-run").click();
       await page.waitForFunction(() => document.getElementById("judge-usage")?.textContent?.startsWith("judged"));
-      assert.equal(sent, 11);
+      assert.equal(sent, chatSends + 2); // TypeSafe's one judgment
       await page.reload();
       await waitKeyState(page, "");
       assert.equal(await page.locator("#loaded").textContent(), "None");

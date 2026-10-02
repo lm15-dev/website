@@ -94,7 +94,8 @@ async function expected(c: (typeof cases)[number]) {
 }
 
 test(`JavaScript: all ${cases.length} variants type-check, execute, and build the page's request`, { timeout: 120_000 }, async (t) => {
-  assert.equal(cases.length, 66);
+  // Every chatting connection, three transcripts, two settings; which providers are offered is pinned against the SDK registry by connections.test.ts.
+  assert.equal(cases.length, CONNECTIONS.filter((choice) => !judgmentsOnly(choice.id)).length * 3 * 2);
   const sources = cases.map((c) => exampleJavascript(c.connection, c.settings, c.messages, prompt).text.replace("console.log(text)", "void text"));
   const files = new Map(sources.map((source, i) => [resolve(root, `src/playground/__example_${i}.ts`), source]));
   const options: ts.CompilerOptions = { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, strict: true, noEmit: true, skipLibCheck: true, types: [], lib: ["lib.es2023.d.ts", "lib.dom.d.ts"] };

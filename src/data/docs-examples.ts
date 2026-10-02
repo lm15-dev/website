@@ -7,13 +7,18 @@ import { fetchCatalog, isModelId, recentModels } from './model-catalog.ts';
 
 export { LANGUAGES };
 const alphabetically = (a: string, b: string) => a.localeCompare(b, 'en', { sensitivity: 'base' });
+// A provider models.dev does not list keeps its curated models (model-catalog.ts NOT_ON_MODELS_DEV).
+const pickerModels = (catalog: Parameters<typeof recentModels>[0], provider: { id: string; models: readonly string[] }) => {
+  const recent = recentModels(catalog, provider.id);
+  return recent.length ? recent : [...provider.models];
+};
 export const PROVIDERS = HOME_PROVIDERS.map(provider => ({
-  ...provider, models: recentModels(savedCatalog, provider.id),
+  ...provider, models: pickerModels(savedCatalog, provider),
 })).sort((a, b) => alphabetically(a.label, b.label));
 let refresh: Promise<boolean> | undefined;
 export function refreshModels(): Promise<boolean> {
   return refresh ??= fetchCatalog().then(catalog => {
-    for (const provider of PROVIDERS) provider.models = recentModels(catalog, provider.id);
+    for (const provider of PROVIDERS) provider.models = pickerModels(catalog, provider);
     return true;
   }).catch(() => false); // Keep the dated snapshot when the catalog is unavailable.
 }
