@@ -16,6 +16,24 @@ Contents: the pattern · response parts · conversation · streaming · function
 tools · structured output · images/PDFs/audio in · reasoning · web search ·
 prompt caching · async · errors · image and speech generation · traps.
 
+**Five rules that make the first run work** (each was a common first-run
+failure):
+
+1. **Do not set `max_tokens`** unless the task asks for a limit. Most models
+   now reason first, and a small limit leaves no room for the answer (empty
+   text, `finish_reason="length"`). If you must, use 4000 or more.
+2. **To get fields out of an answer, ask for them with a JSON schema** (see
+   Structured output) and read `response.data`. Don't parse prose with
+   regexes, and don't `json.loads` free text.
+3. **Use `LMRouter()`**: it reads each provider's key from the environment.
+   A provider class built by hand (`AnthropicLM(...)`) reads no environment:
+   pass `api_key=os.environ["ANTHROPIC_API_KEY"]`.
+4. **Don't set `temperature`** unless asked; some models refuse any other
+   value than their own.
+5. **Copy the names here exactly.** If one fails, `help(lm15.Name)`; don't
+   guess from other SDKs (`effort="none"` is `"off"`; there is no
+   `Role.USER`, `message.content` or `set_api_key`).
+
 ## The pattern
 
 ```python
@@ -26,7 +44,7 @@ response = router.complete(Request(
     model="anthropic:claude-haiku-4-5",             # "provider:model-id"
     system="You are terse.",                        # optional
     messages=(Message.user("What is the capital of Peru?"),),
-    config=Config(max_tokens=300),                  # optional
+    config=Config(),                                # optional: settings (no max_tokens needed)
 ))
 print(response.text)                                # str, or None if no text
 print(response.finish_reason)                       # "stop", "length", "tool_call", ...
@@ -112,8 +130,10 @@ for event in router.stream(request):
         print("\n", event.finish_reason, event.usage.output_tokens)
 ```
 
-To also get the assembled `Response` (text, tool calls, usage) from the same
-stream, wrap it:
+`router.stream()` yields event objects, never strings: keep only
+`StreamDeltaEvent` whose `delta` is a `TextDelta`, as above. To also get the
+assembled `Response` (text, tool calls, usage) from the same stream, wrap it;
+iterating the wrapper yields text strings:
 
 ```python
 from lm15 import LMRouter, Message, Request, ResponseStream
@@ -189,10 +209,12 @@ response = router.complete(Request(
 print(response.data)                                # {'name': 'Ines Duarte', 'age': 34}
 ```
 
-**Read the answer with `response.data`**, not `.text` or `.json`. A schema
-with a top-level boolean or enum property makes the answer a `DataPart`
-(lm15 treats those properties as judgments), and then `.text` is empty and
-`.json` (which parses text) is `None`; `.data` reads both forms.
+**Read the answer with `response.data`** (a dict). It works whatever the
+schema holds: a top-level boolean or enum property makes the answer a
+`DataPart` (lm15 treats those properties as judgments), and before lm15
+1.2.3 `.text` and `.json` were empty for it. Use it for any "extract these
+fields" or "answer in this shape" task, images and PDFs included: put the
+fields in the schema instead of asking for prose and parsing it.
 
 ## Images, PDFs, audio as input
 
@@ -233,14 +255,18 @@ print(r.text, r.usage.reasoning_tokens)
 r = router.complete(Request(
     model="anthropic:claude-haiku-4-5",
     messages=(Message.user("Is 221 prime? Answer yes or no."),),
-    config=Config(reasoning=Reasoning(effort="medium", thinking_budget=2000), max_tokens=4000),
+    config=Config(reasoning=Reasoning(effort="low", thinking_budget=2000)),
 ))
 print(r.text, len("".join(p.text for p in r.message.parts_of(ThinkingPart))))
 ```
 
 `effort`: `"off"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`.
 **Thinking off** is `Reasoning(effort="off")` with no budget (not
-`thinking_budget=0`). `thinking_budget` is only for Anthropic/Gemini-style
+`thinking_budget=0`, not `"none"`). Always pass `effort=`; with a budget,
+any level works (the budget is what the provider gets), so
+`Reasoning(effort="low", thinking_budget=1024)` asks for a 1024-token budget.
+The thinking-token count is `response.usage.reasoning_tokens` on every
+provider that reports one (OpenAI, Gemini). `thinking_budget` is only for Anthropic/Gemini-style
 budgets and must be > 0.
 
 ## Provider built-in tools (web search)
@@ -260,7 +286,10 @@ print(response.text)
 print([c.url for c in response.citations])
 ```
 
-Options go in the second argument: `BuiltinTool("web_search", {"max_uses": 2})`.
+Options go in the second argument and are the provider's own:
+`BuiltinTool("web_search", {"max_uses": 2})` is Anthropic's (OpenAI refuses
+`max_uses`; use `BuiltinTool("web_search")` there). On Gemini,
+`BuiltinTool("web_search")` is Google Search grounding.
 `BuiltinTool("code_execution")` runs code at the provider (OpenAI needs
 `{"container": {"type": "auto"}}`).
 
@@ -371,7 +400,9 @@ chunk header / (rate × channels × sample width).
 
 ## Traps
 
-- **Reasoning models think inside `max_tokens`** (gpt-5*, o-series, gemini-2.5/3, kimi-k2.x, gpt-oss, deepseek-reasoner, Claude with thinking). A small limit returns empty text with `finish_reason="length"`. Omit `max_tokens` or give 2000+.
+- **Reasoning models think inside `max_tokens`** (gpt-5*, o-series, gemini-2.5/3, kimi-k2.x, gpt-oss, deepseek-reasoner, Claude with thinking). A small limit returns empty text with `finish_reason="length"`. Omit `max_tokens`, or give 4000+.
+- **Anthropic needs no `max_tokens` either:** lm15 sends the model's own ceiling.
+- **A test that must fail must actually send the bad value:** to try a wrong key, build `LMRouter(RouterConfig(api_keys={"openrouter": "sk-or-invalid"}))` (or `OpenAIChatLM(api_key=..., compat="openrouter")`); a plain `LMRouter()` uses the real key from the environment.
 - **Don't set `temperature` unless asked.** Some models reject any value but their own (Moonshot's kimi models).
 - `response.text` is `None` when the reply has no text (only tool calls, only an image); check `finish_reason` before treating that as an error.
 - Errors are typed (see Errors): a wrong key is `AuthError` on every provider, a wrong model name `UnsupportedModelError` (lm15 >= 1.2.2).
