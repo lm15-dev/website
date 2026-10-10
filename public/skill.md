@@ -7,7 +7,7 @@ description: Write code that calls AI models (OpenAI, Anthropic, Gemini, Groq, D
 
 LM15 sends one `Request` shape to any provider and returns one `Response`
 shape. This page is the Python reference; TypeScript, Rust, Go, R and Julia
-use the same shapes with their own naming (links at the end). `pip install "lm15>=1.2.2"` (standard library only, no dependencies).
+use the same shapes with their own naming (links at the end). `pip install lm15` (standard library only, no dependencies).
 Every snippet below was run against the real APIs. **The names here are
 exact: copy them; do not read the installed source or guess other names.**
 For something not covered: `python -c "import lm15; help(lm15.Name)"`.
