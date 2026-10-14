@@ -173,6 +173,13 @@ question’s own words. To give Jev structured input, send
 `Message.user(data({...}))` with a dictionary; Jev reads it as data, and a chat
 model receives the same request as JSON text.
 
+Jev can also judge pictures. Put a PNG or JPEG image in the user message, on
+its own or beside text, and ask your questions about “the image” or “the second
+image”, as you would ask a chat model. LM15 sends the picture’s bytes, so an
+image given only by a web address is refused: download it first. TypeSafe still
+calls images an early feature, so check the answers on pictures whose answers
+you already know before you rely on them.
+
 ## Try it yourself
 
 1. In `answers`, replace the `certainty` levels with just `["unsure", "sure"]`.
@@ -205,5 +212,6 @@ answers that are free-form data rather than choices, see
 row, some requests will meet a rate limit; see
 [Handle errors and retries](/docs/errors-and-retries/). The rules behind this
 page are in the shared contract:
-[judgments (MAP-14)](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-17-judgments.md)
-and [what Jev reads](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-19-jev-state.md).
+[judgments (MAP-14)](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-17-judgments.md),
+[what Jev reads](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-19-jev-state.md),
+and [pictures for Jev](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-10-14-jev-images.md).
