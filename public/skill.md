@@ -216,6 +216,33 @@ schema holds: a top-level boolean or enum property makes the answer a
 fields" or "answer in this shape" task, images and PDFs included: put the
 fields in the schema instead of asking for prose and parsing it.
 
+**Where is something in a picture: `bounding_box`** (lm15 1.5.0 or later).
+The answer is four fractions of the image, measured from its top-left corner
+(`top`/`bottom` of the height, `left`/`right` of the width); multiply by the
+image's pixel size to crop. A box is always returned, even for an absent
+object, so ask a `yes_no` beside it.
+
+```python
+from pathlib import Path
+from lm15 import Config, ImagePart, LMRouter, Message, Request, bounding_box, judgments, yes_no
+
+where = judgments(
+    square=bounding_box("the red square in the image"),
+    present=yes_no("Is there a red square in the image?"),
+)
+response = LMRouter().complete(Request(
+    model="typesafe:jev-preview",  # Jev 1.14; any vision model works too
+    messages=(Message.user(ImagePart(path=Path("shapes.png"))),),
+    config=Config(response_format=where),
+))
+print(response.data)  # {'square': {'top': 0.18, 'bottom': 0.62, 'left': 0.55, 'right': 0.85}, 'present': True}
+```
+
+On TypeSafe, boxes need `jev-preview` (Jev 1.14; `jev-latest` answers
+"Invalid request.") and a PNG or JPEG between about 280 and 1568 pixels a
+side ("Invalid image dimensions." otherwise). Other vision models answer the
+same request as structured output; accuracy varies a lot by model.
+
 ## Images, PDFs, audio as input
 
 A user message takes a string, one part, or a tuple of parts. File parts

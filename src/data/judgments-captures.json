@@ -31,6 +31,19 @@
       "code": "notes = {\n    \"stream\": note,\n    \"barn\": (\"Around midnight an owl was calling from the old\\n\"\n             \"barn roof, probably a tawny. Two hares in the barn\\n\"\n             \"field at first light.\"),\n    \"deer\": (\"Dusk, edge of the oak grove. Two deer browsing on\\n\"\n             \"fallen acorns, one small with spots still showing.\\n\"\n             \"Too far to be sure of the species: roe or fallow.\"),\n}\nfor name, text in notes.items():\n    reply = router.complete(Request(\n        model=\"jev-latest\",\n        messages=[Message.user(text)],\n        config=Config(response_format=answers,\n                      probabilities=\"if_available\"),\n    ))\n    sure = reply.expected(\"certainty\")\n    print(f\"{name:7}{reply.data['animal']:8}{sure:.2f}\")\n",
       "output": "stream badger  1.97\nbarn   owl     0.95\ndeer   deer    0.04\n",
       "model": "typesafe:jev-latest"
+    },
+    "where": {
+      "code": "from lm15 import bounding_box\nfrom lm15.types import image\n\nwhere = judgments(\n    badger=bounding_box(\"the badger in the image\"),\n    seen=yes_no(\"Is there a badger in the image?\"),\n)\nreply = router.complete(Request(\n    model=\"jev-preview\",\n    messages=[Message.user(image(path=\"badger.jpg\"))],\n    config=Config(response_format=where),\n))\nprint(reply.data)\n",
+      "output": "{'badger': {'top': 0.38, 'bottom': 0.71, 'left': 0.85, 'right': 0.99}, 'seen': True}\n",
+      "model": "typesafe:jev-preview",
+      "date": "2026-10-15",
+      "lm15": "1.5.0"
+    },
+    "pixels": {
+      "code": "width, height = 1280, 718  # the photo's size, in pixels\nbox = reply.data[\"badger\"]\nprint(round(box[\"left\"] * width), round(box[\"top\"] * height),\n      round(box[\"right\"] * width), round(box[\"bottom\"] * height))\n",
+      "output": "1088 273 1267 510\n",
+      "date": "2026-10-15",
+      "lm15": "1.5.0"
     }
   }
 }

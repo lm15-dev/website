@@ -5,6 +5,9 @@ description: Ask a model to decide, not to write — pick a category, place some
 
 import PythonExample from '../../../components/PythonExample.astro';
 import CapturedOutput from '../../../components/CapturedOutput.astro';
+import TOUR from '../../../data/tour-text.json';
+
+export const M = TOUR.media;
 
 A lot of what a program asks a model is really a decision: which category a
 message belongs to, where a report falls on a scale, whether something
@@ -22,13 +25,13 @@ On this page, we’ll describe three judgments and ask them of TypeSafe’s Jev,
 a model built to answer this kind of question with probabilities. We’ll read
 what comes back, then send exactly the same request to an ordinary chat model
 and see what changes. Next, we’ll ask LM15 to refuse rather than answer
-without numbers. We’ll finish by judging several notes in a row and putting
-the results side by side.
+without numbers, and judge several notes in a row, side by side. We’ll finish
+with a different kind of question: where, in a photo, the animal is.
 
 :::note[Python only, for now]
-Judgments work in Python, TypeScript, Rust, Go and R; Julia doesn’t have them
-yet. This page’s examples are in Python whichever language you chose. They
-need LM15 1.0.1 or later: `pip install --upgrade lm15`.
+Judgments work in all six languages. This page’s examples are in Python
+whichever language you chose. They need LM15 1.0.1 or later, and 1.5.0 for
+the last section: `pip install --upgrade lm15`.
 :::
 
 To run the examples, you’ll need a TypeSafe API key in `TYPESAFE_API_KEY`, and
@@ -182,6 +185,61 @@ you already know before you rely on them. Pictures for Jev need Python 1.4.0,
 TypeScript or Rust 1.0.0-rc.9, Go v1.1.0-rc.8, R 1.3.0, or later; Julia's first
 release will include them.
 
+## Ask where: a bounding box
+
+Pictures make one more kind of question possible: not *what* is in a photo,
+but *where*. `bounding_box` asks for the smallest rectangle around something,
+here the badger in the camera-trap photo from
+[Send images and documents](/docs/media-inputs/). Save
+[the photo](/docs-media/badger.jpg) next to your program first:
+
+<PythonExample set="judgments" name="where" />
+
+<CapturedOutput set="judgments" step="where" />
+
+The box is four numbers, one per edge. Each is a fraction of the photo,
+measured from its top-left corner: `top` and `bottom` of its height, `left`
+and `right` of its width. So the badger sits at the right edge, from 0.85 to
+0.99 of the way across and from 0.38 to 0.71 of the way down. Fractions don’t
+depend on the photo’s size; to draw the box or cut it out, multiply by the
+size in pixels:
+
+<PythonExample set="judgments" name="pixels" />
+
+<CapturedOutput set="judgments" step="pixels" />
+
+<figure>
+  <img src="/docs-media/badger-box.jpg" alt="The camera-trap photo of the badger at night, with a yellow rectangle drawn tightly around the badger at the right edge of the frame." width="1280" height="718" />
+  <figcaption>
+    The box Jev gave, drawn on the photo. Photo: “{M.credit.title}” by
+    {M.credit.author}, <a href={M.credit.source}>Wikimedia Commons</a>,
+    <a href={M.credit.licenseUrl}>{M.credit.license}</a>; box added.
+  </figcaption>
+</figure>
+
+A box differs from the other three kinds in a few ways:
+
+- **It has no probabilities.** It isn’t a pick from options you listed, so
+  there is nothing to spread a probability over: `reply.probabilities` covers
+  `seen` only, and `"required"` never refuses because of a box. Jev’s own
+  confidence in the box is kept in `provider_data["typesafe"]`.
+- **It is always four edges**, even in a photo with no badger. That’s why
+  `seen` is there: ask a yes-or-no beside the box, and ignore the box when the
+  answer is no.
+- **On TypeSafe, it needs Jev 1.14**, which is `jev-preview` for now.
+  `jev-latest` was still Jev 1.13 when we wrote this, and answers a bare
+  “Invalid request.”.
+- **On other models, the same request still works**: the model writes the four
+  numbers itself. How close they are depends on the model. On a test picture
+  of two shapes, Jev and OpenAI’s GPT-5.6 Luna were within 0.04 of the true
+  edges, Claude Sonnet 4.5 and Gemini 2.5 Flash about 0.15 off, and Claude
+  Haiku 4.5 0.3 to 0.4 off. Check a few boxes you can see before relying on
+  any model.
+
+Boxes need Python 1.5.0, TypeScript or Rust 1.0.0-rc.11, Go v1.1.0-rc.10,
+R 1.4.0, or later; Julia’s first release will include them. The helper is
+`boundingBox` in TypeScript and `BoundingBox` in Go.
+
 ## Try it yourself
 
 1. In `answers`, replace the `certainty` levels with just `["unsure", "sure"]`.
@@ -216,4 +274,5 @@ row, some requests will meet a rate limit; see
 page are in the shared contract:
 [judgments (MAP-14)](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-17-judgments.md),
 [what Jev reads](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-09-19-jev-state.md),
-and [pictures for Jev](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-10-14-jev-images.md).
+[pictures for Jev](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-10-14-jev-images.md),
+and [bounding boxes](https://github.com/lm15-dev/lm15-contract/blob/main/changes/2026-10-15-bounding-box.md).

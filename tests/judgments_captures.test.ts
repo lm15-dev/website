@@ -51,3 +51,12 @@ test('the recordings show what the page says they show', () => {
   assert.deepEqual(rows, [['stream', 'badger', '1.97'], ['barn', 'owl', '0.95'], ['deer', 'deer', '0.04']]);
   for (const figure of ['1.97', '0.95', '0.04', '1.95', '0.95 on `confident`']) assert.ok(page.includes(figure), figure);
 });
+
+test('the bounding box the page reads is the one recorded, and the pixels follow from it', () => {
+  assert.equal(steps.where!.model, 'typesafe:jev-preview');
+  const where = steps.where!.output.trim();
+  assert.match(where, /^\{'badger': \{'top': 0\.38, 'bottom': 0\.71, 'left': 0\.85, 'right': 0\.99\}, 'seen': True\}$/);
+  for (const figure of ['from 0.85 to\n0.99 of the way across', 'from 0.38 to 0.71 of the way down']) assert.ok(page.includes(figure), figure);
+  const [left, top, right, bottom] = steps.pixels!.output.trim().split(' ').map(Number);
+  assert.deepEqual([left, top, right, bottom], [Math.round(0.85 * 1280), Math.round(0.38 * 718), Math.round(0.99 * 1280), Math.round(0.71 * 718)]);
+});
