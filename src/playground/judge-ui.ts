@@ -11,8 +11,9 @@
 import { judgmentsInSchema, stringifyJson, type Judgment, type JsonObject, type JsonValue, type Request } from "@lm15/lm15/browser";
 import { keyless, type Connection } from "./experience.ts";
 import { comment, finish, type Code } from "./marks.ts";
-import { EXAMPLE_SPEC, distribution, emptyState, exampleState, expectedLevel, freeName, judgeGo, judgeJavascript, judgePython, judgeR, judgeRequest, judgeRust, parseProperties, parseStateObject, pickLabel, questionSource, readQuestions, stateIsBlank, verdictOf, withQuestion, withoutQuestion, type Echo, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type StateValue, type Turn, type Verdict } from "./judge.ts";
+import { EXAMPLE_PICTURE_NAME, EXAMPLE_SPEC, PictureState, distribution, emptyState, exampleState, expectedLevel, freeName, judgeGo, judgeJavascript, judgePython, judgeR, judgeRequest, judgeRust, parseProperties, parseStateObject, pickLabel, questionSource, readQuestions, stateIsBlank, verdictOf, withQuestion, withoutQuestion, type Echo, type JudgeSource, type JudgeSpec, type Option, type Question, type QuestionKind, type Shape, type StateValue, type Turn, type Verdict } from "./judge.ts";
 import { looksBrowserBlocked, relayed } from "./relay.ts";
+import { bytesOf, preparePicture } from "./picture.ts";
 import type { Runtime, RuntimeId } from "./runtimes/index.ts";
 
 export interface JudgeHost {
@@ -41,7 +42,11 @@ export interface JudgeHost {
 
 const STORAGE = "lm15.playground.judge";
 const STORAGE_VERSION = 2;
-interface Stored { version: number; spec: JudgeSpec; state: Record<Shape, StateValue>; raw: boolean }
+/** What is remembered: every shape's state, except a picture's bytes (only its caption: a photo is not kept on the device unasked). */
+interface Stored { version: number; spec: JudgeSpec; state: Partial<Record<Shape, StateValue | { caption: string }>>; raw: boolean }
+/** The example picture, beside the built page module. */
+const EXAMPLE_PICTURE_URL = new URL(`./examples/${EXAMPLE_PICTURE_NAME}`, import.meta.url).href;
+const initialStates = (): Record<Shape, StateValue> => ({ text: exampleState("text"), fields: exampleState("fields"), conversation: exampleState("conversation"), image: exampleState("image") });
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const pct = (p: number) => `${Math.round(p * 100)}%`;
@@ -49,7 +54,13 @@ const pct = (p: number) => `${Math.round(p * 100)}%`;
 export class JudgeView {
   private spec: JudgeSpec = { ...EXAMPLE_SPEC };
   /** Each shape keeps its own state: switching shapes never loses what was typed. */
-  private states: Record<Shape, StateValue> = { text: exampleState("text"), fields: exampleState("fields"), conversation: exampleState("conversation") };
+  private states: Record<Shape, StateValue> = initialStates();
+  /** The picture being read, or why it could not be. */
+  private pictureBusy = false;
+  private pictureError: string | undefined;
+  /** The preview's object URL, revoked when the picture changes. */
+  private previewUrl: string | undefined;
+  private previewFor: string | undefined;
   /** The `fields` state as typed, when it does not parse yet; the last good object stands in `states.fields`. */
   private objectError: string | undefined;
   private rawText = "";
@@ -69,6 +80,7 @@ export class JudgeView {
     this.restore();
     this.wire();
     this.renderAll();
+    if (this.spec.shape === "image") void this.loadExamplePicture();
   }
 
   private get state(): StateValue { return this.states[this.spec.shape]; }
@@ -113,10 +125,11 @@ export class JudgeView {
   reset(): void {
     this.running?.abort();
     this.spec = { ...EXAMPLE_SPEC };
-    this.states = { text: exampleState("text"), fields: exampleState("fields"), conversation: exampleState("conversation") };
+    this.states = initialStates(); this.pictureError = undefined;
     this.objectError = undefined; this.rawMode = false; this.rawText = stringifyJson(this.spec.properties, { indent: 2 });
     this.verdict = undefined; this.stale = false; this.error = undefined;
     this.showAlert(); this.persist(); this.renderAll(); this.host.codeChanged();
+    if (this.spec.shape === "image") void this.loadExamplePicture();
   }
 
   // ─── Persistence ─────────────────────────────────────────────────
@@ -126,14 +139,17 @@ export class JudgeView {
     try { const text = localStorage.getItem(STORAGE); if (text) stored = JSON.parse(text) as Stored; } catch { stored = undefined; }
     if (stored?.version === STORAGE_VERSION && stored.spec && stored.state) {
       this.spec = { properties: stored.spec.properties, shape: stored.spec.shape };
-      for (const shape of ["text", "fields", "conversation"] as const) if (stored.state[shape] !== undefined) this.states[shape] = stored.state[shape];
+      for (const shape of ["text", "fields", "conversation"] as const) if (stored.state[shape] !== undefined) this.states[shape] = stored.state[shape] as StateValue;
+      const picture = stored.state.image as { caption?: unknown } | undefined;
+      if (typeof picture?.caption === "string") this.states.image = new PictureState(picture.caption);
       this.rawMode = Boolean(stored.raw);
     }
     this.rawText = stringifyJson(this.spec.properties, { indent: 2 });
   }
 
   private persist(): void {
-    const data: Stored = { version: STORAGE_VERSION, spec: this.spec, state: this.states, raw: this.rawMode };
+    const image = this.states.image as PictureState;
+    const data: Stored = { version: STORAGE_VERSION, spec: this.spec, state: { ...this.states, image: { caption: image.caption } }, raw: this.rawMode };
     try { localStorage.setItem(STORAGE, JSON.stringify(data)); } catch { /* storage full or disabled: the page still works for this visit */ }
   }
 
@@ -186,6 +202,10 @@ export class JudgeView {
   private renderHint(): void {
     const hint = $("judge-paths-hint");
     hint.hidden = this.spec.shape === "text";
+    if (this.spec.shape === "image") {
+      hint.replaceChildren(document.createTextNode("Name the picture in a question (“Is a fawn visible in the image?”); a question about “the note” reads the caption. A PNG or JPEG that fits (280 to 1568 pixels a side) is sent as it is; anything else is resized or converted here first. The picture is not kept when you leave the page."));
+      return;
+    }
     const field = Object.keys(this.spec.shape === "fields" ? (this.state as Record<string, JsonValue>) : {})[0] ?? "note";
     hint.replaceChildren(...(this.spec.shape === "fields"
       ? this.hintNodes("A question can point at a field with backticks, e.g. ", `\`${field}\``, ". Without a path, Jev reads the whole object; a chat model gets the object as JSON text.")
@@ -309,10 +329,55 @@ export class JudgeView {
     for (const b of document.querySelectorAll<HTMLButtonElement>("#judge-shape button")) b.setAttribute("aria-pressed", String(b.dataset.shape === shape));
     this.renderState(); this.renderHint();
     this.changed();
+    if (shape === "image") void this.loadExamplePicture();
+  }
+
+  // ─── The picture ─────────────────────────────────────────────────
+
+  /** The example photo, when the picture state is the untouched example (its caption, no picture yet). */
+  private async loadExamplePicture(): Promise<void> {
+    const state = this.states.image as PictureState;
+    if (state.picture || state.caption !== (exampleState("image") as PictureState).caption || this.pictureBusy) return;
+    try {
+      const response = await fetch(EXAMPLE_PICTURE_URL);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await this.usePicture(await response.blob(), EXAMPLE_PICTURE_NAME, true);
+    } catch (e) { this.pictureError = `The example picture did not load (${(e as Error).message}); choose one of yours.`; this.renderState(); this.renderRun(); }
+  }
+
+  /** Read a file into the state: prepared to fit, then the code and the request follow. */
+  private async usePicture(file: Blob, name: string, example = false): Promise<void> {
+    this.pictureBusy = true; this.pictureError = undefined; this.renderState(); this.renderRun();
+    try {
+      const picture = await preparePicture(file, name);
+      const current = this.states.image as PictureState;
+      this.states.image = new PictureState(current.caption, picture);
+      if (!example) this.error = undefined;
+      this.pictureBusy = false;
+      this.changed();
+    } catch (e) {
+      this.pictureBusy = false;
+      this.pictureError = (e as Error).message;
+    }
+    this.renderState(); this.renderRun();
+  }
+
+  /** The first picture in a paste or a drop, if any. */
+  private static pictureIn(items: DataTransfer | null): File | undefined {
+    if (!items) return undefined;
+    for (const file of items.files) if (file.type.startsWith("image/")) return file;
+    for (const item of items.items) if (item.kind === "file" && item.type.startsWith("image/")) return item.getAsFile() ?? undefined;
+    return undefined;
   }
 
   private stateError(): string | undefined {
     if (this.spec.shape === "fields" && this.objectError) return this.objectError;
+    if (this.spec.shape === "image") {
+      if (this.pictureBusy) return "Reading the picture…";
+      if (this.pictureError) return this.pictureError;
+      if (stateIsBlank(this.state)) return "Choose a picture to judge.";
+      return undefined;
+    }
     if (stateIsBlank(this.state)) return "The state is empty: type something to judge.";
     return undefined;
   }
@@ -327,6 +392,7 @@ export class JudgeView {
   private renderState(): void {
     const el = $("judge-state");
     const value = this.state;
+    if (value instanceof PictureState) { el.replaceChildren(this.pictureEditor(value)); for (const ta of el.querySelectorAll("textarea")) this.host.autosize(ta); return; }
     if (typeof value === "string") {
       const ta = document.createElement("textarea"); ta.id = "judge-state-text"; ta.className = "state-text"; ta.rows = 1; ta.value = value; ta.placeholder = "The text to judge"; ta.setAttribute("aria-label", "State");
       ta.addEventListener("input", () => { this.host.autosize(ta); this.setState(ta.value); });
@@ -360,6 +426,46 @@ export class JudgeView {
       });
       el.replaceChildren(ta); this.host.autosize(ta);
     }
+  }
+
+  /** The picture: a preview (or a place to drop one), what was sent, and the caption. */
+  private pictureEditor(value: PictureState): HTMLElement {
+    const box = document.createElement("div"); box.className = "picture";
+    const input = document.createElement("input"); input.type = "file"; input.accept = "image/*"; input.hidden = true; input.id = "judge-picture-file";
+    input.addEventListener("change", () => { const file = input.files?.[0]; if (file) void this.usePicture(file, file.name); input.value = ""; });
+    const zone = document.createElement("button"); zone.type = "button"; zone.className = "picture-zone"; zone.id = "judge-picture";
+    zone.setAttribute("aria-label", value.picture ? `Picture: ${value.picture.name}. Choose another` : "Choose a picture");
+    zone.addEventListener("click", () => input.click());
+    zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("over"); });
+    zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+    zone.addEventListener("drop", (e) => { e.preventDefault(); zone.classList.remove("over"); const file = JudgeView.pictureIn(e.dataTransfer); if (file) void this.usePicture(file, file.name); else this.pictureError = "That was not a picture."; this.renderRun(); });
+    if (value.picture) {
+      if (this.previewFor !== value.picture.data) {
+        if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+        this.previewUrl = URL.createObjectURL(new Blob([bytesOf(value.picture) as Uint8Array<ArrayBuffer>], { type: value.picture.mediaType }));
+        this.previewFor = value.picture.data;
+      }
+      const img = document.createElement("img"); img.src = this.previewUrl!; img.alt = value.caption.trim() || value.picture.name;
+      zone.append(img);
+    } else {
+      const empty = document.createElement("span"); empty.className = "picture-empty";
+      empty.textContent = this.pictureBusy ? "Reading the picture…" : "Choose a picture, drop one here, or paste one";
+      zone.append(empty);
+    }
+    const meta = document.createElement("p"); meta.className = "picture-meta"; meta.id = "judge-picture-meta";
+    if (value.picture) {
+      const kb = Math.round((value.picture.data.length * 3) / 4 / 1024);
+      meta.textContent = `${value.picture.name} · ${value.picture.width} × ${value.picture.height} · ${kb} KB · ${value.picture.prepared ? `${value.picture.prepared} in this page` : "sent as it is"}`;
+    }
+    if (this.pictureError) { meta.textContent = this.pictureError; meta.classList.add("bad"); }
+    meta.hidden = !meta.textContent;
+    const caption = document.createElement("textarea"); caption.id = "judge-caption"; caption.className = "state-text"; caption.rows = 1; caption.value = value.caption;
+    caption.placeholder = "Caption (optional): sent as text before the picture"; caption.setAttribute("aria-label", "Caption");
+    caption.addEventListener("input", () => { this.host.autosize(caption); const current = this.states.image as PictureState; this.setState(new PictureState(caption.value, current.picture)); });
+    const paste = (e: ClipboardEvent) => { const file = JudgeView.pictureIn(e.clipboardData); if (file) { e.preventDefault(); void this.usePicture(file, file.name || "pasted.png"); } };
+    zone.addEventListener("paste", paste); caption.addEventListener("paste", paste);
+    box.append(input, zone, meta, caption);
+    return box;
   }
 
   // ─── The result ──────────────────────────────────────────────────
@@ -463,7 +569,7 @@ export class JudgeView {
     run.disabled = Boolean(this.running) || !this.host.runtimeReady() || Boolean(why);
     run.title = why ?? "";
     $("judge-state-error").hidden = !(this.spec.shape === "fields" && this.objectError);
-    $("judge-state-error").textContent = this.objectError ?? "";
+    $("judge-state-error").textContent = this.spec.shape === "fields" ? this.objectError ?? "" : "";
     $<HTMLButtonElement>("judge-stop").disabled = !this.running;
     const v = this.verdict;
     const tokens = v && (v.inputTokens !== undefined || v.outputTokens !== undefined) ? ` · input ${v.inputTokens ?? "unreported"} · output ${v.outputTokens ?? "unreported"}` : "";

@@ -11,7 +11,9 @@ import { test } from "node:test";
 import { chromium, type Page } from "playwright-core";
 import { startDemo } from "../scripts/serve-playground.ts";
 import { findBrowsers } from "./support/browser.ts";
-import { disableDiscovery, keyState, useKey, waitKeyState } from "./support/playground.ts";
+import { disableDiscovery, keyState, useKey, waitKeyState, waitRuntimeReady } from "./support/playground.ts";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 test("Judge defaults to Jev, restores mode-specific choices, and starts on Jev after reload", { timeout: 60_000 }, async (t) => {
   const installed = findBrowsers().find(b => b.name === "chromium");
@@ -204,6 +206,100 @@ test("Judge: one state, the question form is the schema, one call draws what was
     await page.waitForFunction(() => document.body.dataset.mode === "chat");
     assert.equal(await page.locator("#transcript article").count(), 2);
     assert.match(await page.locator("#code").textContent() ?? "", /ResponseStream/);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    await close(demo.server);
+  }
+});
+
+test("Judge with a picture: the example photo, a phone-sized PNG and a WebP made to fit, the same request from all five languages, the device keeps the caption only", { timeout: 600_000 }, async () => {
+  const installed = findBrowsers().find((b) => b.name === "chromium");
+  assert.ok(installed);
+  const demo = await startDemo();
+  const origin = new URL(demo.url).origin;
+  const browser = await chromium.launch({ executablePath: installed.bin });
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const sent: Array<{ body: { state: unknown; assets?: Record<string, { type: string; format: string; data_base64: string }>; questions: Record<string, { type: string }> }; images: string | undefined }> = [];
+  await page.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin === origin) return route.continue();
+    assert.equal(url.href, "https://api.typesafe.ai/v1/systemone");
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "POST" } });
+    const body = route.request().postDataJSON();
+    sent.push({ body, images: route.request().headers()["typesafe-danger-zone-images"] });
+    return route.fulfill({ json: JEV_ANSWER(body.questions), headers: { "Access-Control-Allow-Origin": origin } });
+  });
+  const code = () => page.locator("#code").textContent().then((t) => t ?? "");
+  const example = readFileSync(fileURLToPath(new URL("../src/playground/examples/deer-and-fawn.jpg", import.meta.url))).toString("base64");
+  try {
+    await page.goto(demo.url);
+    await openJudgeWithTypeSafe(page);
+    await page.locator('#judge-shape [data-shape="image"]').click();
+    // The example: the photo, shown, sent as it is; the code opens it by name.
+    await page.waitForFunction(() => { const img = document.querySelector<HTMLImageElement>("#judge-picture img"); return Boolean(img && img.complete && img.naturalWidth === 1024); });
+    assert.match(await page.locator("#judge-picture-meta").textContent() ?? "", /^deer-and-fawn\.jpg · 1024 × 768 · \d+ KB · sent as it is$/);
+    assert.equal(await page.getByLabel("Caption").inputValue(), "Field camera, edge of the forest, June.");
+    assert.match(await page.locator("#judge-paths-hint").textContent() ?? "", /Name the picture in a question/);
+    await page.waitForFunction(() => /fetch\("deer-and-fawn\.jpg"\)/.test(document.getElementById("code")?.textContent ?? ""));
+    assert.match(await code(), /image\(\{ data: picture, mediaType: "image\/jpeg" \}\)/);
+    await page.locator("#judge-run").click();
+    await page.waitForFunction(() => document.getElementById("judge-usage")?.textContent?.startsWith("judged"));
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0]!.body.state, ["Field camera, edge of the forest, June.", "<lm15-image-1>"]);
+    assert.deepEqual(sent[0]!.body.assets, { "<lm15-image-1>": { type: "image", format: "jpg", data_base64: example } }, "the example's bytes, untouched");
+    assert.equal(sent[0]!.images, "true", "the opt-in header goes with the picture");
+
+    // The Request view shortens the base64 and says so.
+    await page.locator('[data-code-view="request"]').click();
+    await page.waitForFunction(() => /characters of base64 in all/.test(document.getElementById("code")?.textContent ?? ""));
+    assert.match(await page.locator("#request-note").textContent() ?? "", /shortened here/);
+    assert.match(await code(), /typesafe-danger-zone-images: true/i);
+    await page.locator('[data-code-view="code"]').click();
+
+    // A phone-sized PNG: resized in the page, and, too large to stay lossless, saved as JPEG; the page says both.
+    await page.locator("#judge-picture-file").setInputFiles(fileURLToPath(new URL("./fixtures/wide.png", import.meta.url)));
+    await page.waitForFunction(() => /resized from 2000 × 1000/.test(document.getElementById("judge-picture-meta")?.textContent ?? ""));
+    assert.match(await page.locator("#judge-picture-meta").textContent() ?? "", /^wide\.jpg · 1568 × 784 · \d+ KB · saved as JPEG, resized from 2000 × 1000 in this page$/);
+    await page.waitForFunction(() => /fetch\("wide\.jpg"\)/.test(document.getElementById("code")?.textContent ?? ""));
+    // A WebP: converted.
+    await page.locator("#judge-picture-file").setInputFiles(fileURLToPath(new URL("./fixtures/circle.webp", import.meta.url)));
+    await page.waitForFunction(() => /converted from WebP to JPEG/.test(document.getElementById("judge-picture-meta")?.textContent ?? ""));
+    assert.match(await page.locator("#judge-picture-meta").textContent() ?? "", /^circle\.jpg · 600 × 400 · /);
+
+    // Every language sends the same request for the picture (JavaScript's was sent above with the example; this one is the WebP made JPEG).
+    const before = sent.length;
+    for (const language of ["javascript", "python", "rust", "go", "r"]) {
+      await page.locator(`[data-language="${language}"]`).click();
+      await waitRuntimeReady(page, language);
+      const count: number = sent.length;
+      await page.locator("#judge-run").click();
+      for (let i = 0; sent.length === count && i < 600; i++) await page.waitForTimeout(100);
+      await page.waitForFunction(() => document.getElementById("judge-usage")?.textContent?.startsWith("judged") && document.getElementById("judge-run")?.textContent === "Judge");
+      assert.match(await page.locator("#judge-usage").textContent() ?? "", new RegExp(language === "javascript" ? "JavaScript" : language, "i"));
+    }
+    const runs = sent.slice(before);
+    assert.equal(runs.length, 5, "one call per language");
+    for (const run of runs) {
+      assert.deepEqual(run.body.state, ["Field camera, edge of the forest, June.", "<lm15-image-1>"]);
+      assert.equal(run.body.assets!["<lm15-image-1>"]!.format, "jpg");
+      assert.equal(run.body.assets!["<lm15-image-1>"]!.data_base64, runs[0]!.body.assets!["<lm15-image-1>"]!.data_base64, "the same bytes from every language");
+      assert.equal(run.images, "true");
+    }
+    await page.locator('[data-language="javascript"]').click();
+
+    // The caption is remembered; a picture of yours is not. The untouched example comes back by itself.
+    await page.getByLabel("Caption").fill("Back garden, 6 am.");
+    await page.reload();
+    await page.waitForFunction(() => document.body.dataset.mode === "judge");
+    assert.equal(await page.getByLabel("Caption").inputValue(), "Back garden, 6 am.");
+    assert.match(await page.locator("#judge-picture").textContent() ?? "", /Choose a picture/);
+    assert.equal(await page.locator("#judge-run").isDisabled(), true);
+    await page.getByRole("button", { name: "Reset", exact: true }).click();
+    await page.locator('#judge-shape [data-shape="image"]').click();
+    await page.waitForFunction(() => document.querySelector<HTMLImageElement>("#judge-picture img")?.naturalWidth === 1024);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

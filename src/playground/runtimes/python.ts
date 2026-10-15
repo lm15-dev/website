@@ -11,7 +11,8 @@
 
 import { Message, Response, type Request } from "@lm15/lm15/browser";
 import { EXAMPLE_API_KEY, examplePython, keyless, streams, type Connection, type Settings, type Wire } from "../experience.ts";
-import { isJudgeRequest, judgePython, specOfRequest, type JudgeSource } from "../judge.ts";
+import { PictureState, isJudgeRequest, judgePython, specOfRequest, type JudgeSource } from "../judge.ts";
+import { bytesOf } from "../picture.ts";
 import type { Runtime } from "./index.ts";
 import { fetchWithProgress, fileSizes, megabytes, paint, type Report } from "./progress.ts";
 import { translatePythonError as translate } from "../error-display.ts";
@@ -21,6 +22,7 @@ interface Pyodide {
   setStdout(options: { write?: (buffer: Uint8Array) => number; batched?: (line: string) => void }): void;
   loadPackage(name: string, options?: { messageCallback?: (m: string) => void }): Promise<unknown>;
   globals: { get(name: string): unknown; delete(name: string): void };
+  FS: { writeFile(path: string, data: Uint8Array): void };
 }
 
 // Relative to the built module: works locally and under a versioned static release.
@@ -78,6 +80,11 @@ async function boot(report: Report): Promise<Pyodide> {
   return loading;
 }
 
+/** A picture state's file, where the shown program opens it (`image(path=...)`, relative to Pyodide's working directory). */
+export function placePicture(py: Pick<Pyodide, "FS">, source: JudgeSource | undefined): void {
+  if (source?.value instanceof PictureState && source.value.picture) py.FS.writeFile(source.value.picture.name, bytesOf(source.value.picture));
+}
+
 /** The displayed source with the key in place of the placeholder: what actually executes. */
 export function withKey(source: string, key: string | undefined, connection: Connection): string {
   if (keyless(connection.provider)) return source;
@@ -110,6 +117,7 @@ export const pythonRuntime: Runtime = {
     // is the shown program's; the head runs up to the call.
     const judged = isJudgeRequest(request);
     const from = source ?? (judged ? specOfRequest(request) : undefined);
+    placePicture(py, from);
     const shown = (from ? judgePython(connection, from.spec, from.value) : examplePython(connection, settingsOf(request), ...splitArgs(request))).text;
     const head = shown.split(/\n(?:result = AsyncResponseStream|response = await lm\.complete)/)[0]!
       .replace(/\bAsync(OpenAILM|OpenAIChatLM|AnthropicLM|GeminiLM|TypeSafeLM)\b/g, "$1")
@@ -150,7 +158,9 @@ json.dumps(response_to_dict(response))
   async judge(connection, key, request, signal, source): Promise<Response> {
     const py = await boot(() => {});
     py.setStdout({ batched: () => {} });
-    const program = withKey(judgeProgram(connection, request, source), key, connection);
+    const from = source ?? specOfRequest(request);
+    placePicture(py, from);
+    const program = withKey(judgeProgram(connection, request, from), key, connection);
     // Pyodide cannot interrupt a running coroutine from here; an abort is honoured between inputs by the caller, and the reply of a stopped call is dropped.
     try {
       const out = String(await py.runPythonAsync(program));

@@ -127,8 +127,8 @@ technical status paragraph.
 
 Judge asks one question set about one state, in one call (MAP-14: declared
 keys in, a distribution out). The layout is the chat's: on the left the
-**State** (a Text / Fields / Conversation switch on its header; a text box, a
-JSON object, or a transcript of turns) above the **Questions**; on the right
+**State** (a Text / Fields / Conversation / Image switch on its header; a text
+box, a JSON object, a transcript of turns, or a picture with a caption) above the **Questions**; on the right
 the code for that one call. **Judge** beside the provider and model chips makes
 the call; the **Result** then appears under the questions — the pick per
 question with a sparkline where the provider measured a distribution (hover or
@@ -157,8 +157,26 @@ Z.AI's wire takes no schema at all: the result says the questions never
 reached the model. All four SDKs execute Judge using `complete`, never a
 simulated stream.
 
+**Image** (lm15-contract changes/2026-10-14-jev-images.md): a picture, chosen,
+dropped or pasted, and an optional caption, sent as one user message (caption,
+then image) to every provider; on Jev lm15 sends the parts as the state's list,
+the bytes as an asset, with TypeSafe's opt-in header. `picture.ts` prepares the
+file the way a careful app would before calling lm15, which never changes media:
+a PNG or JPEG that already fits Jev's limits (280–1568 pixels a side; 280, not
+the documented 256, is what the server took on 2026-10-14) goes byte for byte;
+anything else (another format, an animation, a JPEG with a rotation tag, a photo
+too large or too small) is drawn upright on a canvas at a size that fits and
+encoded again, and the line under the preview says what was done. The code opens
+the picture by its file name in every language (Python under Pyodide finds it in
+its file system, where `runtimes/python.ts` writes it; the others take the
+canonical request). Rust's and R's path constructors label any picture PNG, so
+their code states the type. The example is a public-domain National Park Service
+photo of a doe and a spotted fawn (`examples/`, `licenses/example-picture.txt`).
+The Request view shortens the base64 and says so. The page's CSP allows images
+from itself and `blob:` only, for the preview.
+
 The state and the questions are remembered on the device
-(`lm15.playground.judge`); a result never is. Reset restores the example.
+(`lm15.playground.judge`); a result never is, nor a picture (its caption is). Reset restores the example.
 TypeSafe answers judgments only: choosing it from Chat opens Judge. The Chat
 button restores the previous chat provider rather than trying to chat with Jev.
 

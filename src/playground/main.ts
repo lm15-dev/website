@@ -255,8 +255,11 @@ async function updateRequestView(version: number, settingsError: string, text: s
     const lines = [`${wire.method} ${wire.url}`, "", ...wire.headers.map(([k, v]) => `${k}: ${v}`), ""];
     let body = wire.body;
     try { body = stringifyJson(parseJson(wire.body), { indent: 2 }); } catch { /* not JSON: as is */ }
+    // A picture is hundreds of kilobytes of base64 on one line: shown shortened, and the note says so.
+    let shortened = 0;
+    body = body.replace(/"([A-Za-z0-9+/]{2048,}={0,2})"/g, (_, b64: string) => { shortened++; return `"${b64.slice(0, 32)}… ${b64.length.toLocaleString("en")} characters of base64 in all …"`; });
     lines.push(body);
-    note.textContent = `Built by ${chosen.label} for ${which}, not sent.${credentials.get(connection.provider) ? " Your key is blanked here." : " The example key stands in for yours."}`;
+    note.textContent = `Built by ${chosen.label} for ${which}, not sent.${credentials.get(connection.provider) ? " Your key is blanked here." : " The example key stands in for yours."}${shortened ? ` The picture's base64 is shortened here, and when copied; the request carries all of it.` : ""}`;
     note.hidden = false;
     renderCode($("code"), wireCode(redact(lines.join("\n").split(key).join("[your key]")), wire.headers.length));
   } catch (e) {

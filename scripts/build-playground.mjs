@@ -45,6 +45,8 @@ export function buildPlayground({ production = true } = {}) {
     copy(tlsWasm, 'dist/tls/lm15-tls.wasm');
   }
   copy(join(root, 'src/playground/app.css'), 'playground/app.css');
+  // Judge's example picture (licenses/example-picture.txt), beside the module that fetches it.
+  for (const file of filesUnder(join(root, 'src/playground/examples'))) copy(file, `playground/examples/${relative(join(root, 'src/playground/examples'), file)}`);
   copy(join(root, 'src/styles/theme.css'), 'playground/theme.css');
   copy(join(root, 'src/styles/code.css'), 'playground/code.css');
   const wheels = readdirSync(join(sdk, 'runtime')).filter(name => /^lm15-.*-py3-none-any\.whl$/.test(name));

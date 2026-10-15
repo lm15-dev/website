@@ -239,6 +239,13 @@ dialog::backdrop { background: #10241c55; }
 .state-text:focus, .state-json:focus { border-style: solid; }
 .judge-state .convo { padding: 8px 4px; border: 1px dashed var(--strong-line); border-radius: 7px; }
 .judge-state .msg textarea { font-size: 14px; line-height: 1.7; }
+.judge-state .picture { display: flex; flex-direction: column; gap: 8px; }
+.picture-zone { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 160px; padding: 6px; border: 1px dashed var(--strong-line); border-radius: 7px; background: transparent; cursor: pointer; color: inherit; font: inherit; }
+.picture-zone:hover, .picture-zone:focus-visible, .picture-zone.over { border-style: solid; }
+.picture-zone img { display: block; max-width: 100%; max-height: 340px; border-radius: 4px; object-fit: contain; }
+.picture-empty { opacity: .7; font-size: 14px; }
+.picture-meta { margin: 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.picture-meta.bad { color: var(--danger); }
 #judge-result.stale #judge-answers { opacity: .55; }
 #judge-answers pre { margin: 0; font: 12.5px/1.55 ui-monospace, Consolas, monospace; color: var(--code-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .run-composer { padding: 0; }

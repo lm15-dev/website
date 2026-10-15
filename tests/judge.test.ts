@@ -153,3 +153,69 @@ test("a verdict keeps the pick, the distribution where measured, the method and 
   assert.equal(distribution(quality, pick), undefined);
   assert.deepEqual(pick.adaptations, [{ field: "config.probabilities", action: "dropped", reason: "no distribution on this wire" }]);
 });
+
+// ─── The image shape (lm15-contract changes/2026-10-14-jev-images.md) ────
+
+import { PictureState, judgeR } from "../src/playground/judge.ts";
+import { fileName, fitted, isAnimatedPng, jpegOrientation, sniff } from "../src/playground/picture.ts";
+
+const PNG = "iVBORw0KGgo=";
+const pictured = (caption: string) => new PictureState(caption, { name: "door.png", mediaType: "image/png", data: PNG, width: 320, height: 280 });
+const IMAGE: JudgeSpec = { ...EXAMPLE_SPEC, shape: "image" };
+
+test("a picture is one user message, caption then image; on Jev lm15 sends the list with the bytes as an asset and the opt-in header", async () => {
+  const built = await createClient(typesafe, "k").buildRequest(judgeRequest(typesafe, IMAGE, pictured("Front door, 9 pm.")), false);
+  const body = JSON.parse(utf8Decode(built.body)) as { state: unknown; assets: Record<string, unknown> };
+  assert.deepEqual(body.state, ["Front door, 9 pm.", "<lm15-image-1>"]);
+  assert.deepEqual(body.assets, { "<lm15-image-1>": { type: "image", format: "png", data_base64: PNG } });
+  assert.equal(built.headers.find(([k]) => k === "TypeSafe-Danger-Zone-Images")?.[1], "true");
+  // No caption: the picture alone is the state.
+  const alone = JSON.parse(utf8Decode((await createClient(typesafe, "k").buildRequest(judgeRequest(typesafe, IMAGE, pictured("  ")), false)).body)) as { state: unknown };
+  assert.equal(alone.state, "<lm15-image-1>");
+  // A chat wire gets the same message: text, then the image.
+  const chat = judgeRequest(openai, IMAGE, pictured("Front door."));
+  assert.deepEqual(chat.messages[0]!.parts.map((p) => p.type), ["text", "image"]);
+  // Read back for a runtime without the source: the same picture.
+  const back = specOfRequest(chat);
+  assert.equal(back.spec.shape, "image");
+  assert.ok(back.value instanceof PictureState && back.value.caption === "Front door." && back.value.picture?.data === PNG);
+  assert.throws(() => judgeRequest(typesafe, IMAGE, new PictureState("x")), /Choose a picture/);
+});
+
+test("the code opens the picture by file name in every language, and Rust and R say its type (their path constructors do not infer it)", () => {
+  const value = pictured("Front door.");
+  const js = judgeJavascript(typesafe, IMAGE, value).text;
+  assert.match(js, /^import \{ .*\bimage\b.* \} from "@lm15\/lm15\/browser";$/m);
+  assert.match(js, /fetch\("door\.png"\)/);
+  assert.match(js, /image\(\{ data: picture, mediaType: "image\/png" \}\)/);
+  assert.match(js, /messages: \[Message\.user\(state\)\],/);
+  const py = judgePython(typesafe, IMAGE, value).text;
+  assert.match(py, /^from lm15\.types import image$/m);
+  assert.match(py, /state = \[\n    "Front door\.",\n    image\(path="door\.png"\),\n\]/);
+  assert.doesNotMatch(py, /\bdata\(/);
+  assert.match(judgeGo(typesafe, IMAGE, value).text, /lm15\.Image\(lm15\.WithPath\("door\.png"\)\)/);
+  assert.match(judgeGo(typesafe, IMAGE, value).text, /lm15\.UserParts\(state\.\.\.\)/);
+  assert.match(judgeRust(typesafe, IMAGE, value).text, /Part::Image\(ImagePart \{\n\s+media_type: "image\/png"\.into\(\),\n\s+path: Some\("door\.png"\.into\(\)\),/);
+  assert.match(judgeR(typesafe, IMAGE, value).text, /image_part\(path = "door\.png", media_type = "image\/png"\)/);
+  // No caption, no caption line.
+  assert.doesNotMatch(judgePython(typesafe, IMAGE, pictured("")).text, /^    "",$/m);
+});
+
+test("picture preparation: formats by their bytes, the rotation tag, animations, the size that fits, a name the code can open", () => {
+  assert.equal(sniff(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10])), "png");
+  assert.equal(sniff(Uint8Array.from([0xff, 0xd8, 0xff, 0xe0])), "jpeg");
+  assert.equal(sniff(new TextEncoder().encode("RIFF....WEBP")), "other");
+  // An EXIF block with orientation 6 (turned 90°), big-endian.
+  const exif = Uint8Array.from([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x22, 0x45, 0x78, 0x69, 0x66, 0, 0, 0x4d, 0x4d, 0, 0x2a, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 0xff, 0xda]);
+  assert.equal(jpegOrientation(exif), 6);
+  assert.equal(jpegOrientation(Uint8Array.from([0xff, 0xd8, 0xff, 0xda])), 1);
+  const chunk = (type: string) => [0, 0, 0, 0, ...new TextEncoder().encode(type), 0, 0, 0, 0];
+  assert.equal(isAnimatedPng(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, ...chunk("acTL"), ...chunk("IDAT")])), true);
+  assert.equal(isAnimatedPng(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, ...chunk("IDAT")])), false);
+  assert.deepEqual(fitted(4032, 3024), { width: 1568, height: 1176, drawWidth: 1568, drawHeight: 1176 }, "a phone photo shrinks to 1568 on its long side");
+  assert.deepEqual(fitted(200, 150), { width: 373, height: 280, drawWidth: 373, drawHeight: 280 }, "a small picture grows to 280 on its short side");
+  assert.deepEqual(fitted(3000, 200), { width: 1568, height: 280, drawWidth: 1568, drawHeight: 105 }, "too thin for both limits: padded, never stretched");
+  assert.equal(fileName("IMG 2034 (copy).HEIC", "jpeg"), "IMG-2034-copy.jpg");
+  assert.equal(fileName("été.png", "png"), "ete.png");
+  assert.equal(fileName("", "png"), "picture.png");
+});

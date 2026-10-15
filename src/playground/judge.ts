@@ -7,26 +7,48 @@
  * `judgmentsInSchema` and writes them back with the SDK's `choice`,
  * `yesNo` and `score`, so nothing here invents a second schema format.
  *
- * The state has a shape — a text, a JSON object, or a conversation —
- * because Jev reads all three (contract D6: a string, a data part's value,
- * or `{messages}`), and a question can point at a piece of a structured
- * state with backticks (`` `note` ``, `` `messages[1].content` ``). The
- * same request goes to any chat provider, which answers the pick without
- * the numbers.
+ * The state has a shape — a text, a JSON object, a conversation, or a
+ * picture with a caption — because Jev reads all four (contract D6: a
+ * string, a data part's value, or `{messages}`; 2026-10-14: an image part
+ * beside text, sent as the list of its parts), and a question can point at
+ * a piece of a structured state with backticks (`` `note` ``,
+ * `` `messages[1].content` ``). The same request goes to any chat provider,
+ * which answers the pick without the numbers.
  *
  * The rendered code is what runs (runtimes/): the JavaScript is this
  * page's client, the Python executes under Pyodide as shown. Nothing here
  * touches the DOM or the network.
  */
 
-import { Message, RawNumber, Request as RequestNs, choice, isJsonObject, judgments, judgmentsInSchema, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "@lm15/lm15/browser";
+import { Message, RawNumber, Request as RequestNs, choice, image, isJsonObject, judgments, judgmentsInSchema, parseJson, score, stringifyJson, yesNo, type Config, type Judgment, type JsonObject, type JsonValue, type Request, type Response } from "@lm15/lm15/browser";
 import { GO_ERR, goProgram, jsClient, judgmentsOnly, pyClient, pyImports, rClient, rName, rString, rqv, rustClient, rustString, rv, type Connection } from "./experience.ts";
 import { api, comment, dim, finish, group, mark, plain, quotedValue, val, type Code } from "./marks.ts";
 
-export type Shape = "text" | "fields" | "conversation";
+export type Shape = "text" | "fields" | "conversation" | "image";
 export interface Turn { readonly role: "user" | "assistant"; readonly content: string }
-/** The state, in the set's shape: a text, a JSON object, or a transcript. */
-export type StateValue = string | Readonly<Record<string, JsonValue>> | readonly Turn[];
+
+/** A picture as the page holds it: the bytes it sends (base64), under the file name the shown code reads. */
+export interface Picture {
+  /** The file name the programs open (`image(path=...)`); its extension matches `mediaType`. */
+  readonly name: string;
+  readonly mediaType: "image/png" | "image/jpeg";
+  /** Base64 of exactly the bytes sent. */
+  readonly data: string;
+  readonly width: number;
+  readonly height: number;
+  /** What the page did to the file before sending it (resized, converted, rotated), in words; absent when it is sent as it was. */
+  readonly prepared?: string;
+}
+
+/** The `image` shape: a picture and an optional caption. A class, so a `fields` object can never pass for one. */
+export class PictureState {
+  readonly caption: string;
+  readonly picture: Picture | undefined;
+  constructor(caption: string, picture?: Picture) { this.caption = caption; this.picture = picture; }
+}
+
+/** The state, in the set's shape: a text, a JSON object, a transcript, or a picture. */
+export type StateValue = string | Readonly<Record<string, JsonValue>> | readonly Turn[] | PictureState;
 
 export interface JudgeSpec {
   /** The `properties` of the judgments schema, verbatim (what `judgments(...)` takes). */
@@ -109,11 +131,13 @@ export function parseProperties(text: string): JsonObject {
 
 export function emptyState(shape: Shape): StateValue {
   if (shape === "text") return "";
+  if (shape === "image") return new PictureState("");
   if (shape === "fields") return {};
   return [{ role: "user", content: "" }];
 }
 
 export function stateIsBlank(value: StateValue): boolean {
+  if (value instanceof PictureState) return value.picture === undefined;
   if (typeof value === "string") return !value.trim();
   if (Array.isArray(value)) return (value as readonly Turn[]).every((t) => !t.content.trim());
   return Object.keys(value as Record<string, JsonValue>).length === 0;
@@ -135,12 +159,20 @@ export function parseStateObject(text: string): Readonly<Record<string, JsonValu
  * own `messages` array. The shown code does exactly this; no adapter does anything.
  */
 export function jevState(value: StateValue): JsonValue {
+  if (value instanceof PictureState) throw new Error("A picture is not JSON: it goes as an image part (pictureParts).");
   if (Array.isArray(value)) return { messages: (value as readonly Turn[]).map((t) => ({ role: t.role, content: t.content })) };
   return value as JsonValue;
 }
 
-/** The messages the state makes: on Jev the one user part holding it; on a chat wire the text, the data part, or the transcript. */
+/** A picture state's parts, in the order the code writes them: the caption when there is one, then the image. */
+export function pictureParts(value: PictureState): Array<string | ReturnType<typeof image>> {
+  if (!value.picture) throw new Error("Choose a picture to judge.");
+  return [...(value.caption.trim() ? [value.caption] : []), image({ data: value.picture.data, mediaType: value.picture.mediaType })];
+}
+
+/** The messages the state makes: on Jev the one user part holding it; on a chat wire the text, the data part, or the transcript. A picture is the same user message everywhere (on Jev, lm15 sends its parts as the state's list). */
 export function judgeMessages(connection: Connection, value: StateValue): Message[] {
+  if (value instanceof PictureState) return [Message.user(pictureParts(value))];
   if (judgmentsOnly(connection.provider)) {
     const state = jevState(value);
     return [typeof state === "string" ? Message.user(state) : Message.user({ type: "data", value: state })];
@@ -176,6 +208,11 @@ export function specOfRequest(request: Request): JudgeSource {
   if (format?.type !== "json_schema" || !isJsonObject(format.schema["properties"])) throw new Error("Not a judge request: no judgments schema.");
   const properties = format.schema["properties"];
   const parts = request.messages[0]?.parts ?? [];
+  const picture = parts.find((p) => p.type === "image");
+  if (request.messages.length === 1 && picture?.type === "image" && picture.data !== undefined && (picture.mediaType === "image/png" || picture.mediaType === "image/jpeg")) {
+    const caption = parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+    return { spec: { properties, shape: "image" }, value: new PictureState(caption, { name: picture.mediaType === "image/png" ? "picture.png" : "picture.jpg", mediaType: picture.mediaType, data: picture.data, width: 0, height: 0 }) };
+  }
   if (request.messages.length === 1 && request.messages[0]!.role === "user" && parts.length === 1 && parts[0]!.type === "data" && isJsonObject(parts[0]!.value)) {
     return { spec: { properties, shape: "fields" }, value: parts[0]!.value };
   }
@@ -360,6 +397,7 @@ const SHAPE_NOTE: Record<Shape, string> = {
   text: "The state: a text",
   fields: "The state: an object. Jev reads it as structured state, and a question can point at a field with backticks; a chat wire gets it as JSON text",
   conversation: "The state: a conversation. Jev takes it as the state's `messages` array, and a question can point at a turn (`messages[1].content`); a chat wire gets the turns as its conversation",
+  image: "The state: a picture and its caption. Jev sees the picture itself: name it in a question (\"the image\")",
 };
 const DATA_NOTE = "the picked key per judgment";
 const PROBABILITIES_NOTE = "one distribution per judgment where the provider measures one; else %s and recorded";
@@ -402,12 +440,19 @@ function echoLines(echo: Echo | undefined, lang: "javascript" | "python" | "go" 
 /** The JavaScript of one call: this page's client, loaded as `lm15/browser`. */
 export function judgeJavascript(connection: Connection, spec: JudgeSpec, value: StateValue, echo?: Echo): Code {
   const { lines: questionLines, uses } = questionsCode(spec, "javascript");
-  const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", ...(connection.provider === "anthropic" ? ["access"] : []), "Message", "Request", "judgments", ...[...uses].sort()];
+  const pictured = value instanceof PictureState;
+  const imports = [connection.provider === "custom" ? "OpenAIChatLM" : "adapterFor", ...(connection.provider === "anthropic" ? ["access"] : []), "Message", "Request", ...(pictured ? ["image"] : []), "judgments", ...[...uses].sort()];
   const jev = judgmentsOnly(connection.provider);
   const lines = [dim(`import { ${imports.join(", ")} } from "@lm15/lm15/browser";`), "", ...jsClient(connection), `const model = ${qv(connection.model, "model")};`];
-  lines.push("", comment(`// ${SHAPE_NOTE[spec.shape]}.`), `const state = ${group(jsState(value, 0, jev), STATE_SOURCE)};`, "");
+  if (value instanceof PictureState) {
+    const picture = value.picture!;
+    lines.push("", comment(`// ${SHAPE_NOTE.image}.`), group([
+      `const picture = new Uint8Array(await (await fetch(${qv(picture.name)})).arrayBuffer()); ${comment(`// in Node: readFileSync(${q(picture.name)})`)}`,
+      `const state = [`, ...(value.caption.trim() ? [`  ${qv(value.caption)},`] : []), `  ${api("image")}({ data: picture, mediaType: ${q(picture.mediaType)} }),`, "];",
+    ].join("\n"), STATE_SOURCE), "");
+  } else lines.push("", comment(`// ${SHAPE_NOTE[spec.shape]}.`), `const state = ${group(jsState(value, 0, jev), STATE_SOURCE)};`, "");
   lines.push(comment("// Declared keys in, a distribution out (MAP-14)."), `const questions = ${api("judgments")}({`, ...questionLines, "});", "");
-  const messages = jev
+  const messages = pictured ? `[${api("Message.user")}(state)]` : jev
     ? (spec.shape === "text" ? `[${api("Message.user")}(state)]` : spec.shape === "fields" ? `[${api("Message.user")}({ type: "data", value: state })]` : `[${api("Message.user")}({ type: "data", value: { messages: state } })]`)
     : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `[${api("Message.user")}({ type: "data", value: state })]` : `[${api("Message.user")}(state)]`);
   const [data, probabilities, adaptations] = echoLines(echo, "javascript", "//");
@@ -424,11 +469,16 @@ export function judgePython(connection: Connection, spec: JudgeSpec, value: Stat
   const client = pyClient(connection);
   const { lines: questionLines, uses } = questionsCode(spec, "python");
   const jev = judgmentsOnly(connection.provider);
-  const usesData = spec.shape === "fields" || (jev && spec.shape === "conversation");
-  const lines = pyImports([client.cls, "Config", "Message", "Request", "judgments", ...(usesData ? ["data"] : []), ...uses], connection);
-  lines.push("", ...client.lines, `model = ${qv(connection.model, "model")}`, "", comment(`# ${SHAPE_NOTE[spec.shape]}.`), `state = ${group(pyState(value, 0, jev), STATE_SOURCE)}`, "");
+  const pictured = value instanceof PictureState;
+  const usesData = !pictured && (spec.shape === "fields" || (jev && spec.shape === "conversation"));
+  const lines = pyImports([client.cls, "Config", "Message", "Request", "judgments", ...(usesData ? ["data"] : []), ...uses], connection, pictured ? ["from lm15.types import image"] : []);
+  if (value instanceof PictureState) {
+    lines.push("", ...client.lines, `model = ${qv(connection.model, "model")}`, "", comment(`# ${SHAPE_NOTE.image}.`), group([
+      "state = [", ...(value.caption.trim() ? [`    ${qv(value.caption)},`] : []), `    ${api("image")}(path=${qv(value.picture!.name)}),`, "]",
+    ].join("\n"), STATE_SOURCE), "");
+  } else lines.push("", ...client.lines, `model = ${qv(connection.model, "model")}`, "", comment(`# ${SHAPE_NOTE[spec.shape]}.`), `state = ${group(pyState(value, 0, jev), STATE_SOURCE)}`, "");
   lines.push(comment("# Declared keys in, a distribution out (MAP-14)."), `questions = ${api("judgments")}(`, ...questionLines, ")", "");
-  const messages = jev
+  const messages = pictured ? `[${api("Message.user")}(state)]` : jev
     ? (spec.shape === "text" ? `[${api("Message.user")}(state)]` : spec.shape === "fields" ? `[${api("Message.user")}(${api("data")}(state))]` : `[${api("Message.user")}(${api("data")}({"messages": state}))]`)
     : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `[${api("Message.user")}(${api("data")}(state))]` : `[${api("Message.user")}(state)]`);
   const [data, probabilities, adaptations] = echoLines(echo, "python", "#");
@@ -474,7 +524,9 @@ export function judgeGo(connection: Connection, spec: JudgeSpec, value: StateVal
   const jev = judgmentsOnly(connection.provider);
   // The state first, as on the page; typed by shape: a text, an object, or a transcript (Jev takes a transcript as its own `messages` array).
   const body: string[] = [`    ${comment(`// ${SHAPE_NOTE[spec.shape]}.`)}`];
-  if (spec.shape === "text") body.push(`    state := ${group(qv(value as string), STATE_SOURCE)}`);
+  const pictured = value instanceof PictureState;
+  if (value instanceof PictureState) body.push(`    state := ${group([`[]lm15.Part{`, ...(value.caption.trim() ? [`        ${api("lm15.Text")}(${qv(value.caption)}),`] : []), `        ${api("lm15.Image")}(${api("lm15.WithPath")}(${qv(value.picture!.name)})),`, "    }"].join("\n"), STATE_SOURCE)}`);
+  else if (spec.shape === "text") body.push(`    state := ${group(qv(value as string), STATE_SOURCE)}`);
   else if (spec.shape === "fields") body.push(`    state := ${group(goJson(value as JsonValue, 1, true), STATE_SOURCE)}`);
   else if (jev) body.push(`    state := ${group(`[]lm15.JSONObject{\n${(value as readonly Turn[]).map((t) => `        {lm15.KV("role", ${q(t.role)}), lm15.KV("content", ${qv(t.content)})},`).join("\n")}\n    }`, STATE_SOURCE)}`);
   else body.push(`    state := ${group(`[]lm15.Message{\n${(value as readonly Turn[]).map((t) => `        ${api(t.role === "user" ? "lm15.UserMessage" : "lm15.AssistantText")}(${qv(t.content)}),`).join("\n")}\n    }`, STATE_SOURCE)}`);
@@ -499,7 +551,7 @@ export function judgeGo(connection: Connection, spec: JudgeSpec, value: StateVal
     body.push(group(declared.join("\n"), source), GO_ERR);
   });
   body.push(`    questions, err := ${api("lm15.Judgments")}("judgments", true,`, ...properties.map((p) => `        ${p},`), "    )", GO_ERR);
-  const messages = jev
+  const messages = pictured ? `[]lm15.Message{${api("lm15.UserParts")}(state...)}` : jev
     ? (spec.shape === "text" ? `[]lm15.Message{${api("lm15.UserMessage")}(state)}` : spec.shape === "fields" ? `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(state))}` : `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(lm15.JSONObject{lm15.KV("messages", state)}))}`)
     : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `[]lm15.Message{${api("lm15.UserParts")}(${api("lm15.Data")}(state))}` : `[]lm15.Message{${api("lm15.UserMessage")}(state)}`);
   const [data, probabilities, adaptations] = echoLines(echo, "go", "    //");
@@ -549,7 +601,10 @@ export function judgeR(connection: Connection, spec: JudgeSpec, value: StateValu
   const jev = judgmentsOnly(connection.provider);
   const lines = [dim("library(lm15)"), "", ...rClient(connection), `model <- ${rqv(connection.model, "model")}`, "", comment(`# ${SHAPE_NOTE[spec.shape]}.`)];
   const turns = value as readonly Turn[];
-  const state = spec.shape === "text" ? rqv(value as string)
+  const pictured = value instanceof PictureState;
+  const state = value instanceof PictureState
+    ? `list(\n${[...(value.caption.trim() ? [`  ${rqv(value.caption)}`] : []), `  ${api("image_part")}(path = ${rqv(value.picture!.name)}, media_type = ${rString(value.picture!.mediaType)})`].join(",\n")}\n)`
+    : spec.shape === "text" ? rqv(value as string)
     : spec.shape === "fields" ? rJson(value as JsonValue, 0, true)
     : jev ? `${api("json_array")}(\n${turns.map((t) => `  ${api("json_object")}(role = ${rString(t.role)}, content = ${rqv(t.content)})`).join(",\n")}\n)`
     : `list(\n${turns.map((t) => `  ${api(`message_${t.role}`)}(${rqv(t.content)})`).join(",\n")}\n)`;
@@ -557,7 +612,7 @@ export function judgeR(connection: Connection, spec: JudgeSpec, value: StateValu
   const entries = Object.entries(spec.properties);
   entries.forEach(([name, prop], i) => lines.push(`  ${group(`${val(rName(name))} = ${rQuestion(name, prop)}`, questionSource(name))}${i < entries.length - 1 ? "," : ""}`));
   lines.push(")", "");
-  const messages = jev
+  const messages = pictured ? `list(${api("message_user")}(state))` : jev
     ? (spec.shape === "text" ? `list(${api("message_user")}(state))` : spec.shape === "fields" ? `list(${api("message_user")}(${api("data_part")}(state)))` : `list(${api("message_user")}(${api("data_part")}(${api("json_object")}(messages = state))))`)
     : (spec.shape === "conversation" ? "state" : spec.shape === "fields" ? `list(${api("message_user")}(${api("data_part")}(state)))` : `list(${api("message_user")}(state))`);
   const [data, probabilities] = echoLines(echo, "r", "#");
@@ -618,12 +673,17 @@ export function judgeRust(connection: Connection, spec: JudgeSpec, value: StateV
   }
   // The state, typed by shape: a text, a `json!` object, or a transcript (Jev takes a transcript as its own `messages` array).
   let state: string;
-  if (spec.shape === "text") state = rv(value as string);
+  const pictured = value instanceof PictureState;
+  if (value instanceof PictureState) {
+    uses.add("ImagePart"); uses.add("Part");
+    state = `vec![\n${[...(value.caption.trim() ? [`    ${api("Part::text")}(${rv(value.caption)}),`] : []), `    ${api("Part::Image")}(ImagePart {\n        media_type: ${rustString(value.picture!.mediaType)}.into(),\n        path: Some(${rv(value.picture!.name)}.into()),\n        ..Default::default()\n    }),`].join("\n")}\n]`;
+  } else if (spec.shape === "text") state = rv(value as string);
   else if (spec.shape === "fields") { json = true; state = `json!(${rustJson(value as JsonValue, 0, true)})`; }
   else if (jev) { json = true; state = `json!([\n${(value as readonly Turn[]).map((t) => `    { "role": ${q(t.role)}, "content": ${rv(t.content)} },`).join("\n")}\n])`; }
   else state = `vec![\n${(value as readonly Turn[]).map((t) => `    ${api(`Message::${t.role}`)}(${rv(t.content)})?,`).join("\n")}\n]`;
   let messages: string;
-  if (jev) {
+  if (pictured) messages = `vec![${api("Message::user")}(state)?]`;
+  else if (jev) {
     if (spec.shape === "text") messages = `vec![${api("Message::user")}(state)?]`;
     else { uses.add("Part"); if (spec.shape === "conversation") json = true; messages = `vec![${api("Message::user")}(${api("Part::data")}(${spec.shape === "fields" ? "state" : 'json!({ "messages": state })'}))?]`; }
   } else if (spec.shape === "conversation") messages = "state";
@@ -655,9 +715,14 @@ export const EXAMPLE_SPEC: JudgeSpec = {
 
 export const EXAMPLE_NOTE = "Dusk, edge of the oak grove. Two deer browsing on fallen acorns, one small with spots still showing. Too far to be sure of the species: roe or fallow. They moved off into the trees when a dog barked.";
 
-/** What each shape starts with: the note as a text, as an object, as a conversation. */
+/** The `image` shape's example: a field camera's photo (US National Park Service, public domain; licenses/example-picture.txt). The bytes are fetched by the page, so it starts empty. */
+export const EXAMPLE_PICTURE_NAME = "deer-and-fawn.jpg";
+export const EXAMPLE_CAPTION = "Field camera, edge of the forest, June.";
+
+/** What each shape starts with: the note as a text, as an object, as a conversation; a picture's caption (its bytes come from the page). */
 export function exampleState(shape: Shape): StateValue {
   if (shape === "text") return EXAMPLE_NOTE;
+  if (shape === "image") return new PictureState(EXAMPLE_CAPTION);
   if (shape === "fields") return { note: EXAMPLE_NOTE, distance_m: 80 };
   return [{ role: "user", content: "Anything at the oak grove last night?" }, { role: "assistant", content: `From the field notes: ${EXAMPLE_NOTE}` }];
 }

@@ -18,8 +18,8 @@ import ts from "typescript";
 import { choice, score, utf8Decode, yesNo } from "@lm15/lm15/browser";
 import { CONNECTIONS } from "../src/playground/connections.ts";
 import { EXAMPLE_API_KEY, createClient, keyless, type Connection } from "../src/playground/experience.ts";
-import { EXAMPLE_NOTE, EXAMPLE_SPEC, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, verdictOf, type JudgeSpec, type StateValue } from "../src/playground/judge.ts";
-import { judgeProgram, withKey } from "../src/playground/runtimes/python.ts";
+import { EXAMPLE_CAPTION, EXAMPLE_NOTE, EXAMPLE_PICTURE_NAME, EXAMPLE_SPEC, PictureState, judgeGo, judgeJavascript, judgePython, judgeRequest, judgeRust, verdictOf, type JudgeSpec, type StateValue } from "../src/playground/judge.ts";
+import { judgeProgram, placePicture, withKey } from "../src/playground/runtimes/python.ts";
 import { RustCodec } from "../src/playground/runtimes/rust.ts";
 import { readFileSync } from "node:fs";
 import { Request as RequestNs, Response as CanonicalResponse } from "@lm15/lm15/browser";
@@ -32,11 +32,15 @@ import { JUDGED_TEXT, judgeReplyFor } from "./support/replies.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /** The example's question plus two more (the prepared replies answer all three), over a state of each shape. */
 const THREE: JudgeSpec = { ...EXAMPLE_SPEC, properties: { quality: score("How good is this wine, according to the note?", { faulty: "Faulty or unpleasant", simple: "Simple and sound", good: "Good, well made", excellent: "Excellent, complex and structured", profound: "Profound, exceptional" }), style: choice("What is the dominant style described?", { fruit: "Fruit-forward", oak: "Oak-driven", mineral: "Mineral, savoury" }), ageing: yesNo("Does the note say the wine will improve with age?") } };
+/** The example picture, as the page holds it once read (sent as it is: a 1024 × 768 JPEG). */
+const PICTURE_BYTES = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../src/playground/examples", EXAMPLE_PICTURE_NAME));
+const PICTURE = new PictureState(EXAMPLE_CAPTION, { name: EXAMPLE_PICTURE_NAME, mediaType: "image/jpeg", data: PICTURE_BYTES.toString("base64"), width: 1024, height: 768 });
 const SHAPES: Array<{ spec: JudgeSpec; value: StateValue }> = [
   { spec: THREE, value: EXAMPLE_NOTE },
   { spec: THREE, value: 'Quotes " and a newline\n</script> are text, not executable code.' },
   { spec: { ...THREE, shape: "fields" }, value: { note: EXAMPLE_NOTE, price_eur: 48, tags: null } },
   { spec: { ...THREE, shape: "conversation" }, value: [{ role: "user", content: "Something for ten years?" }, { role: "assistant", content: `The 2019 Pauillac: ${EXAMPLE_NOTE}` }] },
+  { spec: { ...THREE, shape: "image" }, value: PICTURE },
 ];
 const cases = CONNECTIONS.flatMap((choice) => SHAPES.map(({ spec, value }) => ({
   spec, value,
@@ -53,7 +57,7 @@ async function expected(c: (typeof cases)[number], value: StateValue) {
 }
 
 test(`JavaScript: all ${cases.length} judge variants type-check, execute one call, and the call is the page's request`, { timeout: 120_000 }, async (t) => {
-  assert.equal(cases.length, CONNECTIONS.length * 4);
+  assert.equal(cases.length, CONNECTIONS.length * 5);
   const sources = cases.map((c) => judgeJavascript(c.connection, c.spec, c.value).text);
   const files = new Map(sources.map((source, i) => [resolve(root, `src/playground/__judge_${i}.ts`), source]));
   const options: ts.CompilerOptions = { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, strict: true, noEmit: true, skipLibCheck: true, types: [], lib: ["lib.es2023.d.ts", "lib.dom.d.ts"] };
@@ -67,6 +71,7 @@ test(`JavaScript: all ${cases.length} judge variants type-check, execute one cal
 
   let calls: Array<{ url: string; body: string }> = [];
   t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    if (url === EXAMPLE_PICTURE_NAME) return new Response(PICTURE_BYTES); // the program reads its picture file
     calls.push({ url, body: new TextDecoder().decode(init.body as Uint8Array<ArrayBuffer>) });
     return judgeReplyFor(url, Object.keys(THREE.properties));
   });
@@ -95,6 +100,7 @@ test(`Python under Pyodide: all ${cases.length} judge variants execute the progr
   for (const c of cases) {
     // The shown program, whole: it runs, one call.
     const shown = withKey(judgePython(c.connection, c.spec, c.value).text, c.key, c.connection);
+    placePicture(py, { spec: c.spec, value: c.value });
     calls = [];
     try { await py.runPythonAsync(shown); }
     catch (e) { assert.fail(`${c.connection.provider} ${c.spec.shape}: the Python text failed under Pyodide:\n${String((e as Error).message).split("\n").slice(-6).join("\n")}\n---\n${shown}`); }

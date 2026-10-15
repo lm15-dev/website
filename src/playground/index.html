@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-GpD02+bhduuizBe+j54Jp1bp9aF0pfFb1mgPCqSXwSY='; style-src 'self'; connect-src 'self' blob: https: wss: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-GpD02+bhduuizBe+j54Jp1bp9aF0pfFb1mgPCqSXwSY='; style-src 'self'; img-src 'self' blob:; connect-src 'self' blob: https: wss: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; base-uri 'none'; form-action 'self'">
 <title>lm15 playground</title>
 <link rel="stylesheet" href="./app.css">
 <script type="importmap">{"imports":{"@lm15/lm15/browser":"../../dist/browser.js"}}</script>
@@ -114,7 +114,7 @@
     <div class="chat-scroll">
       <section class="judge-block" data-source="state">
         <div class="section-heading"><span id="judge-state-title" class="system-label">State</span>
-          <div class="seg" id="judge-shape" role="group" aria-label="State shape"><button type="button" data-shape="text" aria-pressed="true">Text</button><button type="button" data-shape="fields" aria-pressed="false">Fields</button><button type="button" data-shape="conversation" aria-pressed="false">Conversation</button></div></div>
+          <div class="seg" id="judge-shape" role="group" aria-label="State shape"><button type="button" data-shape="text" aria-pressed="true">Text</button><button type="button" data-shape="fields" aria-pressed="false">Fields</button><button type="button" data-shape="conversation" aria-pressed="false">Conversation</button><button type="button" data-shape="image" aria-pressed="false">Image</button></div></div>
         <div id="judge-state" class="judge-state"></div>
         <p id="judge-state-error" class="field-error" role="status" hidden></p>
         <p id="judge-paths-hint" class="paths-hint" hidden></p>

@@ -1,0 +1,7 @@
+The Judge example picture (playground/examples/deer-and-fawn.jpg)
+
+"White-tailed deer and fawn", Pictured Rocks National Lakeshore.
+Photo: U.S. National Park Service (NPGallery), a work of the United States
+federal government: public domain in the United States.
+Source: https://commons.wikimedia.org/wiki/File:White-tailed_deer_and_fawn_(33ddcd4b-e24f-4354-8f18-286435755600).JPG
+Changes: scaled to 1024 x 768 and saved as JPEG, metadata removed (2026-10-14).
