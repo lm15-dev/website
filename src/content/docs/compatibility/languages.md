@@ -21,11 +21,11 @@ every example on this site.
 
 | Language | Version | Install | Runs on |
 |---|---|---|---|
-| **Python** | 1.2.0, stable | `pip install lm15` | Python 3.10 or newer; Linux, macOS, Windows |
-| **TypeScript** | 1.0.0-rc.4, release candidate | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
-| **Rust** | 1.0.0-rc.4, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
-| **Go** | v1.1.0-rc.3, release candidate | `go get github.com/lm15-dev/lm15-go@v1.1.0-rc.3` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
-| **R** | 1.0.1 | `remotes::install_github("lm15-dev/lm15-r")` (on its way to CRAN: `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
+| **Python** | 1.5.0, stable | `pip install lm15` | Python 3.10 or newer; Linux, macOS, Windows |
+| **TypeScript** | 1.0.0, stable | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
+| **Rust** | 1.0.0-rc.11, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
+| **Go** | v1.1.0-rc.10, release candidate | `go get github.com/lm15-dev/lm15-go@v1.1.0-rc.10` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
+| **R** | 1.4.0 | `remotes::install_github("lm15-dev/lm15-r")` (on its way to CRAN: `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
 
 **Stable** means the core won't change in a way that breaks your program
 until the next major version. A **release candidate** is the version that
@@ -73,7 +73,7 @@ are not available.
 
 | Language | Where it stands | Install |
 |---|---|---|
-| **Julia** | Complete against an earlier version of the contract (September 11); being brought up to date. Julia 1.10 or newer. | From GitHub: `Pkg.add(url="https://github.com/lm15-dev/lm15-jl")` |
+| **Julia** | 1.0.0 passes all 1,921 checks of the current contract, like the released languages; it waits for approval in Julia's package registry. Julia 1.10 or newer. | From GitHub: `Pkg.add(url="https://github.com/lm15-dev/lm15-jl")` |
 
 ## Early ports
 

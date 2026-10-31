@@ -7,15 +7,14 @@ description: The current version of LM15 in each language, what each release con
 
 | Language | Version | Released | Package |
 |---|---|---|---|
-| Python | **1.2.0** (stable) | 2026-09-30 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
-| TypeScript | **1.0.0-rc.4** (release candidate) | 2026-09-30 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
-| Rust | **1.0.0-rc.4** (release candidate) | 2026-09-30 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
-| Go | **v1.1.0-rc.3** (release candidate) | 2026-09-30 | [`github.com/lm15-dev/lm15-go`](https://pkg.go.dev/github.com/lm15-dev/lm15-go) |
-| R | **1.0.1** | 2026-09-30 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
+| Python | **1.5.0** (stable) | 2026-10-15 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
+| TypeScript | **1.0.0** (stable) | 2026-10-31 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
+| Rust | **1.0.0-rc.11** (release candidate) | 2026-10-15 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
+| Go | **v1.1.0-rc.10** (release candidate) | 2026-10-15 | [`github.com/lm15-dev/lm15-go`](https://pkg.go.dev/github.com/lm15-dev/lm15-go) |
+| R | **1.4.0** | 2026-10-15 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
 
-The examples on this site are written for these versions; the
-[playground](/playground/) still runs the builds of 2026-09-26, which the
-2026-09-30 releases don't change for anything it can do in a browser.
+The examples on this site are written for these versions, and the
+[playground](/playground/) runs them.
 Julia 1.0.0 waits for approval in Julia's package registry; see
 [Language and runtime support](/compatibility/languages/).
 
@@ -41,6 +40,77 @@ version forever, so that tag is retracted (Go warns anyone who uses it and
 never selects it on its own) and the first real release is numbered 1.1.
 
 ## Release notes
+
+### TypeScript 1.0.0 — 2026-10-31
+
+The first stable release of LM15 for TypeScript and JavaScript, after eleven
+release candidates. The code is 1.0.0-rc.11's: judgments, pictures for Jev,
+bounding boxes, saved sign-ins. Within 1.x the core now keeps working as
+documented (see [Version numbers](#version-numbers)). It passes all 1,921
+checks of contract `6dc1c5c`, the same as the other languages.
+
+- [Full notes](https://github.com/lm15-dev/lm15-ts/releases/tag/v1.0.0)
+
+### Python 1.5.0, TypeScript and Rust 1.0.0-rc.11, Go v1.1.0-rc.10, R 1.4.0 — 2026-10-15
+
+Released together; each passes all 1,921 checks of contract `6dc1c5c`.
+
+- **Bounding boxes: ask where something is in a picture.** A new judgment
+  (`bounding_box`; `boundingBox` in TypeScript, `BoundingBox` in Go) answers
+  with four edges, each a fraction of the picture. On TypeSafe it is Jev
+  1.14's Box question; on other models the same request becomes ordinary
+  structured output, so one program runs everywhere. See
+  [Judgments](/docs/judgments/).
+- Notes: [Python](https://github.com/lm15-dev/lm15-python/releases/tag/v1.5.0),
+  [TypeScript](https://github.com/lm15-dev/lm15-ts/releases/tag/v1.0.0-rc.11),
+  [Rust](https://github.com/lm15-dev/lm15-rs/releases/tag/v1.0.0-rc.11),
+  [Go](https://github.com/lm15-dev/lm15-go/releases/tag/v1.1.0-rc.10),
+  [R](https://github.com/lm15-dev/lm15-r/releases/tag/v1.4.0).
+
+### Python 1.4.1, TypeScript and Rust 1.0.0-rc.10, Go v1.1.0-rc.9, R 1.3.1 — 2026-10-15
+
+- **A saved cloud login's settings are used.** A Google Cloud login saved
+  with its project and location now sends them; before, the router fell
+  back to the environment and the defaults. Found and fixed by Rolf
+  Fredheim ([lm15-python#21](https://github.com/lm15-dev/lm15-python/pull/21)).
+- `settings` accepts either spelling of a provider name
+  (`vertex_anthropic` or `vertex-anthropic`).
+
+### Python 1.4.0, TypeScript and Rust 1.0.0-rc.9, Go v1.1.0-rc.8, R 1.3.0 — 2026-10-14
+
+- **Jev reads pictures.** A PNG or JPEG in the message sent to TypeSafe's Jev
+  can be judged ("Is there a person in the image?"). TypeSafe calls images
+  beta: check answers on pictures you know first.
+
+### Python 1.3.0, TypeScript and Rust 1.0.0-rc.8, Go v1.1.0-rc.7, R 1.2.0 — 2026-10-12
+
+- **The Meta sign-in reaches the Muse Code subscription**, Muse Wonder Full
+  included. It stays *unverified*: Meta's terms reserve this key for Muse
+  Code, so using it from LM15 puts the account at risk.
+- Python 1.3.0 and TypeScript 1.0.0-rc.8 were tagged but not published;
+  the next versions include them.
+
+### Python 1.2.3, TypeScript and Rust 1.0.0-rc.7, Go v1.1.0-rc.6, R 1.1.2 — 2026-10-10
+
+Each includes the version tagged earlier that day (Python 1.2.2,
+TypeScript 1.0.0-rc.6, Go v1.1.0-rc.5, R 1.1.1).
+
+- **A wrong or expired key is an authentication error on every provider**
+  (Gemini and xAI answer such a key with HTTP 400).
+- **A structured answer reads through `text`** when the reply came back as
+  data (a schema with a yes/no or a fixed list of choices).
+- **A thinking budget alone is enough**: the effort level is filled in from
+  it.
+- Error messages name the fix: `effort="none"` says LM15 spells it `"off"`.
+
+### Python 1.2.1, TypeScript and Rust 1.0.0-rc.5, Go v1.1.0-rc.4, R 1.1.0 — 2026-10-06
+
+- **Long streamed replies no longer fail at the last moment.** Streams take
+  an event of any size; before, a long answer or system prompt could fail
+  after it had been generated and billed.
+- **A tool with no description works on every provider** (Anthropic and
+  Groq refused one).
+- R also gains `provider_definition()`, to use a provider LM15 doesn't list.
 
 ### Python 1.2.0, TypeScript and Rust 1.0.0-rc.4, Go v1.1.0-rc.3, R 1.0.1 — 2026-09-30
 

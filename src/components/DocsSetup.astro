@@ -32,7 +32,7 @@ const { step } = Astro.props;
       <p>You’ll need Node.js 22.18 or newer. In a new folder, run this in your terminal:</p>
       <Code code={"npm init -y\nnpm pkg set type=module\nnpm install @lm15/lm15"} lang="bash" />
       <p>LM15 for TypeScript has no runtime dependencies. This installs the current
-        release candidate, <code>1.0.0-rc.2</code>, the version this guide uses.
+        version, <code>1.0.0</code>, the version this guide uses.
         Save each example in a file ending in <code>.ts</code>, such as <code>first.ts</code>, and run it with <code>node first.ts</code>: Node runs
         TypeScript files directly.</p>
       <details>
@@ -46,7 +46,7 @@ const { step } = Astro.props;
     <div data-doc-install-language="rust" hidden>
       <p>You’ll need a recent Rust toolchain. Run this in your terminal:</p>
       <Code code={"cargo new first-request\ncd first-request\ncargo add lm15\ncargo add tokio --features macros,rt-multi-thread"} lang="bash" />
-      <p>Cargo picks the current release candidate, <code>1.0.0-rc.3</code>, because
+      <p>Cargo picks the current release candidate, <code>1.0.0-rc.11</code>, because
         there’s no stable 1.0 yet; it’s the version this guide uses. Tokio runs the
         examples’ <code>async</code> code. Put each example in <code>src/main.rs</code> and run it with <code>cargo run</code>.</p>
       <details>
@@ -59,9 +59,9 @@ const { step } = Astro.props;
     </div>
     <div data-doc-install-language="go" hidden>
       <p>You’ll need Go 1.26.2 or newer. Run this in your terminal:</p>
-      <Code code={"mkdir first-request && cd first-request\ngo mod init example.com/first-request\ngo get github.com/lm15-dev/lm15-go@v1.1.0-rc.2"} lang="bash" />
+      <Code code={"mkdir first-request && cd first-request\ngo mod init example.com/first-request\ngo get github.com/lm15-dev/lm15-go@v1.1.0-rc.10"} lang="bash" />
       <p>LM15 for Go uses only Go’s standard library. This installs the current
-        release candidate, <code>v1.1.0-rc.2</code>, the version this guide uses
+        release candidate, <code>v1.1.0-rc.10</code>, the version this guide uses
         (Go’s first release is numbered 1.1: an early prototype took 1.0). Put
         each example in <code>main.go</code> and run it with <code>go run .</code></p>
     </div>
