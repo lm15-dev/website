@@ -5,7 +5,7 @@ import (
     "fmt"
     "github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
     "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-    lm15 "github.com/lm15-dev/lm15-go"
+    lm15 "github.com/lm15-dev/lm15-go/v2"
 )
 
 func main() {

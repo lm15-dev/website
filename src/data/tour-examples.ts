@@ -1656,7 +1656,7 @@ response, err := ${api('router.Complete')}(context.Background(), saved)
 ${dim('if err != nil {\n    panic(err)\n}')}
 fmt.Println(response.TextOr(""))`,
   program: (body, uses) => [
-    dim(`package main\n\nimport (\n    "context"\n${uses?.search || uses?.serde ? '    "encoding/json"\n' : ''}${uses?.errors || uses?.generation ? '    "errors"\n' : ''}    "fmt"\n${uses?.errors === 'retry' ? '    "math"\n' : ''}${uses?.env || uses?.serde ? '    "os"\n' : ''}${uses?.search ? '    "strings"\n' : ''}${uses?.errors === 'retry' ? '    "time"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go"\n)\n\nfunc main() {`),
+    dim(`package main\n\nimport (\n    "context"\n${uses?.search || uses?.serde ? '    "encoding/json"\n' : ''}${uses?.errors || uses?.generation ? '    "errors"\n' : ''}    "fmt"\n${uses?.errors === 'retry' ? '    "math"\n' : ''}${uses?.env || uses?.serde ? '    "os"\n' : ''}${uses?.search ? '    "strings"\n' : ''}${uses?.errors === 'retry' ? '    "time"\n' : ''}    lm15 "github.com/lm15-dev/lm15-go/v2"\n)\n\nfunc main() {`),
     indent(body, '    '),
     dim('}'),
   ].join('\n'),

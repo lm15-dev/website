@@ -408,7 +408,7 @@ export function goJsonText(text: string): string {
 export function goProgram(connection: Connection, imports: readonly string[], body: readonly string[]): Code {
   const provider = connection.provider === "custom" ? "openai-chat" : connection.provider;
   const std = [...new Set(["context", ...imports])].sort().map((name) => `    ${q(name)}`);
-  const lines = [dim("package main"), "", dim("import ("), ...std.map(dim), "", dim('    lm15 "github.com/lm15-dev/lm15-go"'), dim(")"), "", dim("func main() {"), dim("    if err := run(); err != nil { panic(err) }"), dim("}"), "", dim("func run() error {"), `    ctx, cancel := context.WithCancel(context.Background()) ${comment("// call cancel to stop")}`, "    defer cancel()"];
+  const lines = [dim("package main"), "", dim("import ("), ...std.map(dim), "", dim('    lm15 "github.com/lm15-dev/lm15-go/v2"'), dim(")"), "", dim("func main() {"), dim("    if err := run(); err != nil { panic(err) }"), dim("}"), "", dim("func run() error {"), `    ctx, cancel := context.WithCancel(context.Background()) ${comment("// call cancel to stop")}`, "    defer cancel()"];
   const relay = baseUrlFor(connection);
   if (connection.provider !== "custom" && relay !== undefined) lines.push(`    ${comment('// This API refuses browser origins; the page relays it (see the Relay note). Outside a browser pass "" instead.')}`);
   lines.push(`    lm, err := ${api("lm15.AdapterForProvider")}(${qv(provider, "provider")}, ${keyless(connection.provider) ? '"unused"' : qv(EXAMPLE_API_KEY)}, ${relay === undefined ? '""' : qv(relay)}, nil, nil)`, GO_ERR, "", ...body, dim("    return nil"), dim("}"));

@@ -136,8 +136,8 @@ if args.page == "azure":
 GO_DIR = WORK / "go"
 GO_DIR.mkdir()
 (GO_DIR / "go.mod").write_text(
-    "module docs\n\ngo 1.26.2\n\nrequire github.com/lm15-dev/lm15-go v0.0.0\n\n"
-    f"replace github.com/lm15-dev/lm15-go => {SDKS / 'lm15-go'}\n")
+    "module docs\n\ngo 1.26.2\n\nrequire github.com/lm15-dev/lm15-go/v2 v2.0.0\n\n"
+    f"replace github.com/lm15-dev/lm15-go/v2 => {SDKS / 'lm15-go'}\n")
 RS_DIR = WORK / "rs"
 (RS_DIR / "src").mkdir(parents=True)
 (RS_DIR / "Cargo.toml").write_text(

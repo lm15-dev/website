@@ -27,7 +27,7 @@ test("Go displayed programs compile against the SDK and build the page's request
   const dir = mkdtempSync(join(tmpdir(), "lm15-go-examples-"));
   const sdk = resolve(process.env["LM15_GO_DIR"] ?? "../lm15-go");
   try {
-    writeFileSync(join(dir, "go.mod"), `module example.test/playground\n\ngo 1.26\n\nrequire github.com/lm15-dev/lm15-go v0.0.0\nreplace github.com/lm15-dev/lm15-go => ${sdk}\n`);
+    writeFileSync(join(dir, "go.mod"), `module example.test/playground\n\ngo 1.26\n\nrequire github.com/lm15-dev/lm15-go/v2 v2.0.0\nreplace github.com/lm15-dev/lm15-go/v2 => ${sdk}\n`);
     const examples = goExamples();
     for (const [index, example] of examples.entries()) {
       const path = join(dir, `case${index}`); mkdirSync(path);

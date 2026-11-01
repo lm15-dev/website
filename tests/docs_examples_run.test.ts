@@ -140,7 +140,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     if (!have('go')) return t.skip('go not found');
     const lm15 = pinned('go', sdk('LM15_GO_DIR', 'lm15-go'), pins['go']);
     const dir = mkdtempSync(join(tmpdir(), 'lm15-docs-go-'));
-    writeFileSync(join(dir, 'go.mod'), `module example.test/docs\n\ngo 1.26\n\nrequire github.com/lm15-dev/lm15-go v0.0.0\nreplace github.com/lm15-dev/lm15-go => ${lm15}\n`);
+    writeFileSync(join(dir, 'go.mod'), `module example.test/docs\n\ngo 1.26\n\nrequire github.com/lm15-dev/lm15-go/v2 v2.0.0\nreplace github.com/lm15-dev/lm15-go/v2 => ${lm15}\n`);
     for (const p of programs('go')) {
       mkdirSync(join(dir, p.name));
       writeFileSync(join(dir, p.name, 'main.go'), p.source + '\n');
