@@ -73,7 +73,7 @@ are not available.
 
 | Language | Where it stands | Install |
 |---|---|---|
-| **Julia** | 1.0.0 passes all 1,921 checks of the current contract, like the released languages; it waits for approval in Julia's package registry. Julia 1.10 or newer. | From GitHub: `Pkg.add(url="https://github.com/lm15-dev/lm15-jl")` |
+| **Julia** | 1.0.0, the package `LanguageModel15`, passes all 1,968 checks of the current contract, like the released languages; it waits for Julia's package registry. Julia 1.10 or newer. | From GitHub: `Pkg.add(url="https://github.com/lm15-dev/LanguageModel15.jl")` |
 
 ## Early ports
 

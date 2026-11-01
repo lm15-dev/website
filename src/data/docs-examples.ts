@@ -34,7 +34,7 @@ export const SETUP: Record<Language, { href: string; text: string }> = {
   rust: { href: 'https://github.com/lm15-dev/lm15-rs#readme', text: 'Add LM15 and Tokio using the Rust SDK guide.' },
   go: { href: 'https://github.com/lm15-dev/lm15-go#readme', text: 'Add LM15 to your Go module using the Go SDK guide.' },
   r: { href: 'https://github.com/lm15-dev/lm15-r#readme', text: 'Install LM15 with remotes::install_github("lm15-dev/lm15-r") (R package guide).' },
-  julia: { href: 'https://github.com/lm15-dev/lm15-jl#readme', text: 'Set up LM15 using the Julia SDK guide.' },
+  julia: { href: 'https://github.com/lm15-dev/LanguageModel15.jl#readme', text: 'Set up LM15 using the Julia SDK guide.' },
 };
 
 /** The Overview's tour (tour-examples.ts): one request, a part at a time. */
