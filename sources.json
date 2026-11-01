@@ -1,8 +1,8 @@
 {
   "typescript": "c8c4f67bc97c49381a1f26c3523f16bc1c343398",
   "python": "b6c9159b965d0aac8fca919b87f7e943a61ce953",
-  "rust": "76d00558921f06207cbe10a1ebe1321260924174",
-  "go": "c07a0be94aa04e4dd815c052f2f2d2d125c14d4e",
+  "rust": "5080a71ccbc672ef4f6781105eb3698f2e3c7fea",
+  "go": "cb3df52656375725a4cbc20dfc722c3b77e1d8c0",
   "r": "ed6b4ce9fee4db1180d73cb1a8e3087edc1f07a3",
   "contract": "cfc3edc0d31127ecab55240f866dd3c54df7f07b",
   "rustToolchain": "1.97.1",
