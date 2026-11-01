@@ -9,8 +9,8 @@ description: The current version of LM15 in each language, what each release con
 |---|---|---|---|
 | Python | **2.0.0** (stable) | 2026-11-01 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
 | TypeScript | **2.0.0** (stable) | 2026-11-01 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
-| Rust | **2.0.0-rc.1** (release candidate) | 2026-11-01 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
-| Go | **v2.0.0-rc.1** (release candidate) | 2026-11-01 | [`github.com/lm15-dev/lm15-go/v2`](https://pkg.go.dev/github.com/lm15-dev/lm15-go/v2) |
+| Rust | **2.0.0** (stable) | 2026-11-01 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
+| Go | **v2.0.0** (stable) | 2026-11-01 | [`github.com/lm15-dev/lm15-go/v2`](https://pkg.go.dev/github.com/lm15-dev/lm15-go/v2) |
 | R | **2.0.0** | 2026-11-01 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
 
 The examples on this site are written for these versions, and the
@@ -45,6 +45,17 @@ mistake; Go's module mirror keeps every version forever, so that tag is
 retracted.
 
 ## Release notes
+
+### Rust 2.0.0 and Go v2.0.0 — 2026-11-01
+
+The first stable releases of LM15 for Rust and Go, the same code as that
+morning's release candidates. LM15 is now stable in Python, TypeScript,
+Rust and Go: within version 2 the core keeps working as documented (see
+[Version numbers](#version-numbers)). Both pass all 1,968 checks of
+contract `cfc3edc`.
+
+- Notes: [Rust](https://github.com/lm15-dev/lm15-rs/releases/tag/v2.0.0),
+  [Go](https://github.com/lm15-dev/lm15-go/releases/tag/v2.0.0).
 
 ### Version 2 in every language: Python 2.0.0, TypeScript 2.0.0, Rust 2.0.0-rc.1, Go v2.0.0-rc.1, R 2.0.0 — 2026-11-01
 

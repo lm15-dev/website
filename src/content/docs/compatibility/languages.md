@@ -23,13 +23,12 @@ every example on this site.
 |---|---|---|---|
 | **Python** | 2.0.0, stable | `pip install lm15` | Python 3.10 or newer; Linux, macOS, Windows |
 | **TypeScript** | 2.0.0, stable | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
-| **Rust** | 2.0.0-rc.1, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
-| **Go** | v2.0.0-rc.1, release candidate | `go get github.com/lm15-dev/lm15-go/v2@v2.0.0-rc.1` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
+| **Rust** | 2.0.0, stable | `cargo add lm15` | stable Rust; native targets and `wasm32` |
+| **Go** | v2.0.0, stable | `go get github.com/lm15-dev/lm15-go/v2` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
 | **R** | 2.0.0 | `remotes::install_github("lm15-dev/lm15-r")` (on its way to CRAN: `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
 
 **Stable** means the core won't change in a way that breaks your program
-until the next major version. A **release candidate** is the version that
-is expected to become stable, published so it can be tried first. For all
+until the next major version. For all
 five, the core is the same: requests and responses, streaming, tools,
 structured output, media inputs, reasoning controls, errors, credentials
 and model listing. Files, batches, media generation, stored prompt caches,
