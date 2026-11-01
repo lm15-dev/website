@@ -205,7 +205,7 @@ const runners: Record<Language, (t: import('node:test').TestContext) => void> = 
     const project = join(CACHE, 'julia');
     mkdirSync(project, { recursive: true });
     const julia = (args: string[]) => ['nix', 'shell', 'nixpkgs#julia-bin', '-c', 'julia', `--project=${project}`, ...args];
-    const [cmd, ...args] = julia(['-e', `using Pkg; Pkg.develop(path=${JSON.stringify(lm15)}); Pkg.instantiate(); using LM15`]);
+    const [cmd, ...args] = julia(['-e', `using Pkg; Pkg.develop(path=${JSON.stringify(lm15)}); Pkg.instantiate(); using LanguageModel15`]);
     execFileSync(cmd!, args, { stdio: 'pipe', timeout: 1_500_000 });
     const dir = mkdtempSync(join(tmpdir(), 'lm15-docs-jl-'));
     for (const p of programs('julia')) {

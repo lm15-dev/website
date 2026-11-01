@@ -1996,7 +1996,7 @@ println(response.usage.input_tokens, " ", response.usage.output_tokens)`,
     for text in ${api('text_chunks')}(result)
         print(text)
     end
-    ${api('LM15.response')}(result)
+    ${api('LanguageModel15.response')}(result)
 end
 println()
 println(response.usage.output_tokens, " tokens")`,
@@ -2258,7 +2258,7 @@ followup = ${api('Request')}(
 )
 router = ${api('LMRouter')}()
 println(${api('text')}(${api('complete')}(router, followup)))`,
-  program: body => `${dim('using LM15')}\n\n${body}`,
+  program: body => `${dim('using LanguageModel15')}\n\n${body}`,
 };
 
 /** A writer whose pieces are fitted to its language's budget (the program frame is not: it only indents). */

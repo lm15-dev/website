@@ -109,7 +109,7 @@ req <- ${api('request')}(
 response <- ${api('complete')}(router, req)
 
 ${api('response_text')}(response)`,
-    julia: `${dim('using LM15')}
+    julia: `${dim('using LanguageModel15')}
 
 router = ${api('LMRouter')}()
 req = ${api('Request')}(

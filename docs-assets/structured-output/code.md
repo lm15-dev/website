@@ -1167,7 +1167,7 @@ for (s in record$sightings) {
 ### julia
 
 ```julia
-using LM15
+using LanguageModel15
 
 places = ["oak grove", "stream", "meadow", "other"]
 sighting_schema = Dict(
