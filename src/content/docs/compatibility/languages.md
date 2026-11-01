@@ -21,11 +21,11 @@ every example on this site.
 
 | Language | Version | Install | Runs on |
 |---|---|---|---|
-| **Python** | 1.5.0, stable | `pip install lm15` | Python 3.10 or newer; Linux, macOS, Windows |
-| **TypeScript** | 1.0.0, stable | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
-| **Rust** | 1.0.0-rc.11, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
-| **Go** | v1.1.0-rc.10, release candidate | `go get github.com/lm15-dev/lm15-go@v1.1.0-rc.10` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
-| **R** | 1.4.0 | `remotes::install_github("lm15-dev/lm15-r")` (on its way to CRAN: `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
+| **Python** | 2.0.0, stable | `pip install lm15` | Python 3.10 or newer; Linux, macOS, Windows |
+| **TypeScript** | 2.0.0, stable | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
+| **Rust** | 2.0.0-rc.1, release candidate | `cargo add lm15` | stable Rust; native targets and `wasm32` |
+| **Go** | v2.0.0-rc.1, release candidate | `go get github.com/lm15-dev/lm15-go/v2@v2.0.0-rc.1` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
+| **R** | 2.0.0 | `remotes::install_github("lm15-dev/lm15-r")` (on its way to CRAN: `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
 
 **Stable** means the core won't change in a way that breaks your program
 until the next major version. A **release candidate** is the version that
@@ -35,7 +35,7 @@ structured output, media inputs, reasoning controls, errors, credentials
 and model listing. Files, batches, media generation, stored prompt caches,
 realtime sessions, reading OpenAI Chat Completions requests, and signing in
 with an account are **provisional** in every language: they may still
-change within 1.x, with a notice.
+change within a major version, with a notice.
 
 Python, TypeScript, Rust and Go have no required third-party dependency:
 each uses its language's standard library, including for HTTP. R's standard
@@ -49,7 +49,7 @@ and Rust's examples use Tokio to run `async` code.
 Every change to any of the five is graded by the contract's harness, which
 compares the exact requests each language builds and the responses it reads
 with recorded provider traffic. Each passes every check of the contract
-version it pins (on 2026-09-30: 1,838 checks, the same contract version for
+version it pins (on 2026-11-01: 1,968 checks, the same contract version for
 all five). Each language also runs its own tests on Linux,
 macOS and Windows, and every example on this site is run in every
 language and must send the same request as Python does.
@@ -73,7 +73,7 @@ are not available.
 
 | Language | Where it stands | Install |
 |---|---|---|
-| **Julia** | 1.0.0, the package `LanguageModel15`, passes all 1,968 checks of the current contract, like the released languages; it waits for Julia's package registry. Julia 1.10 or newer. | From GitHub: `Pkg.add(url="https://github.com/lm15-dev/LanguageModel15.jl")` |
+| **Julia** | 2.0.0, the package `LanguageModel15`, passes all 1,968 checks of the current contract, like the released languages; it waits for Julia's package registry. Julia 1.10 or newer. | From GitHub: `Pkg.add(url="https://github.com/lm15-dev/LanguageModel15.jl")` |
 
 ## Early ports
 

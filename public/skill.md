@@ -48,9 +48,14 @@ response = router.complete(Request(
 ))
 print(response.text)                                # str, or None if no text
 print(response.finish_reason)                       # "stop", "length", "tool_call", ...
-u = response.usage                                  # ints, or None if not reported
+u = response.usage                                  # ints, or None if not exactly known
 print(u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_write_tokens, u.reasoning_tokens)
 ```
+
+Since lm15 2.0 each counter means the same on every provider:
+`input_tokens` includes cached tokens, `output_tokens` includes reasoning,
+the cache and reasoning counts are parts of those, and `total_tokens` is
+input + output. The provider's own numbers are in `response.provider_data`.
 
 `messages` is a tuple (or list) of `Message`. Keys: the router reads each
 provider's environment variable (table below). To pass keys yourself:
@@ -293,7 +298,8 @@ print(r.text, len("".join(p.text for p in r.message.parts_of(ThinkingPart))))
 any level works (the budget is what the provider gets), so
 `Reasoning(effort="low", thinking_budget=1024)` asks for a 1024-token budget.
 The thinking-token count is `response.usage.reasoning_tokens` on every
-provider that reports one (OpenAI, Gemini). `thinking_budget` is only for Anthropic/Gemini-style
+provider that reports one (OpenAI, Gemini, xAI); it is already part of
+`output_tokens`. `thinking_budget` is only for Anthropic/Gemini-style
 budgets and must be > 0.
 
 ## Provider built-in tools (web search)

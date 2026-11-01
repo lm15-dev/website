@@ -657,7 +657,7 @@ async function sendTurn(text: string): Promise<void> {
     asked.readOnly = body.readOnly = false;
     const usage = response.usage;
     const adapted = response.adaptations.length ? ` · adapted: ${response.adaptations.map((a) => `${a.field} ${a.action}`).join(", ")}` : "";
-    $("usage").textContent = `${response.finishReason} · input ${usage?.inputTokens ?? "unreported"} · output ${usage?.outputTokens ?? "unreported"} · ${Math.round(performance.now() - started)} ms · ${chosen.label}${adapted}`;
+    $("usage").textContent = `${response.finishReason} · input ${usage?.inputTokens ?? "unknown"} · output ${usage?.outputTokens ?? "unknown"} · ${Math.round(performance.now() - started)} ms · ${chosen.label}${adapted}`;
     $("usage").title = response.adaptations.map((a) => `${a.field}: ${a.reason}`).join("\n");
     void fidelity(request);
   } catch (error) {

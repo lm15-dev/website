@@ -62,10 +62,11 @@
         "system": "You are the field assistant for a wildlife research station. Answer in two sentences."
       },
       "model": "gemini-2.5-flash",
-      "text": "Deer are frequent visitors to oak trees at night, diligently foraging for fallen acorns. You might also find raccoons, opossums, or various rodent species like mice enjoying this abundant food source under the cover of darkness.",
+      "text": "Deer, mice, raccoons, and even wild turkeys are common nocturnal visitors feasting on acorns beneath oak trees. Setting up a motion-activated camera could help us identify the specific species active there.",
       "finish_reason": "stop",
       "input_tokens": 30,
-      "output_tokens": 43
+      "output_tokens": 185,
+      "date": "2026-11-01"
     },
     "deepseek:deepseek-chat": {
       "request": {

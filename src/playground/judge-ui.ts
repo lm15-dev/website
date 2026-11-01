@@ -572,7 +572,7 @@ export class JudgeView {
     $("judge-state-error").textContent = this.spec.shape === "fields" ? this.objectError ?? "" : "";
     $<HTMLButtonElement>("judge-stop").disabled = !this.running;
     const v = this.verdict;
-    const tokens = v && (v.inputTokens !== undefined || v.outputTokens !== undefined) ? ` · input ${v.inputTokens ?? "unreported"} · output ${v.outputTokens ?? "unreported"}` : "";
+    const tokens = v && (v.inputTokens !== undefined || v.outputTokens !== undefined) ? ` · input ${v.inputTokens ?? "unknown"} · output ${v.outputTokens ?? "unknown"}` : "";
     $("judge-usage").textContent = v && !this.stale ? `judged${tokens} · ${v.ms} ms · ${v.runtime}` : "";
   }
 

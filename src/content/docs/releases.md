@@ -7,15 +7,16 @@ description: The current version of LM15 in each language, what each release con
 
 | Language | Version | Released | Package |
 |---|---|---|---|
-| Python | **1.5.0** (stable) | 2026-10-15 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
-| TypeScript | **1.0.0** (stable) | 2026-10-31 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
-| Rust | **1.0.0-rc.11** (release candidate) | 2026-10-15 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
-| Go | **v1.1.0-rc.10** (release candidate) | 2026-10-15 | [`github.com/lm15-dev/lm15-go`](https://pkg.go.dev/github.com/lm15-dev/lm15-go) |
-| R | **1.4.0** | 2026-10-15 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
+| Python | **2.0.0** (stable) | 2026-11-01 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
+| TypeScript | **2.0.0** (stable) | 2026-11-01 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
+| Rust | **2.0.0-rc.1** (release candidate) | 2026-11-01 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
+| Go | **v2.0.0-rc.1** (release candidate) | 2026-11-01 | [`github.com/lm15-dev/lm15-go/v2`](https://pkg.go.dev/github.com/lm15-dev/lm15-go/v2) |
+| R | **2.0.0** | 2026-11-01 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
 
 The examples on this site are written for these versions, and the
 [playground](/playground/) runs them.
-Julia 1.0.0 waits for approval in Julia's package registry; see
+Julia 2.0.0 (the package `LanguageModel15`) waits for Julia's package
+registry; see
 [Language and runtime support](/compatibility/languages/).
 
 ## Version numbers
@@ -25,21 +26,53 @@ the core — requests and responses, streaming, tools, structured output,
 media inputs, reasoning, errors, credentials and model listing — keeps
 working as documented. Provisional features (files, batches, media
 generation, stored prompt caches, realtime sessions, reading OpenAI Chat
-Completions requests, and account sign-in) may change within 1.x; such a
-change is announced in the release notes and in the
+Completions requests, and account sign-in) may change within a major
+version; such a change is announced in the release notes and in the
 [contract's change log](https://github.com/lm15-dev/lm15-contract/tree/main/changes).
 
-The languages don't share version numbers, because each is released on its
-own schedule. They share behavior instead: every release is graded against
-the same [contract](https://github.com/lm15-dev/lm15-contract), and its
-notes name the contract version it passes.
+**The major version is the same in every language.** It counts the
+generations of the [contract](https://github.com/lm15-dev/lm15-contract)
+that every language is graded against: a change that can break programs
+raises it in all of them together, so "LM15 2" means the same thing in
+Python and in Go. The numbers after it are each language's own, because
+each is released on its own schedule, and each release's notes name the
+contract version it passes.
 
-**Why Go starts at 1.1.** An early prototype of the Go module was tagged
-`v1.0.0` in June by mistake. Go's module mirror keeps every published
-version forever, so that tag is retracted (Go warns anyone who uses it and
-never selects it on its own) and the first real release is numbered 1.1.
+**Go writes the major version in the import path.** From version 2, Go
+programs import `github.com/lm15-dev/lm15-go/v2`. Go's 1.x releases were
+numbered from 1.1, because an early prototype was tagged `v1.0.0` by
+mistake; Go's module mirror keeps every version forever, so that tag is
+retracted.
 
 ## Release notes
+
+### Version 2 in every language: Python 2.0.0, TypeScript 2.0.0, Rust 2.0.0-rc.1, Go v2.0.0-rc.1, R 2.0.0 — 2026-11-01
+
+Released together; each passes all 1,968 checks of contract `cfc3edc`.
+**This breaks programs that read token counts or estimate costs.**
+
+- **A token count means the same thing on every provider.** The input
+  count is every token the model read, cached tokens included; the output
+  count is every token it wrote, reasoning included; the cache, reasoning
+  and audio counts are parts of those two, and the total is their sum.
+  Before, each count was the provider's own, so the same field meant
+  different things. Anthropic's input now includes cache reads and writes;
+  Gemini's output now includes its thinking; xAI's output now includes
+  reasoning; OpenAI's counts don't change. The provider's own numbers are
+  still in `provider_data`.
+- **A count is exact or empty.** A count the provider didn't fully report
+  is left empty (`None`, `undefined`, `NULL`, `nil`), never a partial sum,
+  and so is one whose numbers don't add up.
+- **Cost estimates are exact or empty**, and price long prompts at the
+  provider's higher rate. The old estimate charged cached tokens twice on
+  OpenAI, Gemini and xAI, and missed Gemini's and xAI's reasoning.
+- **Go's import path is now `github.com/lm15-dev/lm15-go/v2`** (see
+  [Version numbers](#version-numbers)).
+- Notes: [Python](https://github.com/lm15-dev/lm15-python/releases/tag/v2.0.0),
+  [TypeScript](https://github.com/lm15-dev/lm15-ts/releases/tag/v2.0.0),
+  [Rust](https://github.com/lm15-dev/lm15-rs/releases/tag/v2.0.0-rc.1),
+  [Go](https://github.com/lm15-dev/lm15-go/releases/tag/v2.0.0-rc.1),
+  [R](https://github.com/lm15-dev/lm15-r/releases/tag/v2.0.0).
 
 ### TypeScript 1.0.0 — 2026-10-31
 
