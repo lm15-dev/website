@@ -11,7 +11,7 @@ description: The current version of LM15 in each language, what each release con
 | TypeScript | **2.0.0** (stable) | 2026-11-01 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
 | Rust | **2.0.0** (stable) | 2026-11-01 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
 | Go | **v2.0.0** (stable) | 2026-11-01 | [`github.com/lm15-dev/lm15-go/v2`](https://pkg.go.dev/github.com/lm15-dev/lm15-go/v2) |
-| R | **2.0.0** | 2026-11-01 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
+| R | **2.0.0** (stable) | 2026-11-01 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
 
 The examples on this site are written for these versions, and the
 [playground](/playground/) runs them.
@@ -46,11 +46,23 @@ retracted.
 
 ## Release notes
 
+### R 2.0.0 is stable — 2026-11-01
+
+LM15 for R 2.0.0 is now stable, with no code change: within version 2 the
+core keeps working as documented. Before this, R had been checked against
+recorded traffic and a local model server, but had made only one paid call.
+It has now made real calls to ten providers with API keys and five saved
+sign-ins (chat, streaming, structured output, tools, pictures, reasoning,
+prompt caching with exact token counts and costs), with no problem in R.
+R is still installed from GitHub; it is on its way to CRAN.
+
+- [The live run](https://github.com/lm15-dev/lm15-r/blob/main/receipts/2026-11-01-live-smoke/SUMMARY.md)
+
 ### Rust 2.0.0 and Go v2.0.0 — 2026-11-01
 
 The first stable releases of LM15 for Rust and Go, the same code as that
 morning's release candidates. LM15 is now stable in Python, TypeScript,
-Rust and Go: within version 2 the core keeps working as documented (see
+Rust and Go (R followed the same day): within version 2 the core keeps working as documented (see
 [Version numbers](#version-numbers)). Both pass all 1,968 checks of
 contract `cfc3edc`.
 

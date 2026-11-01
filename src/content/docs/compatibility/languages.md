@@ -25,7 +25,7 @@ every example on this site.
 | **TypeScript** | 2.0.0, stable | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
 | **Rust** | 2.0.0, stable | `cargo add lm15` | stable Rust; native targets and `wasm32` |
 | **Go** | v2.0.0, stable | `go get github.com/lm15-dev/lm15-go/v2` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
-| **R** | 2.0.0 | `remotes::install_github("lm15-dev/lm15-r")` (on its way to CRAN: `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
+| **R** | 2.0.0, stable | `remotes::install_github("lm15-dev/lm15-r")` (on its way to CRAN: `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
 
 **Stable** means the core won't change in a way that breaks your program
 until the next major version. For all
@@ -51,7 +51,8 @@ with recorded provider traffic. Each passes every check of the contract
 version it pins (on 2026-11-01: 1,968 checks, the same contract version for
 all five). Each language also runs its own tests on Linux,
 macOS and Windows, and every example on this site is run in every
-language and must send the same request as Python does.
+language and must send the same request as Python does. Before being
+called stable, each was also run against the real providers.
 
 Saved sign-ins are shared across languages: a login saved from Python is
 used and renewed from Go, and two programs in different languages renew one
