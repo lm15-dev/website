@@ -73,6 +73,7 @@ export const sidebar = [
       { label: 'OpenAI', slug: 'compatibility/providers/openai' },
       { label: 'OpenRouter', slug: 'compatibility/providers/openrouter' },
       { label: 'Parasail', slug: 'compatibility/providers/parasail' },
+      { label: 'Tinker (Thinking Machines)', slug: 'compatibility/providers/tinker' },
       { label: 'Together AI', slug: 'compatibility/providers/together' },
       { label: 'Z.AI', slug: 'compatibility/providers/zai' },
     ] },
