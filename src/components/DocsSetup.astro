@@ -13,7 +13,7 @@ const { step } = Astro.props;
       <p>You’ll need Python 3.10 or newer. Run this in your terminal:</p>
       <Code code="python3 -m pip install lm15" lang="bash" />
       <p>The Python core has no required third-party dependencies: it uses Python’s
-        standard library. This installs LM15 2.0.0, the version this guide uses.</p>
+        standard library. This installs LM15 2.3.0, the version this guide uses.</p>
       <details>
         <summary>Using Windows, or keeping this project separate?</summary>
         <p>On Windows, use <code>py</code> instead of <code>python3</code>.</p>
@@ -32,7 +32,7 @@ const { step } = Astro.props;
       <p>You’ll need Node.js 22.18 or newer. In a new folder, run this in your terminal:</p>
       <Code code={"npm init -y\nnpm pkg set type=module\nnpm install @lm15/lm15"} lang="bash" />
       <p>LM15 for TypeScript has no runtime dependencies. This installs the current
-        version, <code>2.0.0</code>, the version this guide uses.
+        version, <code>2.3.0</code>, the version this guide uses.
         Save each example in a file ending in <code>.ts</code>, such as <code>first.ts</code>, and run it with <code>node first.ts</code>: Node runs
         TypeScript files directly.</p>
       <details>
@@ -46,7 +46,7 @@ const { step } = Astro.props;
     <div data-doc-install-language="rust" hidden>
       <p>You’ll need a recent Rust toolchain. Run this in your terminal:</p>
       <Code code={"cargo new first-request\ncd first-request\ncargo add lm15\ncargo add tokio --features macros,rt-multi-thread"} lang="bash" />
-      <p>This installs the current version, <code>2.0.0</code>, the version this guide uses. Tokio runs the
+      <p>This installs the current version, <code>2.3.0</code>, the version this guide uses. Tokio runs the
         examples’ <code>async</code> code. Put each example in <code>src/main.rs</code> and run it with <code>cargo run</code>.</p>
       <details>
         <summary>An example needs another crate?</summary>
@@ -60,16 +60,16 @@ const { step } = Astro.props;
       <p>You’ll need Go 1.26.2 or newer. Run this in your terminal:</p>
       <Code code={"mkdir first-request && cd first-request\ngo mod init example.com/first-request\ngo get github.com/lm15-dev/lm15-go/v2"} lang="bash" />
       <p>LM15 for Go uses only Go’s standard library. This installs the current
-        version, <code>v2.0.0</code>, the version this guide uses.
+        version, <code>v2.3.0</code>, the version this guide uses.
         Go puts the major version in the import path, so programs import
         <code>github.com/lm15-dev/lm15-go/v2</code>. Put
         each example in <code>main.go</code> and run it with <code>go run .</code></p>
     </div>
     <div data-doc-install-language="julia" hidden>
       <p>You’ll need Julia 1.10 or newer. In a new folder, run this in your terminal:</p>
-      <Code code={"julia --project=. -e 'using Pkg; Pkg.add(url=\"https://github.com/lm15-dev/LanguageModel15.jl\")'"} lang="bash" />
-      <p>LM15 for Julia isn’t in Julia’s package registry yet, so this installs it
-        from GitHub into the folder’s own environment. In Julia the package is named
+      <Code code={"julia --project=. -e 'using Pkg; Pkg.add(\"LanguageModel15\")'"} lang="bash" />
+      <p>This installs the current version, <code>2.3.0</code>, from Julia’s package
+        registry into the folder’s own environment. In Julia the package is named
         <code>LanguageModel15</code> (the registry asks for longer names), so programs start
         with <code>using LanguageModel15</code>. Save each example as <code>first.jl</code> and run it with <code>julia --project=. first.jl</code>.
         The first run compiles LM15, which takes a minute.</p>

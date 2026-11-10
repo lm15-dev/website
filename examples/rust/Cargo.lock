@@ -750,8 +750,8 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
 name = "lm15"
-version = "1.0.0-rc.3"
-source = "git+https://github.com/lm15-dev/lm15-rs?rev=1733c0fb765912343e719ad51d785d46b1f45ec8#1733c0fb765912343e719ad51d785d46b1f45ec8"
+version = "2.3.0"
+source = "git+https://github.com/lm15-dev/lm15-rs?rev=34e0b8e1174a08c466a5e3bbd661ab6e3992ca08#34e0b8e1174a08c466a5e3bbd661ab6e3992ca08"
 dependencies = [
  "aws-lc-rs",
  "bytes",

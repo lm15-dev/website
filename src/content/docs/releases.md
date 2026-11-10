@@ -7,16 +7,16 @@ description: The current version of LM15 in each language, what each release con
 
 | Language | Version | Released | Package |
 |---|---|---|---|
-| Python | **2.0.0** (stable) | 2026-11-01 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
-| TypeScript | **2.0.0** (stable) | 2026-11-01 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
-| Rust | **2.0.0** (stable) | 2026-11-01 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
-| Go | **v2.0.0** (stable) | 2026-11-01 | [`github.com/lm15-dev/lm15-go/v2`](https://pkg.go.dev/github.com/lm15-dev/lm15-go/v2) |
-| R | **2.0.0** (stable) | 2026-11-01 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
+| Python | **2.3.0** (stable) | 2026-11-10 | [`lm15` on PyPI](https://pypi.org/project/lm15/) |
+| TypeScript | **2.3.0** (stable) | 2026-11-10 | [`@lm15/lm15` on npm](https://www.npmjs.com/package/@lm15/lm15) |
+| Rust | **2.3.0** (stable) | 2026-11-10 | [`lm15` on crates.io](https://crates.io/crates/lm15) |
+| Go | **v2.3.0** (stable) | 2026-11-10 | [`github.com/lm15-dev/lm15-go/v2`](https://pkg.go.dev/github.com/lm15-dev/lm15-go/v2) |
+| R | **2.3.0** (stable) | 2026-11-10 | [`lm15-dev/lm15-r` on GitHub](https://github.com/lm15-dev/lm15-r) (on its way to CRAN) |
 
 The examples on this site are written for these versions, and the
 [playground](/playground/) runs them.
-Julia 2.0.0 (the package `LanguageModel15`) waits for Julia's package
-registry; see
+Julia 2.3.0 (the package `LanguageModel15`) is in Julia's package registry
+and still in development; see
 [Language and runtime support](/compatibility/languages/).
 
 ## Version numbers
@@ -45,6 +45,74 @@ mistake; Go's module mirror keeps every version forever, so that tag is
 retracted.
 
 ## Release notes
+
+### 2.3.0 in every language: Tinker — 2026-11-10
+
+Python, TypeScript, Rust, R and Julia 2.3.0 and Go v2.3.0, released
+together; each passes all 2,266 checks of contract `18b3788`. Nothing is
+removed and no field changes meaning.
+
+- **[Tinker (Thinking Machines)](/compatibility/providers/tinker/) is a
+  provider.** `tinker` reaches Tinker's base models and the models you
+  trained there, with one key; `tinker-anthropic` is the same service
+  through the Anthropic Messages format. A model you trained is named by
+  its path, `tinker://…`.
+- **Thinking is switched the way each model family takes it**, and a model
+  you trained follows the model it came from when you name that model.
+- **Error messages from FastAPI servers are kept.** A server that answers
+  an error as `{"detail": "…"}` used to produce an error with an empty
+  message.
+- **A stop sequence means the same everywhere.** Tinker returns the
+  sequence it stopped at; LM15 removes it.
+- **Rust only:** some settings types gained fields and options. A program
+  that lists every field or every option of one of them needs the new
+  ones; the Rust notes name them.
+- Notes: [Python](https://github.com/lm15-dev/lm15-python/releases/tag/v2.3.0),
+  [TypeScript](https://github.com/lm15-dev/lm15-ts/releases/tag/v2.3.0),
+  [Rust](https://github.com/lm15-dev/lm15-rs/releases/tag/v2.3.0),
+  [Go](https://github.com/lm15-dev/lm15-go/releases/tag/v2.3.0),
+  [R](https://github.com/lm15-dev/lm15-r/releases/tag/v2.3.0).
+
+### 2.2.0 in every language: Claude shows its thinking when asked — 2026-11-07
+
+Each passes all 2,140 checks of contract `9d8e1ce`.
+
+- **Asking Claude for a reasoning summary returns one.** Since Opus 4.7,
+  Anthropic returns empty thinking unless the request asks to see it; on
+  Opus 4.7, Opus 4.8 and every Claude 5 model, a summary asked through
+  LM15 came back empty. LM15 now sends the setting whenever a summary is
+  asked for. Without a summary nothing changes.
+- Known, not changed: turning reasoning off does not stop Claude 5 from
+  thinking.
+- Notes: [Python](https://github.com/lm15-dev/lm15-python/releases/tag/v2.2.0),
+  [TypeScript](https://github.com/lm15-dev/lm15-ts/releases/tag/v2.2.0),
+  [Rust](https://github.com/lm15-dev/lm15-rs/releases/tag/v2.2.0),
+  [Go](https://github.com/lm15-dev/lm15-go/releases/tag/v2.2.0),
+  [R](https://github.com/lm15-dev/lm15-r/releases/tag/v2.2.0).
+
+### 2.1.0 in every language: streams deliver everything, once — 2026-11-05
+
+Each passes all 2,132 checks of contract `77f22f4`.
+
+- **Parallel tool calls on the ChatGPT (Codex) subscription arrive with
+  their inputs.** That service sends each call's arguments only in the
+  call's final copy; LM15 read only the pieces and returned empty inputs.
+  A stream's final copy now completes what its pieces did not deliver, and
+  a piece that contradicts it is an error.
+- **Gemini's parallel calls stay separate** when Gemini sends them one per
+  chunk (Gemini 2.5 Pro, Gemini 3 Flash).
+- A streamed reasoning summary keeps its line breaks, and an OpenAI stream
+  cut short by the length limit ends cleanly with its token counts.
+- Notes: [Python](https://github.com/lm15-dev/lm15-python/releases/tag/v2.1.0),
+  [TypeScript](https://github.com/lm15-dev/lm15-ts/releases/tag/v2.1.0),
+  [Rust](https://github.com/lm15-dev/lm15-rs/releases/tag/v2.1.0),
+  [Go](https://github.com/lm15-dev/lm15-go/releases/tag/v2.1.0),
+  [R](https://github.com/lm15-dev/lm15-r/releases/tag/v2.1.0).
+
+### Julia is in its package registry — 2026-11-04
+
+`LanguageModel15` 2.0.0 was accepted into Julia's General registry:
+`Pkg.add("LanguageModel15")`. Julia has followed every release since.
 
 ### R 2.0.0 is stable — 2026-11-01
 

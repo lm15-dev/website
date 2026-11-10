@@ -63,7 +63,7 @@ export async function startDemo(options: { envFile?: string; port?: number; host
       const file = realpathSync(resolve(publicDir, '.' + pathname));
       if (!file.startsWith(publicDir + sep) || !statSync(file).isFile()) { res.writeHead(404).end(); return; }
       let body: Buffer | string = readFileSync(file);
-      if (pathname === '/playground/index.html') body = body.toString().replace("connect-src 'self' https:", "connect-src 'self' https: http://localhost:* http://127.0.0.1:*");
+      if (pathname === '/playground/index.html') body = body.toString().replace("connect-src 'self' blob: https:", "connect-src 'self' blob: https: http://localhost:* http://127.0.0.1:*"); // the built page's policy (build-playground.mjs), plus loopback: a local model server, a relay run locally
       res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream' }).end(req.method === 'HEAD' ? undefined : body);
     } catch { res.writeHead(404).end('Not found. Run npm run build first.'); }
   });

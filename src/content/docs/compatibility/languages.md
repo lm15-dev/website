@@ -21,11 +21,11 @@ every example on this site.
 
 | Language | Version | Install | Runs on |
 |---|---|---|---|
-| **Python** | 2.0.0, stable | `pip install lm15` | Python 3.10 or newer; Linux, macOS, Windows |
-| **TypeScript** | 2.0.0, stable | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
-| **Rust** | 2.0.0, stable | `cargo add lm15` | stable Rust; native targets and `wasm32` |
-| **Go** | v2.0.0, stable | `go get github.com/lm15-dev/lm15-go/v2` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
-| **R** | 2.0.0, stable | `remotes::install_github("lm15-dev/lm15-r")` (on its way to CRAN: `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
+| **Python** | 2.3.0, stable | `pip install lm15` | Python 3.10 or newer; Linux, macOS, Windows |
+| **TypeScript** | 2.3.0, stable | `npm install @lm15/lm15` | Node.js 22 or newer; browsers (`@lm15/lm15/browser`) |
+| **Rust** | 2.3.0, stable | `cargo add lm15` | stable Rust; native targets and `wasm32` |
+| **Go** | v2.3.0, stable | `go get github.com/lm15-dev/lm15-go/v2` | Go 1.26.2 or newer; Linux, macOS, Windows, `GOOS=js` |
+| **R** | 2.3.0, stable | `remotes::install_github("lm15-dev/lm15-r")` (on its way to CRAN: `install.packages("lm15")` once it is accepted) | R 4.1 or newer; Linux, macOS, Windows; browsers through webR |
 
 **Stable** means the core won't change in a way that breaks your program
 until the next major version. For all
@@ -48,7 +48,7 @@ and Rust's examples use Tokio to run `async` code.
 Every change to any of the five is graded by the contract's harness, which
 compares the exact requests each language builds and the responses it reads
 with recorded provider traffic. Each passes every check of the contract
-version it pins (on 2026-11-01: 1,968 checks, the same contract version for
+version it pins (on 2026-11-10: 2,266 checks, the same contract version for
 all five). Each language also runs its own tests on Linux,
 macOS and Windows, and every example on this site is run in every
 language and must send the same request as Python does. Before being
@@ -73,7 +73,7 @@ are not available.
 
 | Language | Where it stands | Install |
 |---|---|---|
-| **Julia** | 2.0.0, the package `LanguageModel15`, passes all 1,968 checks of the current contract, like the released languages; it waits for Julia's package registry. Julia 1.10 or newer. | From GitHub: `Pkg.add(url="https://github.com/lm15-dev/LanguageModel15.jl")` |
+| **Julia** | 2.3.0, the package `LanguageModel15`, passes all 2,266 checks of the current contract, like the released languages, and is in Julia's package registry since November 4, 2026. Not yet declared stable. Julia 1.10 or newer. | `Pkg.add("LanguageModel15")` |
 
 ## Early ports
 
