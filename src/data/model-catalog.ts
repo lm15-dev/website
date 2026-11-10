@@ -5,9 +5,10 @@ export const CATALOG_PROVIDERS = {
   openrouter: 'openrouter', deepseek: 'deepseek', zai: 'zai', meta: 'meta', moonshotai: 'moonshotai',
   deepinfra: 'deepinfra', together: 'togetherai', fireworks: 'fireworks-ai',
 } as const;
-/** Offered providers models.dev does not list (checked 2026-10-02): their pickers show the curated models. */
+/** Offered providers whose models are not taken from models.dev: their pickers show the curated models. */
 export const NOT_ON_MODELS_DEV: Readonly<Record<string, string>> = {
-  parasail: 'not a models.dev provider',
+  parasail: 'not a models.dev provider (checked 2026-10-02)',
+  tinker: 'models.dev lists it as thinkingmachines with models an account may not be able to sample (Qwen/Qwen3.6-27B was refused, 2026-11-10)',
 };
 export interface CatalogModel { id: string; releaseDate: string }
 export interface ModelCatalog {

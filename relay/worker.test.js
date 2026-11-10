@@ -125,7 +125,15 @@ test("the deployed allow-list names every relay endpoint the SDK's login profile
     "https://auth.meta.com/oidc/device/authorization/", "https://auth.meta.com/oidc/device/token/", "https://api.meta.ai/muse-code/key",
     "https://chatgpt.com/backend-api/codex/responses", "https://chatgpt.com/backend-api/codex/models", "https://api.kimi.com/coding/v1/messages",
     "https://api.anthropic.com/v1/messages", "https://api.anthropic.com/v1/models",
+    // Providers whose API sends no CORS headers (playground/relay.ts BROWSER_BLOCKED): their calls and model lists.
+    "https://api.typesafe.ai/v1/systemone",
+    "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1/chat/completions", "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1/models",
   ]) assert.equal(upstreamAllowed(new URL(url), listed), true, url);
+  // Only the door the site offers: the rest of Tinker's host stays closed.
+  for (const url of [
+    "https://tinker.thinkingmachines.dev/services/tinker-prod/anthropic/api/v1/messages", "https://tinker.thinkingmachines.dev/api/v1/weights_info",
+    "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1/../../anthropic/api/v1/messages",
+  ]) assert.equal(upstreamAllowed(new URL(url), listed), false, url);
 });
 
 test("an allowed page can read why the relay refused (endpoint, path, unreachable); an unknown origin still gets no CORS", async () => {

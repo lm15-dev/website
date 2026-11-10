@@ -79,7 +79,7 @@ export function relayUrl(): string {
 }
 
 /** Providers whose API refuses browser origins, with the date it was checked. The prompt names the provider; the list only shapes the wording. */
-export const BROWSER_BLOCKED: Readonly<Record<string, string>> = Object.freeze({ typesafe: "2026-09-18" });
+export const BROWSER_BLOCKED: Readonly<Record<string, string>> = Object.freeze({ typesafe: "2026-09-18", tinker: "2026-11-10" });
 
 const STORAGE_KEY = "lm15.playground.relay";
 

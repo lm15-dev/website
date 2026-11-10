@@ -8,6 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import { PROVIDERS, lookup } from "@lm15/lm15/browser";
 import { CONNECTIONS, NOT_OFFERED } from "../src/playground/connections.ts";
 import { CATALOG_PROVIDERS, NOT_ON_MODELS_DEV } from "../src/data/model-catalog.ts";
@@ -36,6 +37,19 @@ test("what a page shows about a provider is the registry's", () => {
     // Offered means a page can hold the credential: a pasted key or none.
     assert.equal(definition.access.credentialPolicy === "key" || definition.access.credentialPolicy === "oauth-unless-explicit", true, `${c.id}: offered but not key-based`);
     assert.equal(definition.access.host, undefined, `${c.id}: a cloud door needs settings a page does not collect`);
+  }
+});
+
+test("a provider the page reaches through the relay is offered, and the deployed relay forwards to its address", async () => {
+  const { BROWSER_BLOCKED, relayBaseUrl } = await import("../src/playground/relay.ts");
+  const { upstreamAllowed, upstreamUrl } = await import("../relay/worker.js");
+  const toml = readFileSync(new URL("../relay/wrangler.toml", import.meta.url), "utf8");
+  const listed = new Set(/ALLOWED_UPSTREAMS = "([^"]+)"/.exec(toml)![1]!.split(","));
+  for (const id of Object.keys(BROWSER_BLOCKED)) {
+    assert.ok(offered.includes(id), `${id}: named as browser-blocked but not offered`);
+    // The address the page calls under the relay (the SDK's own base URL, any path under it).
+    const target = upstreamUrl(`${relayBaseUrl(id, "https://relay.example")}/models`);
+    assert.ok(target && upstreamAllowed(target, listed), `${id}: relay/wrangler.toml does not forward to ${target}`);
   }
 });
 

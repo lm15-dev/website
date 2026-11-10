@@ -46,6 +46,8 @@ const OFFERED: readonly Presentation[] = [
   { id: "together", label: "Together AI", model: "meta-llama/Llama-3.3-70B-Instruct-Turbo" },
   { id: "fireworks", label: "Fireworks AI", model: "accounts/fireworks/models/deepseek-v4p1-flash" },
   { id: "parasail", label: "Parasail", model: "meta-llama/Llama-3.3-70B-Instruct" },
+  // Tinker's API sends no CORS headers (checked 2026-11-10): a page reaches it through the relay, after asking (relay.ts).
+  { id: "tinker", label: "Tinker (Thinking Machines)", model: "Qwen/Qwen3.5-4B" },
   // Judgments only (MAP-14): no chat, no stream. The playground turns judgments on for it; the docs' first chat request leaves it out.
   { id: "typesafe", label: "TypeSafe (Jev)", model: "jev-latest" },
   { id: "ollama", label: "Ollama (local)", model: "qwen3.5:0.8b" },
@@ -61,6 +63,7 @@ export const NOT_OFFERED: Readonly<Record<string, string>> = Object.freeze({
   "moonshotai-anthropic": "Moonshot's Anthropic Messages wire; the site offers moonshotai",
   "meta-chat": "Meta's Chat Completions wire; the site offers meta",
   "meta-anthropic": "Meta's Anthropic Messages wire; the site offers meta",
+  "tinker-anthropic": "Tinker's Anthropic Messages wire; the site offers tinker",
   azure: "a cloud door: an Azure resource and identity, not a pasted key",
   "azure-chat": "a cloud door: an Azure resource and identity, not a pasted key",
   "azure-anthropic": "a cloud door: a Foundry resource and identity, not a pasted key",

@@ -12,7 +12,7 @@ LM15 it has two providers, one key:
 | Providers | `tinker` (Chat Completions; also spelled `thinkingmachines`) and `tinker-anthropic` (Anthropic Messages) |
 | Key | `TINKER_API_KEY`, from [tinker.thinkingmachines.ai/keys](https://tinker.thinkingmachines.ai/keys) |
 | Model names | a base model, `tinker:Qwen/Qwen3.5-4B` or `tinker:thinkingmachines/Inkling`; a checkpoint you trained, by its path: `tinker://<run>:train:0/sampler_weights/<name>` |
-| Needs | the LM15 release after 2.2.0, in any language |
+| Needs | LM15 2.3.0 or later, in any language |
 
 Use `tinker` unless you have a reason not to: it lists your checkpoints, it
 can switch thinking off on every family that has an off switch, and it
@@ -53,3 +53,7 @@ beta. Measured against Tinker on November 9, 2026:
   refuses), and it has no model list.
 - **A model or checkpoint that doesn't exist** raises
   `UnsupportedModelError`, as on every provider, with Tinker's own message.
+- **A web page can't call Tinker directly**: its API doesn't answer browsers
+  (checked November 10, 2026). The [playground](/playground/) asks before
+  sending a Tinker request through its relay; your key and prompt then pass
+  through that relay, which keeps no log.

@@ -4,7 +4,10 @@ A Cloudflare Worker (`worker.js`, ~90 lines) that forwards a browser's
 request to a provider API that refuses browser origins, and adds the
 CORS headers that API withholds. Today that is TypeSafe (`api.typesafe.ai`
 answers `Disallowed CORS origin` to `https://lm15.dev`, checked
-2026-09-17 and 2026-09-18).
+2026-09-17 and 2026-09-18) and Tinker's chat door
+(`tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1/`: a preflight
+is a 405 and no reply carries CORS headers, checked 2026-11-10), besides the
+sign-in endpoints listed in `wrangler.toml`.
 
 ## What it is, honestly
 
